@@ -1,17 +1,34 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterOutlet } from '@angular/router';
 import { LucideArrowLeftRight, LucideCircleUser, LucideLogOut } from '@lucide/angular';
-import { SdBadge, SdButton, SdPopover, SdPopoverTrigger, SdTopbar } from '@specora-dev/ui-kit';
+import {
+  SdBadge,
+  SdButton,
+  SdPopover,
+  SdPopoverTrigger,
+  SdSidenav,
+  SdTopbar,
+} from '@specora-dev/ui-kit';
 import type { RoleKey } from '../api';
 import { AuthService, LOGIN_PATH, ROLE_LABELS } from '../auth';
+import { NAV_ITEMS, navItemsFor } from '../navigation';
 
 /**
- * Signed-in layout: the top bar with the user menu, and the area where routed pages render.
- * Role-based navigation is added in SPE-11.
+ * Signed-in layout: the top bar with the user menu, the side navigation for the user's role, and
+ * the area where routed pages render. The navigation entries come from `app.navigation.ts`.
  */
 @Component({
   selector: 'app-shell',
-  imports: [RouterLink, RouterOutlet, SdBadge, SdButton, SdPopover, SdPopoverTrigger, SdTopbar],
+  imports: [
+    RouterLink,
+    RouterOutlet,
+    SdBadge,
+    SdButton,
+    SdPopover,
+    SdPopoverTrigger,
+    SdSidenav,
+    SdTopbar,
+  ],
   templateUrl: './shell.html',
   styleUrl: './shell.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,7 +43,11 @@ export class Shell {
     signOut: LucideLogOut,
   };
 
+  private readonly allNavItems = inject(NAV_ITEMS);
+
   protected readonly user = this.auth.user;
+  /** The side navigation entries for the signed-in user's role. */
+  protected readonly navItems = computed(() => navItemsFor(this.allNavItems, this.auth.role()));
   protected readonly fullName = computed(() => {
     const user = this.user();
     return user ? `${user.firstName} ${user.lastName}` : '';

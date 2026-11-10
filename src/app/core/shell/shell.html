@@ -48,6 +48,12 @@
   }
 </sd-topbar>
 
-<main class="content">
-  <router-outlet />
-</main>
+<div class="body">
+  @if (navItems().length > 0) {
+    <sd-sidenav class="nav" [items]="navItems()" />
+  }
+
+  <main class="content">
+    <router-outlet />
+  </main>
+</div>

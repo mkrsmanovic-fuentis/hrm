@@ -1,6 +1,7 @@
 import { setupWorker } from 'msw/browser';
 import { environment } from '../environments/environment';
 import { MockDb } from './db/mock-db';
+import { IndexedDbMockStore } from './db/mock-store';
 import type { MockData } from './db/mock-data';
 import { createHandlers } from './handlers';
 import { buildSeed, SEED_VERSION } from './seed/seed';
@@ -27,13 +28,20 @@ declare global {
 export async function startMockApi(): Promise<void> {
   const db = new MockDb({
     seed: () => buildSeed(),
-    storage: storageOrNull(() => window.localStorage),
+    store: typeof indexedDB === 'undefined' ? null : new IndexedDbMockStore(indexedDB),
     version: SEED_VERSION,
   });
+  const exclusive = crossTabLock();
+  const withLock = (run: () => Promise<void>) => (exclusive ? exclusive(run) : run());
+  // Remove mock data saved before it moved to IndexedDB.
+  storageOrNull(() => window.localStorage)?.removeItem('hrm.mockApi.db');
 
   const url = new URL(window.location.href);
   if (url.searchParams.has(FLAG_PARAMS.reset)) {
-    db.reset();
+    await withLock(async () => {
+      db.reset();
+      await db.flush();
+    });
     // Drop the parameter, so a reload keeps the data you create next.
     url.searchParams.delete(FLAG_PARAMS.reset);
     window.history.replaceState(window.history.state, '', url);
@@ -51,14 +59,17 @@ export async function startMockApi(): Promise<void> {
       flags: () => flags,
       latency: 'real',
       now: () => new Date(),
+      exclusive,
     }),
   );
   await worker.start({ onUnhandledFrame: 'bypass', quiet: true });
 
   window.hrmMockApi = {
     reset: () => {
-      db.reset();
-      window.location.reload();
+      void withLock(async () => {
+        db.reset();
+        await db.flush();
+      }).then(() => window.location.reload());
     },
     data: () => db.data,
     flags,
@@ -70,6 +81,17 @@ export async function startMockApi(): Promise<void> {
       (simulating ? ` Simulating: ${simulating}` : '') +
       ' Run hrmMockApi.reset() to restore the seed data.',
   );
+}
+
+/**
+ * Tabs of the app share the mock data like one backend. A Web Lock runs one request at a time
+ * across all of them, from loading the latest data to saving the changes, so no tab's write is
+ * lost. Browsers without Web Locks run requests without it.
+ */
+function crossTabLock(): (<T>(run: () => Promise<T>) => Promise<T>) | undefined {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  if (!locks) return undefined;
+  return (run) => locks.request('hrm.mockApi.db', run);
 }
 
 function storageOrNull(get: () => Storage): Storage | null {

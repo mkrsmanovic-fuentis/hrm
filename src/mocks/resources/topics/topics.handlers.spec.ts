@@ -79,6 +79,53 @@ describe('topics mock handlers', () => {
     expect(error.problem.type).toBe(ProblemType.notFound);
   });
 
+  describe('as an employee', () => {
+    function deactivateFirstTopic(mock: ReturnType<typeof setup>['mock']) {
+      return mock.db.update((data) => {
+        data.topics[0].status = 'inactive';
+        return data.topics[0];
+      });
+    }
+
+    it('lists only active topics, even when asking for inactive ones', async () => {
+      const { api, mock } = setup({ signedInAs: 'employee' });
+      const inactive = deactivateFirstTopic(mock);
+
+      const all = await firstValueFrom(api.get('/topics'));
+      const onlyInactive = await firstValueFrom(
+        api.get('/topics', { query: { status: 'inactive' } }),
+      );
+
+      expect(all.page.totalItems).toBe(6);
+      expect(all.items.map((topic) => topic.id)).not.toContain(inactive.id);
+      expect(onlyInactive.items).toEqual([]);
+    });
+
+    it('answers 404 for an inactive topic, and returns an active one', async () => {
+      const { api, mock } = setup({ signedInAs: 'employee' });
+      const inactive = deactivateFirstTopic(mock);
+      const active = mock.db.data.topics[1];
+
+      const error = await failure(
+        firstValueFrom(api.get('/topics/{topicId}', { path: { topicId: inactive.id } })),
+      );
+      expect(error.isNotFound).toBe(true);
+
+      await expect(
+        firstValueFrom(api.get('/topics/{topicId}', { path: { topicId: active.id } })),
+      ).resolves.toEqual(active);
+    });
+
+    it('administrators still see inactive topics', async () => {
+      const { api, mock } = setup({ signedInAs: 'administrator' });
+      const inactive = deactivateFirstTopic(mock);
+
+      await expect(
+        firstValueFrom(api.get('/topics/{topicId}', { path: { topicId: inactive.id } })),
+      ).resolves.toMatchObject({ id: inactive.id, status: 'inactive' });
+    });
+  });
+
   it('simulates access denied with the mock-error flag', async () => {
     const { api } = setup({ flags: { errorStatus: 403 } });
 

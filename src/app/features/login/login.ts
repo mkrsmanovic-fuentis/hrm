@@ -87,7 +87,7 @@ export class Login {
     try {
       await signIn();
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-      await this.router.navigateByUrl(safeReturnUrl(returnUrl));
+      await this.router.navigateByUrl(safeReturnUrl(returnUrl, this.auth.role()));
     } catch (error) {
       this.error.set(describe(error));
     } finally {

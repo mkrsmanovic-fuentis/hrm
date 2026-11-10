@@ -1,9 +1,13 @@
 import { inject } from '@angular/core';
-import { Router, type CanActivateFn, type Params } from '@angular/router';
+import {
+  RedirectCommand,
+  Router,
+  type CanActivateFn,
+  type RedirectFunction,
+} from '@angular/router';
+import type { RoleKey } from '../api';
+import { homeUrl, LOGIN_PATH, NO_ACCESS_PATH, returnUrlParams } from './auth-paths';
 import { AuthService } from './auth.service';
-
-/** Path of the login page, without a leading slash. */
-export const LOGIN_PATH = 'login';
 
 /**
  * Only lets signed-in users through. Signed-out users, and users whose session has expired, go to
@@ -17,23 +21,38 @@ export const signedInGuard: CanActivateFn = (_route, state) => {
   });
 };
 
-/** Keeps signed-in users off the login page: they go to the home page instead. */
+/** Keeps signed-in users off the login page: they go to their home page instead. */
 export const signedOutGuard: CanActivateFn = () => {
   if (!inject(AuthService).hasValidSession()) return true;
   return inject(Router).createUrlTree(['/']);
 };
 
-/** `returnUrl` for the login page, left out for the home page. */
-export function returnUrlParams(url: string): Params {
-  return url && url !== '/' ? { returnUrl: url } : {};
+/**
+ * Only lets users with this role through. Anyone else sees the "no access" page, and the address
+ * bar keeps the URL they opened. Signed-out users go to the login page.
+ *
+ * Put it on a role's area as `canActivate` and `canActivateChild`, so it covers every page in the
+ * area. Pages added to the area need no guard of their own.
+ *
+ * @example
+ * { path: 'admin', canActivate: [roleGuard('administrator')], canActivateChild: [roleGuard('administrator')], children: [...] }
+ */
+export function roleGuard(role: RoleKey): CanActivateFn {
+  return (_route, state) => {
+    const auth = inject(AuthService);
+    const router = inject(Router);
+    if (!auth.hasValidSession()) {
+      return router.createUrlTree([`/${LOGIN_PATH}`], { queryParams: returnUrlParams(state.url) });
+    }
+    if (auth.role() === role) return true;
+    // Show the no-access page, while the address bar shows the URL the user opened.
+    return new RedirectCommand(router.parseUrl(`/${NO_ACCESS_PATH}`), { browserUrl: state.url });
+  };
 }
 
-/**
- * Where to go after signing in: the `returnUrl` when it is a path inside the app, otherwise the
- * home page. Other origins are ignored, so a link cannot send users off the site.
- */
-export function safeReturnUrl(returnUrl: string | null | undefined): string {
-  if (!returnUrl || !returnUrl.startsWith('/') || returnUrl.startsWith('//')) return '/';
-  if (returnUrl.startsWith(`/${LOGIN_PATH}`)) return '/';
-  return returnUrl;
-}
+/** Redirect for `/`: the signed-in user's home page, or the login page when signed out. */
+export const roleHomeRedirect: RedirectFunction = () => {
+  const auth = inject(AuthService);
+  const role = auth.hasValidSession() ? auth.role() : null;
+  return role ? homeUrl(role) : `/${LOGIN_PATH}`;
+};

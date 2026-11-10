@@ -119,7 +119,10 @@ paths:
       operationId: getCurrentOrganization
       tags: [Organization]
       summary: Get the current organization
-      description: Returns the organization the signed-in user belongs to. Available to every signed-in user.
+      description: |
+        Returns the organization the signed-in user belongs to.
+
+        **Access:** administrators and employees.
       x-mint: *spec-status
       responses:
         '200':
@@ -140,7 +143,10 @@ paths:
       operationId: listTopics
       tags: [Topics]
       summary: List topics
-      description: Returns the organization's topics, one page at a time.
+      description: |
+        Returns the organization's topics, one page at a time.
+
+        **Access:** administrators and employees. Administrators get every topic. Employees get only active topics, so `status=inactive` returns an empty list for them.
       x-mint: *spec-status
       parameters:
         - $ref: '#/components/parameters/Page'
@@ -178,7 +184,10 @@ paths:
       operationId: getTopic
       tags: [Topics]
       summary: Get a topic
-      description: Returns one topic of the current organization.
+      description: |
+        Returns one topic of the current organization.
+
+        **Access:** administrators and employees. An inactive topic answers `404` to employees, as if it did not exist.
       x-mint: *spec-status
       parameters:
         - name: topicId
@@ -277,7 +286,7 @@ components:
             status: 401
             detail: Sign in to continue.
     Forbidden:
-      description: The user is signed in but not allowed to do this, for example an employee calling an administrator endpoint.
+      description: The user is signed in, but their role is not allowed to do this, for example an employee calling an administrator endpoint. See the access rules in the business rules.
       content:
         application/problem+json:
           schema:

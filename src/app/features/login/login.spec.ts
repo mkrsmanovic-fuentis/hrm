@@ -102,6 +102,17 @@ describe('Login page', () => {
     expect(router.url).toBe('/topics');
   });
 
+  it("opens the user's own home instead of a page in another role's area", async () => {
+    const { fill, submit, auth, router } = await render('/login?returnUrl=%2Fadmin%2Fhome');
+
+    fill('amelia.hughes@brightwater.example', 'demo-2026');
+    await submit();
+
+    expect(auth.role()).toBe('employee');
+    // `/` redirects to the employee's home in the app's routes.
+    expect(router.url).toBe('/');
+  });
+
   it('shows an error for a wrong password and stays on the login page', async () => {
     const { element, fill, submit, auth, router } = await render();
 

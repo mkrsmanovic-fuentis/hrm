@@ -1,7 +1,23 @@
 import { Routes } from '@angular/router';
-import { LOGIN_PATH, signedInGuard, signedOutGuard } from './core/auth';
+import {
+  LOGIN_PATH,
+  NO_ACCESS_PATH,
+  ROLE_AREAS,
+  roleGuard,
+  roleHomeRedirect,
+  signedInGuard,
+  signedOutGuard,
+} from './core/auth';
 import { Shell } from './core/shell/shell';
 
+/*
+ * Pages behind sign-in live in one of two areas:
+ * - /admin: administrator pages. roleGuard('administrator') covers every child.
+ * - /my: employee pages. roleGuard('employee') covers every child.
+ *
+ * To add a page, add a child route to its area and, if it belongs in the side navigation, one
+ * entry in app.navigation.ts. See docs/developer-guide/access-control.mdx.
+ */
 export const routes: Routes = [
   {
     path: LOGIN_PATH,
@@ -16,11 +32,38 @@ export const routes: Routes = [
     canActivate: [signedInGuard],
     canActivateChild: [signedInGuard],
     children: [
+      // `/` opens the signed-in user's home page.
+      { path: '', pathMatch: 'full', redirectTo: roleHomeRedirect },
       {
-        path: '',
-        pathMatch: 'full',
-        title: 'HRM Platform',
-        loadComponent: () => import('./features/home/home').then((m) => m.Home),
+        path: NO_ACCESS_PATH,
+        title: 'No access · HRM Platform',
+        loadComponent: () => import('./core/access/no-access').then((m) => m.NoAccess),
+      },
+      {
+        path: ROLE_AREAS.administrator,
+        canActivate: [roleGuard('administrator')],
+        canActivateChild: [roleGuard('administrator')],
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'home' },
+          {
+            path: 'home',
+            title: 'Home · HRM Platform',
+            loadComponent: () => import('./features/home/home').then((m) => m.Home),
+          },
+        ],
+      },
+      {
+        path: ROLE_AREAS.employee,
+        canActivate: [roleGuard('employee')],
+        canActivateChild: [roleGuard('employee')],
+        children: [
+          { path: '', pathMatch: 'full', redirectTo: 'home' },
+          {
+            path: 'home',
+            title: 'Home · HRM Platform',
+            loadComponent: () => import('./features/home/home').then((m) => m.Home),
+          },
+        ],
       },
     ],
   },

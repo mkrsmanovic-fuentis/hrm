@@ -48,7 +48,8 @@
             "group": "Frontend",
             "pages": [
               "developer-guide/mock-api",
-              "developer-guide/authentication"
+              "developer-guide/authentication",
+              "developer-guide/access-control"
             ]
           },
           {

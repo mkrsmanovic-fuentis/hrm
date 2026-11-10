@@ -73,6 +73,15 @@ The current session is a resource that exists once per user, so its URL is singu
 
 See [Business rules](/developer-guide/business-rules#sign-in-and-sessions) for the sign-in rules and [Authentication](/developer-guide/authentication) for how the frontend uses them.
 
+### Authorization
+
+Each endpoint lists which roles may call it under **Access**. The [access matrix](/developer-guide/business-rules#access-by-role) is the full list.
+
+- An endpoint that a role may not call answers `403` with type `/problems/forbidden`, before validating the request. For example an employee calling an administrator endpoint.
+- Employees get only their own records. Lists leave out other users' records, and a record of another user answers `404`, like one that does not exist.
+- Content an employee may not see, such as an inactive topic, is left out of lists and answers `404`.
+- A `403` does not end the session. Only `401` asks the user to sign in again.
+
 ### Lists and pagination
 
 List endpoints return one page at a time.
