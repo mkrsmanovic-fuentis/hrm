@@ -41,6 +41,8 @@ tags:
     description: The organization the signed-in user belongs to.
   - name: Departments
     description: Groups of employees, such as Engineering or Finance. Administrators manage them.
+  - name: Users
+    description: Administrator and employee accounts. Administrators manage them on the Employees page.
   - name: Topics
     description: Cybersecurity training subjects, such as Phishing Awareness. Both roles read them; administrators manage them.
 
@@ -289,6 +291,207 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      summary: List users
+      description: |
+        Returns the organization's users, administrators and employees, one page at a time, each with their training counts.
+
+        **Access:** administrators only. Employees get `403`.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          description: Only return users with this status. Omit to return all users, active and inactive.
+          schema:
+            $ref: '#/components/schemas/ActivityStatus'
+        - name: role
+          in: query
+          description: Only return users with this role.
+          schema:
+            $ref: '#/components/schemas/RoleKey'
+        - name: departmentId
+          in: query
+          description: Only return users in this department, active or inactive.
+          schema:
+            $ref: '#/components/schemas/Id'
+        - name: q
+          in: query
+          description: Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored, and a typographic apostrophe (’) matches a plain one ('), so "o'neill" finds "O’Neill".
+          schema:
+            type: string
+            maxLength: 254
+        - name: sort
+          in: query
+          description: Sort order. Prefix a field with `-` for descending order. `name` sorts by the full name, first name first.
+          schema:
+            type: string
+            enum:
+              [
+                name,
+                -name,
+                email,
+                -email,
+                assignedTrainingCount,
+                -assignedTrainingCount,
+                completedTrainingCount,
+                -completedTrainingCount,
+                createdAt,
+                -createdAt,
+              ]
+            default: name
+      responses:
+        '200':
+          description: One page of users.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createUser
+      tags: [Users]
+      summary: Create a user
+      description: |
+        Creates an active user and sends them an invite link to set a password. `invitationSentAt` is now, `invitationExpiresAt` is 7 days later, and `passwordSetAt` stays `null` until the user sets a password.
+
+        The email must be unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Only an active department can be chosen.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+      x-mint: *spec-status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201':
+          description: Created. The new user, with the invite fields set.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/NotUnique'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [Users]
+      summary: Get a user
+      description: |
+        Returns one user of the current organization, with their training counts.
+
+        **Access:** administrators only. Employees get `403`.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: The user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateUser
+      tags: [Users]
+      summary: Update a user
+      description: |
+        Changes the fields sent and leaves the others as they are. Send `status` to deactivate (`inactive`) or reactivate (`active`) the user; there are no separate endpoints for that.
+
+        - **Deactivating** ends the user's sessions at once: their next request gets `401`, and they cannot sign in. Their training results are kept. Their open assignments stay unchanged, but are left out of pending and overdue counts.
+        - **Reactivating** lets the user sign in again, and their open assignments count as pending and overdue again.
+        - **Department:** only an active department can be chosen. A user already in a department that was deactivated later keeps it, so sending their current `departmentId` again is accepted.
+        - **Own account:** administrators cannot deactivate themselves or change their own role. Both answer `409`.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: The updated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: |
+            The email is already used by another user: `errors` names `email` with code `not_unique`. Or an administrator tried to deactivate themselves or change their own role: no `errors`.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ConflictProblem'
+              examples:
+                emailInUse:
+                  summary: Email already in use
+                  value:
+                    type: /problems/conflict
+                    title: Conflict
+                    status: 409
+                    detail: A user with the email oliver.grant@brightwater.example already exists.
+                    errors:
+                      - location: body
+                        field: email
+                        code: not_unique
+                        message: A user with this email already exists.
+                ownAccount:
+                  summary: Deactivating your own account
+                  value:
+                    type: /problems/conflict
+                    title: Conflict
+                    status: 409
+                    detail: You cannot deactivate your own account.
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /topics:
     get:
       operationId: listTopics
@@ -470,6 +673,13 @@ components:
       in: path
       required: true
       description: ID of the department.
+      schema:
+        $ref: '#/components/schemas/Id'
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: ID of the user.
       schema:
         $ref: '#/components/schemas/Id'
     TopicId:
@@ -829,6 +1039,8 @@ components:
           invitationExpiresAt,
           passwordSetAt,
           lastSignedInAt,
+          assignedTrainingCount,
+          completedTrainingCount,
           createdAt,
           updatedAt,
         ]
@@ -859,7 +1071,7 @@ components:
             - type: 'null'
         status:
           $ref: '#/components/schemas/ActivityStatus'
-          description: Inactive users cannot sign in. Their open assignments stay but are left out of pending and overdue counts.
+          description: Inactive users cannot sign in, and deactivating a user ends their sessions at once. Their open assignments stay but are left out of pending and overdue counts.
         invitationSentAt:
           description: When the latest invite link was sent. Null once the password is set.
           oneOf:
@@ -879,10 +1091,92 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+        assignedTrainingCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Derived. Every assignment the user has received, in any status, passed ones included. Open assignments of a deactivated user still count. Never sent in requests.
+        completedTrainingCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Derived. The user's assignments with the status `passed`, including ones passed after the deadline. Never sent in requests.
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    UserPage:
+      type: object
+      description: One page of users.
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    UserCreate:
+      type: object
+      description: A new user. They start active, with an invite link to set a password. Spaces around text fields are removed. Unknown fields are rejected.
+      required: [email, firstName, lastName, role]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          description: Unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it.
+          examples: [hana.sato@brightwater.example]
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        role:
+          $ref: '#/components/schemas/RoleKey'
+        departmentId:
+          description: An active department, or `null` for no department. Left out means no department.
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+
+    UserUpdate:
+      type: object
+      description: The fields to change. Fields left out stay as they are. Spaces around text fields are removed. Unknown fields are rejected.
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          description: Unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it.
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        role:
+          $ref: '#/components/schemas/RoleKey'
+          description: Administrators cannot change their own role.
+        departmentId:
+          description: An active department, or `null` for no department. The user's current department is also accepted when it is inactive.
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+          description: '`inactive` deactivates the user and ends their sessions, `active` reactivates them. Administrators cannot deactivate themselves.'
 
     Department:
       type: object

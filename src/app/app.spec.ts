@@ -103,6 +103,7 @@ describe('App', () => {
       'administrator',
       [
         ['Home', '/admin/home'],
+        ['Employees', '/admin/employees'],
         ['Departments', '/admin/departments'],
         ['Topics', '/admin/topics'],
       ],

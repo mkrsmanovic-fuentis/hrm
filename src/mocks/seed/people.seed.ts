@@ -110,7 +110,8 @@ export const userSeeds: UserSeed[] = [
   employee('Olivia', 'Bennett', 'Operations'),
   employee('Arjun', 'Mehta', 'Operations'),
   employee('Elif', 'Yılmaz', 'Operations'),
-  employee('Patrick', 'O’Neill', 'Operations'),
+  // Still in Facilities, which was deactivated after it merged into Operations.
+  employee('Patrick', 'O’Neill', 'Facilities'),
   employee('Ana', 'Kovač', 'Operations', 'inactive'),
   employee('Charlotte', 'Dubois', 'Marketing'),
   employee('Leo', 'Novak', 'Marketing'),

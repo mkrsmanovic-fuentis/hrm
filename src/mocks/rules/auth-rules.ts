@@ -11,7 +11,7 @@ export const SESSION_LIFETIME_MS = 8 * 60 * 60 * 1000;
  * Whether the user has a password to sign in with. Users whose invite is still pending (or has
  * expired) have not set one yet.
  */
-export function hasPassword(user: User): boolean {
+export function hasPassword(user: Pick<User, 'passwordSetAt'>): boolean {
   return user.passwordSetAt !== null;
 }
 

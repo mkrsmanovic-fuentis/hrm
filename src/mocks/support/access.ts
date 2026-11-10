@@ -1,10 +1,11 @@
-import type { RoleKey, User } from '../../app/core/api/api-schema.gen';
+import type { RoleKey } from '../../app/core/api/api-schema.gen';
+import type { UserRecord } from '../db/mock-data';
 import { canReadOwnedRecord, hasRole } from '../rules/access-rules';
 import { MockProblem } from './problem';
 
 /** The part of a handler's context the access helpers read. */
 interface AccessContext {
-  currentUser: User | null;
+  currentUser: UserRecord | null;
 }
 
 /**
@@ -18,7 +19,7 @@ interface AccessContext {
  *   // ... validate, then db.update() and recordAudit() with actorId: admin.id
  * }),
  */
-export function requireRole(ctx: AccessContext, ...roles: [RoleKey, ...RoleKey[]]): User {
+export function requireRole(ctx: AccessContext, ...roles: [RoleKey, ...RoleKey[]]): UserRecord {
   const user = signedInUser(ctx);
   if (!hasRole(user, roles)) {
     throw new MockProblem(403, 'You do not have permission to do this.');
@@ -72,7 +73,7 @@ export function requireOwnRecord<T>(
  * The signed-in user. Every route that is not public has one; on a public route this answers
  * `401`.
  */
-export function signedInUser(ctx: AccessContext): User {
+export function signedInUser(ctx: AccessContext): UserRecord {
   if (!ctx.currentUser) throw new MockProblem(401);
   return ctx.currentUser;
 }
