@@ -50,6 +50,12 @@ export const routes: Routes = [
             title: 'Home · HRM Platform',
             loadComponent: () => import('./features/home/home').then((m) => m.Home),
           },
+          {
+            path: 'departments',
+            title: 'Departments · HRM Platform',
+            loadComponent: () =>
+              import('./features/departments/department-list').then((m) => m.DepartmentList),
+          },
         ],
       },
       {

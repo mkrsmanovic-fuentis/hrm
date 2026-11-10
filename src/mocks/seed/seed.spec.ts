@@ -1,4 +1,5 @@
 import type { AssignmentStatus } from '../../app/core/api/api-schema.gen';
+import { DERIVED_FIELDS } from '../db/mock-data';
 import { toAssignment } from '../rules/training-rules';
 import { TEST_NOW } from '../testing';
 import { buildSeed } from './seed';
@@ -123,6 +124,9 @@ describe('seed data', () => {
       expect(admins.has(entry.actorId)).toBe(true);
       const fields = entry.changes.map((change) => change.field);
       expect(fields.filter((field) => bookkeeping.includes(field))).toEqual([]);
+      const derived: readonly string[] = DERIVED_FIELDS[entry.entityType];
+      expect(fields.filter((field) => derived.includes(field))).toEqual([]);
+      if (entry.action === 'updated') expect(fields).not.toContain('status');
       if (entry.action === 'created' || entry.action === 'updated') {
         expect(entry.changes.length).toBeGreaterThan(0);
       } else {

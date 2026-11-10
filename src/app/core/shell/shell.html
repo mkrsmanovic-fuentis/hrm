@@ -57,3 +57,11 @@
     <router-outlet />
   </main>
 </div>
+
+<sd-toast-stack>
+  @for (toast of toasts(); track toast.id) {
+    <sd-toast [tone]="toast.tone" [heading]="toast.heading" (dismissed)="dismissToast(toast.id)">
+      {{ toast.message }}
+    </sd-toast>
+  }
+</sd-toast-stack>

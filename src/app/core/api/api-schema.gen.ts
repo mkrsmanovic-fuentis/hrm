@@ -60,6 +60,64 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/departments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List departments
+         * @description Returns the organization's departments, one page at a time, each with its `employeeCount`.
+         *
+         *     **Access:** administrators only. Employees get `403`.
+         */
+        get: operations["listDepartments"];
+        put?: never;
+        /**
+         * Create a department
+         * @description Creates an active department. The name must be unique within the organization, among active and inactive departments.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+         */
+        post: operations["createDepartment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/departments/{departmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a department
+         * @description Returns one department of the current organization, with its `employeeCount`.
+         *
+         *     **Access:** administrators only. Employees get `403`.
+         */
+        get: operations["getDepartment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a department
+         * @description Changes the fields sent and leaves the others as they are. Send `status` to deactivate (`inactive`) or reactivate (`active`) the department; there are no separate endpoints for that.
+         *
+         *     Deactivating keeps the department's history, and its employees keep their department.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+         */
+        patch: operations["updateDepartment"];
+        trace?: never;
+    };
     "/topics": {
         parameters: {
             query?: never;
@@ -169,6 +227,10 @@ export interface components {
         ValidationProblem: components["schemas"]["Problem"] & {
             errors: components["schemas"]["FieldError"][];
         };
+        /** @description A `409` problem. When the conflict is about a field, such as a duplicate name, `errors` names it. */
+        ConflictProblem: components["schemas"]["Problem"] & {
+            errors?: components["schemas"]["FieldError"][];
+        };
         /** @description One invalid field in a request. */
         FieldError: {
             /**
@@ -261,12 +323,37 @@ export interface components {
         Department: {
             id: components["schemas"]["Id"];
             organizationId: components["schemas"]["Id"];
-            /** @description Unique within the organization. */
+            /** @description Unique within the organization, ignoring upper and lower case. */
             name: string;
             description: string | null;
+            /** @description Inactive departments keep their history, and their employees keep their department. */
             status: components["schemas"]["ActivityStatus"];
+            /** @description Derived. The number of active users whose `departmentId` is this department. Never sent in requests. */
+            readonly employeeCount: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
+        };
+        /** @description One page of departments. */
+        DepartmentPage: {
+            items: components["schemas"]["Department"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** @description A new department. It starts active. Spaces around the name and description are removed, and an empty description is stored as `null`. Unknown fields are rejected. */
+        DepartmentCreate: {
+            /**
+             * @description Unique within the organization, ignoring upper and lower case.
+             * @example Finance
+             */
+            name: string;
+            description?: string | null;
+        };
+        /** @description The fields to change. Fields left out stay as they are. Spaces around the name and description are removed, and an empty description is stored as `null`. Unknown fields are rejected. */
+        DepartmentUpdate: {
+            /** @description Unique within the organization, ignoring upper and lower case. */
+            name?: string;
+            description?: string | null;
+            /** @description `inactive` deactivates the department, `active` reactivates it. */
+            status?: components["schemas"]["ActivityStatus"];
         };
         /** @description A cybersecurity training subject, such as Phishing Awareness. A topic contains questionnaires. */
         Topic: {
@@ -604,6 +691,31 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description A field that must be unique has a value another record already uses, for example a department name. `errors` names the field, with code `not_unique`, so a form can show the message next to it. */
+        NotUnique: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/conflict",
+                 *       "title": "Conflict",
+                 *       "status": 409,
+                 *       "detail": "A department named Finance already exists.",
+                 *       "errors": [
+                 *         {
+                 *           "location": "body",
+                 *           "field": "name",
+                 *           "code": "not_unique",
+                 *           "message": "A department with this name already exists."
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["ConflictProblem"];
+            };
+        };
         /** @description One or more request fields are invalid. Each problem is listed in `errors`. */
         ValidationFailed: {
             headers: {
@@ -652,6 +764,8 @@ export interface components {
         Page: number;
         /** @description Number of items per page. */
         PageSize: number;
+        /** @description ID of the department. */
+        DepartmentId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: never;
@@ -665,6 +779,7 @@ export type Score = components['schemas']['Score'];
 export type PageInfo = components['schemas']['PageInfo'];
 export type Problem = components['schemas']['Problem'];
 export type ValidationProblem = components['schemas']['ValidationProblem'];
+export type ConflictProblem = components['schemas']['ConflictProblem'];
 export type FieldError = components['schemas']['FieldError'];
 export type SignInRequest = components['schemas']['SignInRequest'];
 export type Session = components['schemas']['Session'];
@@ -673,6 +788,9 @@ export type RoleKey = components['schemas']['RoleKey'];
 export type Role = components['schemas']['Role'];
 export type User = components['schemas']['User'];
 export type Department = components['schemas']['Department'];
+export type DepartmentPage = components['schemas']['DepartmentPage'];
+export type DepartmentCreate = components['schemas']['DepartmentCreate'];
+export type DepartmentUpdate = components['schemas']['DepartmentUpdate'];
 export type Topic = components['schemas']['Topic'];
 export type TopicPage = components['schemas']['TopicPage'];
 export type Questionnaire = components['schemas']['Questionnaire'];
@@ -698,10 +816,12 @@ export type ResponseUnauthenticated = components['responses']['Unauthenticated']
 export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
 export type ResponseConflict = components['responses']['Conflict'];
+export type ResponseNotUnique = components['responses']['NotUnique'];
 export type ResponseValidationFailed = components['responses']['ValidationFailed'];
 export type ResponseInternalError = components['responses']['InternalError'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterPageSize = components['parameters']['PageSize'];
+export type ParameterDepartmentId = components['parameters']['DepartmentId'];
 export type $defs = Record<string, never>;
 export interface operations {
     getCurrentSession: {
@@ -794,6 +914,132 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listDepartments: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Number of items per page. */
+                pageSize?: components["parameters"]["PageSize"];
+                /** @description Only return departments with this status. Omit to return all departments, active and inactive. */
+                status?: components["schemas"]["ActivityStatus"];
+                /** @description Only return departments whose name contains this text, ignoring upper and lower case. Spaces around the text are ignored. */
+                q?: string;
+                /** @description Sort order. Prefix a field with `-` for descending order. */
+                sort?: "name" | "-name" | "employeeCount" | "-employeeCount" | "createdAt" | "-createdAt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of departments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentPage"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Created. The new department. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Department"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the department. */
+                departmentId: components["parameters"]["DepartmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The department. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Department"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateDepartment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the department. */
+                departmentId: components["parameters"]["DepartmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DepartmentUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated department. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Department"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
     };
