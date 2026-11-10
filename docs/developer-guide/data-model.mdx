@@ -27,6 +27,7 @@ import SpecStatus from "/snippets/spec-status.mdx";
 | Notification | Messages to employees, such as new assignments and deadline reminders. |
 | Audit Log | A record of important administrator actions. |
 | Session | A signed-in session of one user, with its token. Lasts 8 hours. |
+| Account Link | An invite or password reset link of one user, with its secret token. Never returned by the API. |
 
 ## Relationships
 
@@ -89,9 +90,10 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `role` | Role key | `administrator` or `employee`. |
 | `departmentId` | UUID or null | The user's department, if any. Only an active department can be chosen; a user keeps one that was deactivated later. |
 | `status` | `active` or `inactive` | Inactive users cannot sign in, and their sessions end when they are deactivated. |
-| `invitationSentAt` | Timestamp or null | When the latest invite link was sent. Null once the password is set. |
-| `invitationExpiresAt` | Timestamp or null | 7 days after `invitationSentAt`. |
-| `passwordSetAt` | Timestamp or null | When the user set a password. Null while the invite is pending. |
+| `invitationSentAt` | Timestamp or null | When the latest invite link was sent. Sending the invite again sets it again. Null once the password is set. |
+| `invitationExpiresAt` | Timestamp or null | 7 days after `invitationSentAt`. Null once the password is set. |
+| `passwordSetAt` | Timestamp or null | When the user last set a password, through the invite link or a password reset. Null while the invite is pending or expired. |
+| `invitationStatus` | `pending`, `expired` or `accepted` | *Derived.* `accepted` once `passwordSetAt` is set; otherwise `pending` until `invitationExpiresAt`, then `expired`. See [Invite links](/developer-guide/business-rules#invite-links). |
 | `lastSignedInAt` | Timestamp or null | |
 | `assignedTrainingCount` | Integer | *Derived.* Every assignment of the user, in any status. See [Training counts](/developer-guide/business-rules#training-counts). |
 | `completedTrainingCount` | Integer | *Derived.* The user's assignments with the status Passed. |
@@ -217,6 +219,21 @@ Each entry is an `AuditLogEntry` in the spec. Entries are never changed. Which a
 | `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for deactivation and reactivation. |
 
 `createdAt` is when the action happened.
+
+### Account Link
+
+An invite or password reset link. The backend keeps it to check the token in the link. The API never returns it: the link is emailed, and only its holder knows the token. Like a session, it belongs to a user, so it has no `organizationId`.
+
+| Field | Type | Notes |
+| - | - | - |
+| `tokenHash` | String | A hash of the secret token in the link. The token itself is never stored. The mock keeps the token as it is, like session tokens. |
+| `userId` | UUID | The user the link is for. |
+| `purpose` | `invitation` or `password_reset` | What the link is for. |
+| `createdAt` | Timestamp | When the link was sent. |
+| `expiresAt` | Timestamp | 7 days after `createdAt` for an invite, 1 hour for a reset. |
+| `usedAt` | Timestamp or null | When the link was used to set a password. A used link never works again. |
+
+A new link removes the user's earlier links of the same purpose. See [Invite links and password resets](/developer-guide/business-rules#invite-links-and-password-resets).
 
 ### Session
 

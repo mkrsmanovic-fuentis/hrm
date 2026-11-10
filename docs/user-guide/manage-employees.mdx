@@ -13,7 +13,15 @@ Administrators manage everyone's account on the **Employees** page: employees an
 
 ## See your employees
 
-The list shows each person's **Name**, **Email**, **Department**, **Role**, **Status**, and two training counts:
+The list shows each person's **Name**, **Email**, **Department**, **Role**, **Status**, and two training counts. Under the status, the invite status says whether the person has set a password:
+
+| Invite status | What it means |
+| - | - |
+| **Invite pending** | The person has an invite link that still works, and has not set a password yet. They cannot sign in yet. |
+| **Invite expired** | The invite link is older than 7 days and no longer works. The person has no password and cannot sign in. Send the invite again. |
+| **Invite accepted** | The person has set a password and can sign in. |
+
+The training counts:
 
 | Column | What it counts |
 | - | - |
@@ -25,7 +33,7 @@ Your own row says **You** under your name.
 If a person's department has been deactivated, the list still shows it, with **Inactive department** under its name. **No department** means the person belongs to none.
 
 - **Search by name or email** finds people whose name or email contains the text you type. Upper and lower case do not matter, and neither does the kind of apostrophe: `o'neill` finds O’Neill.
-- **Filters** shows only people with a given **Status**, **Role** or **Department**. Choose **No department** to see people without one.
+- **Filters** shows only people with a given **Status**, **Role**, **Invite** status or **Department**. Choose **No department** to see people without one.
 - Select a column header to sort by it. Select it again to reverse the order.
 
 ## Add an employee
@@ -48,9 +56,28 @@ If a person's department has been deactivated, the list still shows it, with **I
   </Step>
 </Steps>
 
-The new person gets an invite by email to set a password. The invite is valid for 7 days. Until they set a password, they cannot sign in.
+The new person gets an invite by email to set a password. The invite is valid for 7 days. Until they set a password, they cannot sign in. See [Set your password](/user-guide/set-your-password) for what they see.
 
-{/* TODO: link to the invite and set-password pages once SPE-15 is built. */}
+In the demo version, no email is sent. Instead, a **Demo only: invite link** panel appears above the list, with the link and **Copy invite link**. Copy the link and open it in another browser or a private window to set the password as that person. Opening it in the same browser signs you out of your own account once the password is set. Select **Close** to hide the panel.
+
+## Send the invite again
+
+Send a new invite when someone's invite has expired, or they cannot find the email.
+
+<Steps>
+  <Step title="Select the envelope icon in the person's row">
+    The icon appears only for active people whose invite is **pending** or **expired**.
+  </Step>
+  <Step title="Check the message">
+    A message confirms that a new invite was sent. The person's invite status is **Invite pending** again.
+  </Step>
+</Steps>
+
+- The new link is valid for 7 days from now.
+- The earlier link stops working at once. Only the newest link works.
+- You cannot send an invite to someone who has set a password already. If they forgot it, they can [reset it](/user-guide/reset-your-password).
+- To invite a deactivated person, reactivate them first.
+- In the demo version, the new link appears in the **Demo only: invite link** panel.
 
 ## Edit an employee
 
@@ -69,6 +96,8 @@ The new person gets an invite by email to set a password. The invite is valid fo
 </Steps>
 
 You cannot change your own role. Another administrator can.
+
+When you change your own name or email, the top bar shows the new values at once. Sign in with your new email next time.
 
 ## Deactivate an employee
 
@@ -97,4 +126,4 @@ Select the circular arrow icon in the row of an inactive person, then **Reactiva
 
 - People are never deleted. Deactivate them instead.
 - If the email is already used, the form says so under **Email**.
-- Every change you make is recorded with your name and the time, so it is clear who changed what.
+- Every change you make is recorded with your name and the time, so it is clear who changed what. Sending an invite again is not recorded for now.

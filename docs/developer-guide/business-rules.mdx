@@ -133,8 +133,9 @@ Employees can still complete overdue training. Reports show the completion date,
 - There is one Administrator role with full access, and one Employee role.
 - Employees can only see their own assignments and results, and cannot use administrator functions. See [Access by role](#access-by-role).
 - Users log in with email and password. Passwords are stored securely hashed.
-- Creating an employee sends an invite link to set a password, valid for **7 days**. Administrators can send it again.
-- A password reset link is valid for **1 hour**.
+- Creating an employee sends an invite link to set a password, valid for **7 days**. Administrators can send it again. See [Invite links and password resets](#invite-links-and-password-resets).
+- A password reset link is valid for **1 hour**, and works once.
+- New passwords follow the [password rules](#passwords).
 - Deactivated employees cannot log in, and deactivating ends their sessions at once. Their open assignments stay unchanged but are left out of pending and overdue counts. Reactivating the employee brings them back. See [Users and employees](#users-and-employees).
 - All communication uses HTTPS.
 
@@ -155,7 +156,63 @@ The real backend must also:
 - Serve the app and the API only over HTTPS, and redirect plain HTTP to HTTPS. Session tokens and passwords must never travel unencrypted.
 - Generate session tokens with a cryptographically secure random generator, so they cannot be guessed.
 
-The mock API stores no passwords: every seeded user who has set one signs in with the same demo password. See [Authentication](/developer-guide/authentication#demo-accounts).
+The mock API stores no passwords for seeded users: every seeded user who has set one signs in with the same demo password. A password set through an invite or reset link replaces it for that user. See [Authentication](/developer-guide/authentication#demo-accounts).
+
+## Invite links and password resets
+
+Two kinds of links let a user set a password without being signed in. The secret token in the link is the proof.
+
+| Link | Who gets it | Valid for | Page |
+| - | - | - | - |
+| Invite link | A new user, when an administrator creates them, or again when an administrator resends the invite. | **7 days** | `/set-password?token=…` |
+| Password reset link | A user who asks for one on **Forgot password?**. | **1 hour** | `/reset-password?token=…` |
+
+### Invite links
+
+- A new user gets an invite link at once. `invitationSentAt` is the time it was sent and `invitationExpiresAt` is 7 days later.
+- **Invite status**, derived: **Accepted** once the user has set a password; otherwise **Pending** until `invitationExpiresAt`, then **Expired**. Pending and expired users cannot sign in.
+- **Sending the invite again** creates a new link, valid for 7 days from then, and sets `invitationSentAt` and `invitationExpiresAt` again. **The earlier link stops working at once.** Only administrators can send it, and only to **active** users who have **not set a password**. Anyone else gets `409`.
+- Setting the password through the link **uses it up**, sets `passwordSetAt`, clears `invitationSentAt` and `invitationExpiresAt`, and **signs the user in**: they land on their home page.
+- Sending an invite again is **not** recorded in the audit log, until the product decides otherwise (SPE-46).
+
+### Password resets
+
+- Anyone can ask for a reset link by entering an email. **The answer is always the same**, whether the email has an account or not, and whether a link was sent or not, so it does not reveal which emails have accounts.
+- A link is sent only to **active users who have set a password**, the users who can sign in. Deactivated users and users whose invite is pending or expired get the same neutral answer, and **no link** is created. Users without a password use their invite link instead.
+- A new request **replaces** the user's earlier reset links: only the newest one works.
+- A reset link works **once**, for **1 hour**.
+- Setting a new password through it sets `passwordSetAt`, **ends all the user's sessions** on every device, and then **signs the user in** with a new session. The old password stops working. The user's other reset links stop working too.
+
+### Links that cannot be used
+
+| Link | Answer | The page tells the user to |
+| - | - | - |
+| Past its 7 days or 1 hour | `410`, type `/problems/link-expired` | Ask an administrator for a new invite, or request a new reset link. |
+| Used already | `410`, type `/problems/link-used` | Sign in, or request a new reset link. |
+| Unknown token, replaced by a newer link, or the user was deactivated | `404`, type `/problems/link-not-found` | Use the newest link, ask an administrator for a new invite, or request a new reset link. |
+
+- The link is checked when the page opens and again when the password is sent. A link that expires while the page is open shows the same message.
+- Only the token holder learns whether a link was used or expired. Without a valid token, nothing reveals which emails have accounts.
+
+### Passwords
+
+Rules for every new password, set through an invite or a reset link:
+
+- **At least 12 and at most 128 characters.** Any characters, including spaces and emoji. There are no rules about kinds of characters, such as digits or symbols: length matters most.
+- **Not trimmed.** Spaces at the start and end are part of the password.
+- **Not the user's email address**, ignoring upper and lower case and spaces around it.
+- The user types it **twice**. The page checks that both match before sending; the API receives it once.
+- A rejected password answers `422` and leaves the link usable.
+
+The real backend must also:
+
+- Generate link tokens with a cryptographically secure random generator, with at least 128 bits of randomness, and store only a hash of each token.
+- Store passwords as a salted hash made with a slow password-hashing algorithm, as for signing in.
+- Never log link tokens. They appear in page URLs and endpoint paths, so keep them out of access logs and analytics.
+- Email the links and never return them in a response. The mock's `X-Demo-Link` header is for the demo only.
+- Limit how often reset links can be requested for one email and from one address, so the endpoint cannot be used to flood a mailbox. {/* TODO: the PO to decide the limits. */}
+
+The mock stores a SHA-256 hash of each password it is given, salted with the user ID, so the browser's storage never holds a password. It is not a slow hash; the real backend must use one.
 
 ## Access by role
 
@@ -167,7 +224,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 
 | Module | Administrator | Employee |
 | - | - | - |
-| Sign-in and session | Sign in, read the current session, sign out. | Sign in, read the current session, sign out. |
+| Sign-in and session | Sign in, read the current session, sign out. Set their first password through an invite link and reset a forgotten password, without being signed in. | Sign in, read the current session, sign out. Set their first password through an invite link and reset a forgotten password, without being signed in. |
 | Organization | Read the current organization. | Read the current organization. |
 | Employees | List and read every user. Create, edit, deactivate and reactivate users, and set their role, except their own role and their own deactivation. Send the invite link again. | Read only their own user record, through the current session (`GET /auth/session`). No employee list, and no other users. |
 | Departments | List, read, create, edit, deactivate and reactivate departments. | No access. |
@@ -227,7 +284,8 @@ Administrator actions that change data are logged, so it is always clear who did
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
 - Employee actions, such as starting and submitting attempts, are not logged.
 
-{/* TODO: confirm with the PO whether resending an invite link is logged. The FRD does not say. */}
+- Sending an invite again is not logged for now. {/* TODO: SPE-46, the PO decides whether resending an invite link is logged. */}
+- Users setting or resetting their own password is not logged. It is not an administrator action.
 
 ### What each entry records
 

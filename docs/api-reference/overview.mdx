@@ -56,7 +56,7 @@ Authorization: Bearer <session token>
 
 - The authentication endpoints, under `/api/v1/auth`, issue the token. Email and password come first; SSO can be added there later without changing any other endpoint.
 - The rest of the API only checks the token. It never knows how the user signed in.
-- Invite links to set a password are valid for 7 days. Password reset links are valid for 1 hour. See [Business rules](/developer-guide/business-rules#accounts-and-access).
+- Invite links to set a password are valid for 7 days. Password reset links are valid for 1 hour and work once. See [Business rules](/developer-guide/business-rules#invite-links-and-password-resets).
 
 The current session is a resource that exists once per user, so its URL is singular:
 
@@ -65,6 +65,21 @@ The current session is a resource that exists once per user, so its URL is singu
 | `POST /auth/session` | Not needed | Signs in with `email` and `password`. Answers `201` with a `Session`: `token`, `createdAt`, `expiresAt` and the signed-in `user`. |
 | `GET /auth/session` | Required | Returns the current session. Answers `401` when the token is missing, unknown or expired. |
 | `DELETE /auth/session` | Optional | Signs out. The token stops working at once. Always answers `204`, even without a valid token. |
+
+Invite and password reset links need no session token: the secret token in the link is the proof. They are under `/auth` too:
+
+| Endpoint | What it does |
+| - | - |
+| `GET /auth/invitations/{invitationToken}` | Checks an invite link. Answers `200` with an `AccountLink`: the user's `email`, `firstName` and the link's `expiresAt`. |
+| `POST /auth/invitations/{invitationToken}/password` | Sets the first password from `{ "password": "…" }`. Answers `201` with a new `Session`: the user is signed in. |
+| `POST /auth/password-resets` | Asks for a reset link for `{ "email": "…" }`. **Always answers `202` with no body**, so it does not reveal which emails have accounts. |
+| `GET /auth/password-resets/{passwordResetToken}` | Checks a reset link. Answers `200` with an `AccountLink`. |
+| `POST /auth/password-resets/{passwordResetToken}/password` | Sets a new password. Ends all the user's sessions, then answers `201` with a new `Session`. |
+
+- A link that has expired answers `410` with type `/problems/link-expired`, one that was used already `410` with `/problems/link-used`, and an unknown or replaced one `404` with `/problems/link-not-found`. The link is checked before the body.
+- A password that breaks the [password rules](/developer-guide/business-rules#passwords) answers `422` on `password`.
+- Administrators send an invite again with `POST /users/{userId}/invitation`. It answers `201` with the user. Employees get `403`.
+- **Demo only:** `POST /users`, `POST /users/{userId}/invitation` and `POST /auth/password-resets` send the link they would have emailed in the `X-Demo-Link` response header, when they created one. The real backend never sends this header.
 
 - A session lasts **8 hours** from sign-in. Activity does not extend it. After `expiresAt`, every call with the token answers `401`.
 - A wrong password, an unknown email and a user who has not set a password yet all get the same `401` with type `/problems/invalid-credentials`, so the answer does not reveal which emails have accounts.
@@ -185,6 +200,9 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 401 | `/problems/invalid-credentials` | Sign-in only: the email and password do not match an account that can sign in. |
 | 403 | `/problems/account-inactive` | Sign-in only: the password is right, but the account is deactivated. |
 | 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
+| 404 | `/problems/link-not-found` | Invite and reset links only: the token is unknown, a newer link replaced it, or the user was deactivated. |
+| 410 | `/problems/link-expired` | Invite and reset links only: the link has expired. |
+| 410 | `/problems/link-used` | Invite and reset links only: the link was used already. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
 | 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use or a second open assignment for the same questionnaire. A conflict about a field names it in `errors`, with code `not_unique`. |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
