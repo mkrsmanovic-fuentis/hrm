@@ -30,6 +30,9 @@ describe('Questionnaire page', () => {
     await fixture.whenStable();
 
     const text = () => element.textContent?.replace(/\s+/g, ' ') ?? '';
+    /** The text of every dialog: the page has several, and only an open one has content. */
+    const dialogText = () =>
+      [...document.querySelectorAll('sd-dialog')].map((d) => d.textContent ?? '').join(' ');
     const button = (label: string) =>
       [...document.querySelectorAll<HTMLButtonElement>('button')].find(
         (b) => b.textContent?.trim() === label,
@@ -48,6 +51,7 @@ describe('Questionnaire page', () => {
       mock,
       id,
       text,
+      dialogText,
       button,
       click,
       statusBar,
@@ -76,19 +80,41 @@ describe('Questionnaire page', () => {
     expect(text()).not.toContain('This questionnaire is a draft');
   });
 
-  it('keeps a Questions section for the question editor', async () => {
-    const { element, mock, id } = await render('Handling personal data');
-    const record = mock.db.data.questionnaires.find((q) => q.id === id)!;
-    const count = mock.db.data.questions.filter(
-      (q) => q.questionnaireVersionId === record.currentVersionId,
-    ).length;
-
-    const section = [...element.querySelectorAll('sd-panel-section')].find(
-      (s) => s.getAttribute('eyebrow') === 'Questions',
+  it('edits the questions in the Questions section, and updates the question count after a save', async () => {
+    const { fixture, element, click, statusBar, dialogText } = await render(
+      'Reporting suspicious messages',
     );
-    expect(section?.querySelector('sd-empty-state')).not.toBeNull();
-    expect(section?.textContent).toContain('The question editor is coming soon');
-    expect(section?.textContent).toContain(`${count} questions in the current version`);
+    await vi.waitFor(() => expect(element.textContent).toContain('No questions yet'));
+    const page = fixture.componentInstance;
+
+    expect(page.confirmLeave()).toBe(true);
+    await click('Add question');
+    const question = element.querySelector<HTMLTextAreaElement>('[data-question-text]')!;
+    question.value = 'Where do you report a phishing email?';
+    question.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    // Unsaved changes: leaving asks first.
+    const leaving = page.confirmLeave();
+    expect(leaving).toBeInstanceOf(Promise);
+    await fixture.whenStable();
+    expect(dialogText()).toContain('Leave without saving?');
+    [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')]
+      .find((b) => b.textContent?.trim() === 'Keep editing')!
+      .click();
+    await expect(leaving).resolves.toBe(false);
+
+    for (const input of element.querySelectorAll<HTMLInputElement>('[data-option-text]')) {
+      input.value = 'An answer';
+      input.dispatchEvent(new Event('input'));
+    }
+    await fixture.whenStable();
+    await click('Save questions');
+
+    await vi.waitFor(() =>
+      expect(statusBar().stats()).toContainEqual({ label: 'Questions', value: '1' }),
+    );
+    expect(page.confirmLeave()).toBe(true);
   });
 
   it('blocks activating a draft without questions, and says why', async () => {
@@ -98,7 +124,7 @@ describe('Questionnaire page', () => {
     expect(text()).toContain("It has no questions yet, so it can't be activated.");
     expect(button('Activate')?.disabled).toBe(true);
     expect(button('Deactivate')).toBeUndefined();
-    expect(text()).toContain('No questions in the current version');
+    await vi.waitFor(() => expect(text()).toContain('Version 1: No questions, no attempts yet.'));
   });
 
   it('edits the settings in the drawer, and confirms with a toast', async () => {
@@ -137,7 +163,9 @@ describe('Questionnaire page', () => {
   });
 
   it('deactivates and activates again after confirmations', async () => {
-    const { click, button, mock, id, toasts } = await render('Multi-factor authentication');
+    const { click, button, mock, id, toasts, dialogText } = await render(
+      'Multi-factor authentication',
+    );
     const status = () => mock.db.data.questionnaires.find((q) => q.id === id)?.status;
 
     const confirm = (label: string) =>
@@ -146,13 +174,13 @@ describe('Questionnaire page', () => {
         .click();
 
     await click('Deactivate');
-    expect(document.querySelector('sd-dialog')?.textContent).toContain('Deactivate questionnaire?');
+    expect(dialogText()).toContain('Deactivate questionnaire?');
     confirm('Deactivate');
     await vi.waitFor(() => expect(status()).toBe('inactive'));
     await vi.waitFor(() => expect(button('Activate')?.disabled).toBe(false));
 
     await click('Activate');
-    expect(document.querySelector('sd-dialog')?.textContent).toContain('Activate questionnaire?');
+    expect(dialogText()).toContain('Activate questionnaire?');
     confirm('Activate');
     await vi.waitFor(() => expect(status()).toBe('active'));
 

@@ -1,0 +1,96 @@
+:host {
+  display: block;
+}
+
+.loading,
+.intro,
+.question,
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-md);
+}
+
+.options {
+  gap: var(--sd-space-sm);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sd-space-md);
+}
+
+.summary,
+.actions,
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-space-sm);
+}
+
+.footer {
+  justify-content: space-between;
+}
+
+.summary-text,
+.message,
+.label {
+  margin: 0;
+}
+
+.summary-text {
+  color: var(--sd-color-text-muted);
+}
+
+.label {
+  font-size: var(--sd-font-size-sm);
+  font-weight: var(--sd-font-weight-medium);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sd-space-sm);
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sd-space-xs);
+  // Lines the buttons up with the control, under the field's label.
+  padding-top: 1.5rem;
+}
+
+.option {
+  padding-left: var(--sd-space-md);
+}
+
+.error {
+  margin: var(--sd-space-sm) 0 0;
+  color: var(--sd-color-danger);
+  font-size: var(--sd-font-size-sm);
+  text-align: center;
+}
+
+.message + .message {
+  margin-top: var(--sd-space-sm);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

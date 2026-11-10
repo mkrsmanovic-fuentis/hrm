@@ -1,12 +1,12 @@
 ---
 title: "Manage questionnaires"
-description: "Create questionnaires, change their settings, and activate or deactivate them."
+description: "Create questionnaires, edit their questions and settings, and activate or deactivate them."
 icon: "clipboard-list"
 ---
 
 This page is for administrators. A questionnaire is a set of multiple-choice questions on one security topic, with a passing score and an optional time limit. The **Questionnaires** page lists every questionnaire, and each questionnaire has its own page with its settings.
 
-This page covers the settings. Adding and editing questions is not available yet.
+This page covers the settings, the questions, and activating and deactivating a questionnaire.
 
 ## Before you start
 
@@ -61,6 +61,52 @@ The list shows each questionnaire's **Title**, **Topic**, number of **Questions*
 
 Changing the passing score does not change earlier results. Each attempt keeps the passing score it started with.
 
+## Edit the questions
+
+The **Questions** section of a questionnaire's page lists its questions in the order employees see them. You edit them all at once, then save them together.
+
+Each question has:
+
+- **Question**: the text, up to 1,000 characters. Required.
+- **Answer options**: at least two, each up to 500 characters.
+- **Correct answer**: exactly one of the answer options. It is marked **Correct**.
+- **Feedback for a wrong answer**: optional, up to 2,000 characters. Employees see it when they answer the question wrong.
+
+<Steps>
+  <Step title="Open the questionnaire">
+    Select its row in the list. The **Questions** section is under the settings.
+  </Step>
+  <Step title="Add or change questions">
+    - Select **Add question** to add one at the end. It starts with two empty answer options.
+    - Type in **Question**, the **Answer** fields and **Feedback for a wrong answer** to change them.
+    - Select **Add answer option** to add another answer to a question.
+    - Choose the right answer in **Correct answer**. Choosing another one moves the mark: only one answer can be correct.
+    - Use the arrow buttons next to a question or an answer to move it up or down, and the bin button to remove it.
+
+    The buttons work with the keyboard too: press Tab to reach them, and Enter or Space to use them. A badge says **Unsaved changes** until you save.
+  </Step>
+  <Step title="Select Save questions">
+    A message confirms the save. If something needs fixing, the fields are highlighted and nothing is saved. To start over, select **Discard changes**.
+  </Step>
+</Steps>
+
+If you try to leave the page with unsaved changes, you are asked first. Select **Keep editing** to stay, or **Leave without saving** to lose the changes.
+
+### Questions of an active questionnaire
+
+An active questionnaire must stay ready to take. You cannot save it without questions, and each question needs at least two answer options with one correct answer.
+
+A draft, an inactive questionnaire, can be saved unfinished, so you can work on it over time.
+
+### When employees have already taken it
+
+Questionnaires keep **versions** of their questions, so that results always match the questions employees answered. The **Questions** section shows the current version, and how many attempts use it.
+
+- **No one has taken the current version yet:** your changes replace its questions.
+- **Employees have taken it, or started it:** your changes are saved as a new version, for example version 2. Before saving, a dialog tells you so: select **Save as version 2** to go ahead, or **Cancel** to keep editing. From then on, new attempts use the new version.
+
+Past attempts and results are kept and never change. An employee who is in the middle of an attempt finishes it on the version they started with.
+
 ## Activate a questionnaire
 
 A questionnaire must be active before it can be assigned.
@@ -95,4 +141,4 @@ An inactive questionnaire cannot be assigned. Employees who already have it assi
 
 - Questionnaires are never deleted. Deactivate them instead.
 - Every change you make is recorded with your name and the time, so it is clear who changed what.
-- The rules are in [Business rules](/developer-guide/business-rules#questionnaires).
+- The rules are in [Business rules](/developer-guide/business-rules#questionnaires) and [Questionnaire versions](/developer-guide/business-rules#questionnaire-versions).
