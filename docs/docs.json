@@ -29,6 +29,7 @@
           {
             "group": "For administrators",
             "pages": [
+              "user-guide/manage-employees",
               "user-guide/manage-departments"
             ]
           }

@@ -1,0 +1,100 @@
+---
+title: "Manage employees"
+description: "Add employees and administrators, edit their details, and deactivate or reactivate their accounts."
+icon: "users"
+---
+
+Administrators manage everyone's account on the **Employees** page: employees and other administrators. It lists every person with their department, role, status and training counts, and lets you add, edit, deactivate and reactivate them. Employees cannot open this page.
+
+## Before you start
+
+- You need to be signed in as an administrator.
+- Open **Employees** in the side navigation.
+
+## See your employees
+
+The list shows each person's **Name**, **Email**, **Department**, **Role**, **Status**, and two training counts:
+
+| Column | What it counts |
+| - | - |
+| **Assigned** | Every training ever assigned to the person, in any status: not started, in progress, failed, overdue and passed. |
+| **Completed** | The assigned training the person has passed, including training passed after its deadline. |
+
+Your own row says **You** under your name.
+
+If a person's department has been deactivated, the list still shows it, with **Inactive department** under its name. **No department** means the person belongs to none.
+
+- **Search by name or email** finds people whose name or email contains the text you type. Upper and lower case do not matter.
+- **Filters** shows only people with a given **Status**, **Role** or **Department**. Choose **No department** to see people without one.
+- Select a column header to sort by it. Select it again to reverse the order.
+
+## Add an employee
+
+<Steps>
+  <Step title="Select New employee">
+    The button is at the top right of the page. A panel opens on the right.
+  </Step>
+  <Step title="Fill in the form">
+    **First name** and **Last name** are required, up to 100 characters each.
+
+    **Email** is required. It must be different from the email of every other person, active or deactivated. Upper and lower case do not count as a difference.
+
+    **Role** is **Employee** or **Administrator**. Administrators can use every administrator page. Employees take training.
+
+    **Department** is optional. Only active departments can be chosen. Choose **No department** to leave it empty.
+  </Step>
+  <Step title="Select Create employee">
+    The panel closes, a message confirms that an invite was sent, and the person appears in the list as **Active**.
+  </Step>
+</Steps>
+
+The new person gets an invite by email to set a password. The invite is valid for 7 days. Until they set a password, they cannot sign in.
+
+{/* TODO: link to the invite and set-password pages once SPE-15 is built. */}
+
+## Edit an employee
+
+<Steps>
+  <Step title="Open the person">
+    Select their row, or the pencil icon at the end of the row.
+  </Step>
+  <Step title="Change their details">
+    The same rules apply as when you add someone. You can change the name, email, role and department.
+
+    If the person is in a department that has been deactivated, they can keep it. It is shown as inactive in the list of departments. Once you move them to another department, you cannot move them back.
+  </Step>
+  <Step title="Select Save changes">
+    The panel closes and a message confirms the change. If you changed nothing, the panel just closes. To leave without saving, select **Cancel**.
+  </Step>
+</Steps>
+
+You cannot change your own role. Another administrator can.
+
+## Deactivate an employee
+
+Deactivate the account of someone who should no longer sign in, for example when they leave the organization. They stay in the list as **Inactive**.
+
+<Steps>
+  <Step title="Select the power icon in the person's row">
+    The icon appears only for active people. It does not appear in your own row: you cannot deactivate yourself.
+  </Step>
+  <Step title="Confirm">
+    The dialog explains what happens. Select **Deactivate** to go ahead, or **Cancel** to keep the account active.
+  </Step>
+</Steps>
+
+When you deactivate someone:
+
+- Their sessions end at once, on every device. The next time they do anything in the app, the **Sign in** page opens, and they cannot sign in again.
+- Their training results and history are kept.
+- Their open training stays as it is, but is not counted as pending or overdue.
+
+## Reactivate an employee
+
+Select the circular arrow icon in the row of an inactive person, then **Reactivate**. They can sign in again with their password, and their open training counts as pending and overdue again.
+
+## Good to know
+
+- People are never deleted. Deactivate them instead.
+- If the email is already used, the form says so under **Email**.
+- Every change you make is recorded with your name and the time, so it is clear who changed what.

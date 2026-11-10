@@ -41,6 +41,7 @@ Every administrator page that manages records works the same way. The Department
 | `src/app/features/departments/department-form.ts` | The create and edit drawer, with signal forms. |
 | `src/app/shared/lists/load-all-pages.ts` | `loadAllPages()` and `MAX_PAGE_SIZE`. |
 | `src/app/shared/forms/form-errors.ts` | `visibleError()`, `serverFieldErrors()` and `saveFailedMessage()`. |
+| `src/app/shared/forms/text-rules.ts` | `textRules()`: required and maximum length, checked on the trimmed text, as the API checks it. |
 | `src/app/shared/confirm-dialog/confirm-dialog.ts` | `<app-confirm-dialog>`, the confirmation before a change. |
 | `src/app/core/toast/toast.service.ts` | `ToastService`. The shell shows its toasts in `sd-toast-stack`. |
 
@@ -81,7 +82,9 @@ Create and edit share one component. The page adds it with `@if` while it is ope
 
 - **Drawer, not dialog.** ui-kit's `sd-drawer` is meant for creating and editing a record while the page stays in view, and fits longer forms such as Employees. `sd-dialog` is kept for short questions, such as the confirmation. Use `modal`, so the list cannot change while the form is open.
 - **Signal forms.** The model is a `signal()`, and `form()` holds the rules the API also checks: required fields and maximum lengths, with the same limits as the spec. Each control sits in an `sd-field` with `[error]="visibleError(f.field)"`.
+- **Check text after trimming.** The API trims text before it checks the length, so the form must too: use `textRules()` for text fields, not `required()` and `maxLength()`. Otherwise 100 characters plus a trailing space are rejected by the form but accepted by the API.
 - **Submit with `submit()`.** Send `POST` for a new record and `PATCH` for an edit. Trim text and send an empty optional field as `null`.
+- **No changes, no request.** When an edit changes nothing, close the drawer without sending a request or showing a toast. For an edit, send only the changed fields. `src/app/features/employees/employee-form.ts` follows this rule and the trimming rule above. {/* TODO: the Departments form adopts both rules in SPE-51. */}
 - **Errors from the API.** Return `serverFieldErrors(error, { name: form.name, … })` from the submit action: it puts the messages of a `422`, and the duplicate of a `409`, on their fields. When it returns `undefined`, show `saveFailedMessage(error)` in an `sd-callout` at the top of the form.
 - **While saving**, the fields are disabled, the save button shows a spinner and the drawer cannot be closed.
 - **Footer buttons**: **Cancel**, then the primary **Create …** or **Save changes**. The save button submits the form with `form="<form id>"`.

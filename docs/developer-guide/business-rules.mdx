@@ -26,6 +26,32 @@ The mock API follows these rules so the frontend behaves as it will with the rea
 - The employee count of a department is the number of its **active** users, administrators included. Deactivated users are not counted.
 - An **inactive** department cannot be chosen for a new or edited user, and cannot be used to assign training by department. Its current members keep it as their department, and it still appears in lists, filters, reports and history.
 
+## Users and employees
+
+Every account is a user: administrators and employees alike. Administrators manage them on the Employees page.
+
+- Administrators create, edit, deactivate and reactivate users, and set their role. Employees have no access. See [Access by role](#access-by-role).
+- A user has a first and a last name of 1 to 100 characters each, an email of up to 254 characters, a role, and an optional department. Spaces around the text are removed.
+- The email is unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Sign-in matches emails the same way.
+- The role is **Administrator** or **Employee**. Administrators can give any other user either role.
+- Only an **active** department can be chosen for a new or edited user. A user who is already in a department that was deactivated later keeps it, until they are moved to another department. See [Departments](#departments). A user can also have no department.
+- A new user is active and gets an invite link to set a password, valid for **7 days**. Until they set a password, they cannot sign in. See [Accounts and access](#accounts-and-access).
+- Users are deactivated, never deleted. Deactivating keeps their history and their training results.
+- **Deactivating ends the user's sessions at once.** Their next request gets `401`, and they cannot sign in again. Their open assignments stay unchanged, but are left out of pending and overdue counts.
+- **Reactivating** makes the user active again. They can sign in with their password, and their open assignments count as pending and overdue again. Sessions that ended when they were deactivated do not come back.
+- **Administrators cannot deactivate themselves or change their own role.** So the organization always keeps at least one active administrator.
+
+### Training counts
+
+Each user has two derived counts, shown in the employee list:
+
+| Count | Field | Includes |
+| - | - | - |
+| Assigned training | `assignedTrainingCount` | Every assignment the user has received, in any [status](#assignment-status): Not Started, In Progress, Failed, Overdue and Passed. A deactivated user's open assignments still count, because deactivating leaves them unchanged. |
+| Completed training | `completedTrainingCount` | The user's assignments with the status **Passed**, including ones passed after the deadline. |
+
+These are totals per user, not pending or overdue counts, so a user's status does not change them. Pending and overdue counts, for example in reports, leave out the open assignments of deactivated users.
+
 ## Scoring
 
 The score is the share of correct answers:
@@ -95,7 +121,7 @@ Employees can still complete overdue training. Reports show the completion date,
 - Users log in with email and password. Passwords are stored securely hashed.
 - Creating an employee sends an invite link to set a password, valid for **7 days**. Administrators can send it again.
 - A password reset link is valid for **1 hour**.
-- Deactivated employees cannot log in. Their open assignments stay unchanged but are left out of pending and overdue counts. Reactivating the employee brings them back.
+- Deactivated employees cannot log in, and deactivating ends their sessions at once. Their open assignments stay unchanged but are left out of pending and overdue counts. Reactivating the employee brings them back. See [Users and employees](#users-and-employees).
 - All communication uses HTTPS.
 
 ## Sign-in and sessions
@@ -106,6 +132,7 @@ Employees can still complete overdue training. Reports show the completion date,
 - A deactivated user who enters the right password is told the account is deactivated.
 - A session lasts **8 hours** from sign-in. Activity does not extend it. After that, the user must sign in again.
 - Signing out ends the session at once. Its token stops working.
+- Deactivating a user ends all their sessions at once: their next request gets `401`.
 - Every endpoint except signing in and signing out needs a valid session token.
 
 The real backend must also:
@@ -128,7 +155,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 | - | - | - |
 | Sign-in and session | Sign in, read the current session, sign out. | Sign in, read the current session, sign out. |
 | Organization | Read the current organization. | Read the current organization. |
-| Employees | List and read every user. Create, edit, deactivate and reactivate employees. Send the invite link again. | Read only their own user record. No employee list, and no other users. |
+| Employees | List and read every user. Create, edit, deactivate and reactivate users, and set their role, except their own role and their own deactivation. Send the invite link again. | Read only their own user record, through the current session (`GET /auth/session`). No employee list, and no other users. |
 | Departments | List, read, create, edit, deactivate and reactivate departments. | No access. |
 | Topics | List and read every topic, active and inactive. Create, edit, deactivate and reactivate topics. | List and read **active** topics only. An inactive topic answers as if it did not exist. |
 | Questionnaires, questions and versions | List and read every questionnaire, with its questions, answer options and versions. Create, edit, activate, deactivate and preview questionnaires. | Read only questionnaires assigned to them, through their own assignments. No questionnaire list. Correct answers only as [Feedback after submitting](#feedback-after-submitting) allows. |

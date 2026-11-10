@@ -989,7 +989,7 @@ components:
             - type: 'null'
         status:
           $ref: '#/components/schemas/ActivityStatus'
-          description: Inactive users cannot sign in. Their open assignments stay but are left out of pending and overdue counts.
+          description: Inactive users cannot sign in, and deactivating a user ends their sessions at once. Their open assignments stay but are left out of pending and overdue counts.
         invitationSentAt:
           description: When the latest invite link was sent. Null once the password is set.
           oneOf:

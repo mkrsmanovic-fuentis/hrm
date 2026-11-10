@@ -8,16 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import {
-  disabled,
-  email,
-  form,
-  FormField,
-  maxLength,
-  required,
-  submit,
-  validate,
-} from '@angular/forms/signals';
+import { disabled, form, FormField, submit, validate } from '@angular/forms/signals';
 import {
   SdButton,
   SdCallout,
@@ -33,12 +24,18 @@ import { firstValueFrom } from 'rxjs';
 import { ApiClient, type Department, type RoleKey, type User } from '../../core/api';
 import { ROLE_LABELS } from '../../core/auth';
 import { saveFailedMessage, serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
+import { textRules } from '../../shared/forms/text-rules';
 
 /** Limits from the API spec (`UserCreate`). */
 const NAME_MAX_LENGTH = 100;
 const EMAIL_MAX_LENGTH = 254;
+/** Something before and after one `@`, a dot in the domain, no spaces. The API checks it too. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** The department select's value for "No department"; sent as `null`. */
 const NO_DEPARTMENT = '';
+
+/** The fields the form sends, trimmed. An edit sends only the changed ones. */
+type UserFields = Partial<Pick<User, 'firstName' | 'lastName' | 'email' | 'role' | 'departmentId'>>;
 
 interface EmployeeModel {
   firstName: string;
@@ -119,30 +116,21 @@ export class EmployeeForm implements OnInit {
     departmentId: NO_DEPARTMENT,
   });
   protected readonly f = form(this.model, (p) => {
-    for (const [name, label] of [
-      [p.firstName, 'a first name'],
-      [p.lastName, 'a last name'],
-    ] as const) {
-      required(name, { message: `Enter ${label}.` });
-      validate(name, ({ value }) =>
-        value() !== '' && value().trim() === ''
-          ? { kind: 'blank', message: `Enter ${label}.` }
-          : undefined,
-      );
-      maxLength(name, NAME_MAX_LENGTH, { message: `Use ${NAME_MAX_LENGTH} characters or fewer.` });
-    }
-    required(p.email, { message: 'Enter an email address.' });
-    email(p.email, { message: 'Enter a valid email address.' });
-    maxLength(p.email, EMAIL_MAX_LENGTH, {
-      message: `Use ${EMAIL_MAX_LENGTH} characters or fewer.`,
+    // Checked on the trimmed text, as the API checks it.
+    textRules(p.firstName, { required: 'Enter a first name.', maxLength: NAME_MAX_LENGTH });
+    textRules(p.lastName, { required: 'Enter a last name.', maxLength: NAME_MAX_LENGTH });
+    textRules(p.email, { required: 'Enter an email address.', maxLength: EMAIL_MAX_LENGTH });
+    validate(p.email, ({ value }) => {
+      const text = value().trim();
+      return text !== '' && !EMAIL_PATTERN.test(text)
+        ? { kind: 'email', message: 'Enter a valid email address.' }
+        : undefined;
     });
     disabled(p.firstName, () => this.saving());
     disabled(p.lastName, () => this.saving());
     disabled(p.email, () => this.saving());
     disabled(p.departmentId, () => this.saving());
-    disabled(p.role, () =>
-      this.isSelf() ? 'You cannot change your own role.' : this.saving(),
-    );
+    disabled(p.role, () => (this.isSelf() ? 'You cannot change your own role.' : this.saving()));
   });
 
   protected readonly visibleError = visibleError;
@@ -165,9 +153,15 @@ export class EmployeeForm implements OnInit {
     if (this.saving()) return;
     this.formError.set(null);
     await submit(this.f, async (form) => {
+      const changes = this.changes();
+      // An edit that changes nothing sends nothing: the drawer just closes, with no toast.
+      if (changes === null) {
+        this.open.set(false);
+        return undefined;
+      }
       this.saving.set(true);
       try {
-        const user = await this.send();
+        const user = await this.send(changes);
         this.saved.emit(user);
         this.open.set(false);
         return undefined;
@@ -188,20 +182,35 @@ export class EmployeeForm implements OnInit {
     });
   }
 
-  private send(): Promise<User> {
+  /**
+   * What to send: every field for a new user; for an edit, only the fields that changed, or null
+   * when nothing did. Text is trimmed first, as the API trims it. The role is never sent for the
+   * signed-in administrator, who cannot change it.
+   */
+  private changes(): UserFields | null {
     const { firstName, lastName, email, role, departmentId } = this.model();
-    const fields = {
+    const fields: UserFields = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
+      role,
       departmentId: departmentId === NO_DEPARTMENT ? null : departmentId,
     };
     const user = this.user();
-    if (!user) return firstValueFrom(this.api.post('/users', { body: { ...fields, role } }));
-    // The role is not sent for the signed-in administrator, who cannot change it.
-    const body = this.isSelf() ? fields : { ...fields, role };
+    if (!user) return fields;
+    if (this.isSelf()) delete fields.role;
+    const changed = Object.fromEntries(
+      Object.entries(fields).filter(([key, value]) => user[key as keyof UserFields] !== value),
+    ) as UserFields;
+    return Object.keys(changed).length > 0 ? changed : null;
+  }
+
+  private send(fields: UserFields): Promise<User> {
+    const user = this.user();
     return firstValueFrom(
-      this.api.patch('/users/{userId}', { path: { userId: user.id }, body }),
+      user
+        ? this.api.patch('/users/{userId}', { path: { userId: user.id }, body: fields })
+        : this.api.post('/users', { body: fields as Required<UserFields> }),
     );
   }
 }

@@ -1,0 +1,100 @@
+<sd-status-bar
+  heading="Employees"
+  description="Add people, keep their details up to date, and deactivate accounts that should no longer sign in. Training history is always kept."
+>
+  @if (!error()?.isForbidden) {
+    <button
+      sdStatusBarActions
+      sd-button
+      variant="primary"
+      type="button"
+      [icon]="icons.create"
+      (click)="create()"
+    >
+      New employee
+    </button>
+  }
+</sd-status-bar>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading employees">
+    <sd-skeleton height="2.5rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied description="You don't have permission to see employees." [headingLevel]="2" />
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load employees">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
+  </sd-callout>
+} @else {
+  <sd-list
+    class="list"
+    [items]="users()"
+    [columns]="columns"
+    [rowId]="byId"
+    [actions]="actions"
+    [filters]="filters()"
+    [labels]="listLabels"
+    searchable
+    interactive
+    [(search)]="search"
+    [(filterValues)]="filterValues"
+    [(sort)]="sort"
+    (rowClick)="edit($event)"
+    (actionClick)="onAction($event)"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No employees yet"
+      description="Add the first employee. They get an invite to set a password."
+    >
+      <button sd-button variant="primary" type="button" [icon]="icons.create" (click)="create()">
+        New employee
+      </button>
+    </sd-empty-state>
+  </sd-list>
+}
+
+@if (editing(); as drawer) {
+  <app-employee-form
+    [user]="drawer.user"
+    [departments]="departments()"
+    [currentUserId]="currentUserId()"
+    (saved)="onSaved($event, drawer.user === null)"
+    (closed)="editing.set(null)"
+  />
+}
+
+<app-confirm-dialog
+  [open]="statusTarget() !== null"
+  [heading]="deactivating() ? 'Deactivate employee?' : 'Reactivate employee?'"
+  [confirmLabel]="deactivating() ? 'Deactivate' : 'Reactivate'"
+  [tone]="deactivating() ? 'danger' : 'primary'"
+  [busy]="statusSaving()"
+  [error]="statusError()"
+  (confirmed)="changeStatus()"
+  (closed)="statusTarget.set(null)"
+>
+  @if (statusTarget(); as target) {
+    @if (deactivating()) {
+      <div class="message">
+        <p>
+          <strong>{{ fullName(target) }}</strong> will be signed out at once and can no longer sign
+          in.
+        </p>
+        <p>
+          Their training results are kept. Their open assignments stay as they are, but are left out
+          of pending and overdue counts. You can reactivate them at any time.
+        </p>
+      </div>
+    } @else {
+      <p class="message">
+        <strong>{{ fullName(target) }}</strong> will be active again and can sign in. Their open
+        assignments count as pending and overdue again.
+      </p>
+    }
+  }
+</app-confirm-dialog>

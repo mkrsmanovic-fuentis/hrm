@@ -370,7 +370,7 @@ export interface components {
             role: components["schemas"]["RoleKey"];
             /** @description Department the user belongs to, if any. */
             departmentId: components["schemas"]["Id"] | null;
-            /** @description Inactive users cannot sign in. Their open assignments stay but are left out of pending and overdue counts. */
+            /** @description Inactive users cannot sign in, and deactivating a user ends their sessions at once. Their open assignments stay but are left out of pending and overdue counts. */
             status: components["schemas"]["ActivityStatus"];
             /** @description When the latest invite link was sent. Null once the password is set. */
             invitationSentAt: components["schemas"]["Timestamp"] | null;
