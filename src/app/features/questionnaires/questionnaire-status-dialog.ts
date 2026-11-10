@@ -20,9 +20,11 @@ import { STATUS_LABELS } from './questionnaire-text';
  *
  * Open it by setting `questionnaire`; it closes itself after a change and emits `changed`.
  * When the API refuses, the reason stays in the dialog. A `409` from the checks before activation
- * also lists every problem, and emits `refused`, so the page can reload and show them too. The
- * pages only offer Activate when the checks pass, so this happens only when the questionnaire
- * changed since the page loaded it.
+ * turns it into a notice: it says the questionnaire can't be activated yet, lists every problem,
+ * and offers only **Close**, because activating again would fail the same way. It also emits
+ * `refused`, so the page can reload and show the problems with links to the questions. The pages
+ * only offer Activate when the checks pass, so this happens only when the questionnaire changed
+ * since the page loaded it.
  *
  * @example
  * <app-questionnaire-status-dialog
@@ -37,11 +39,13 @@ import { STATUS_LABELS } from './questionnaire-text';
   template: `
     <app-confirm-dialog
       [open]="questionnaire() !== null"
-      [heading]="deactivating() ? 'Deactivate questionnaire?' : 'Activate questionnaire?'"
+      [heading]="heading()"
       [confirmLabel]="deactivating() ? 'Deactivate' : 'Activate'"
+      [cancelLabel]="wasRefused() ? 'Close' : 'Cancel'"
+      [confirmable]="!wasRefused()"
       [tone]="deactivating() ? 'danger' : 'primary'"
       [busy]="saving()"
-      [error]="error()"
+      [error]="wasRefused() ? null : error()"
       (confirmed)="changeStatus()"
       (closed)="onClosed()"
     >
@@ -52,18 +56,21 @@ import { STATUS_LABELS } from './questionnaire-text';
             assigned. Employees who already have it assigned can still complete it, and all results
             are kept. You can activate it again at any time.
           </p>
+        } @else if (wasRefused()) {
+          <p class="message">
+            <strong>{{ target.title }}</strong> changed since this page was loaded, and it can't be
+            activated yet. It stays inactive. Fix these problems on its page, then activate it:
+          </p>
+          <ul class="problems">
+            @for (problem of problems(); track $index) {
+              <li>{{ problem.message }}</li>
+            }
+          </ul>
         } @else {
           <p class="message">
             <strong>{{ target.title }}</strong> will be active, and it can be assigned to employees.
             Its settings and questions are unchanged.
           </p>
-          @if (problems().length > 0) {
-            <ul class="problems">
-              @for (problem of problems(); track $index) {
-                <li>{{ problem.message }}</li>
-              }
-            </ul>
-          }
         }
       }
     </app-confirm-dialog>
@@ -77,7 +84,7 @@ import { STATUS_LABELS } from './questionnaire-text';
       display: flex;
       flex-direction: column;
       gap: var(--sd-space-xs);
-      margin: var(--sd-space-sm) 0 0;
+      margin: 0;
       padding-left: var(--sd-space-lg);
     }
   `,
@@ -101,6 +108,12 @@ export class QuestionnaireStatusDialog {
   /** Why activating was refused, from the `409`. */
   protected readonly problems = signal<readonly ActivationProblem[]>([]);
   protected readonly deactivating = computed(() => this.questionnaire()?.status === 'active');
+  /** Activating was refused by the checks before activation: nothing left to confirm. */
+  protected readonly wasRefused = computed(() => this.problems().length > 0);
+  protected readonly heading = computed(() => {
+    if (this.deactivating()) return 'Deactivate questionnaire?';
+    return this.wasRefused() ? "Questionnaire can't be activated yet" : 'Activate questionnaire?';
+  });
 
   protected async changeStatus(): Promise<void> {
     const questionnaire = this.questionnaire();

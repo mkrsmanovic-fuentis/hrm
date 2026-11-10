@@ -40,6 +40,8 @@ The editor decides whether to warn about a new version from the `attemptCount` i
 2. when saving now creates a new version, opens **Save as version N?** with the API's reason in a warning callout;
 3. otherwise closes any dialog and shows the reason above the questions, with "Your changes are kept." The next **Save questions** saves against the reloaded version.
 
+This only catches a new version or new attempts. A save in place keeps the version's ID, so two saves in place on the same version, while no attempts use it, are not detected: the later one replaces the earlier one. See SPE-57.
+
 ## What needs fixing before activation
 
 An inactive questionnaire carries its derived `activationProblems`: the API's [checks before activation](/developer-guide/business-rules#checks-before-activation), each with the `questionId` and `questionNumber` it is about. The page and the editor show them; neither runs the checks itself.

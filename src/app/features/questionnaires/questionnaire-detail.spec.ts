@@ -239,13 +239,27 @@ describe('Questionnaire page', () => {
     await vi.waitFor(() =>
       expect(dialogText()).toContain('Question 1 has no correct answer. Choose one.'),
     );
-    expect(dialogText()).toContain(
-      "This questionnaire can't be activated yet. Fix 1 problem first.",
-    );
+    // The dialog becomes a notice: no promise that it will be active, and only Close.
+    const dialog = () => dialogText().replace(/\s+/g, ' ');
+    expect(dialog()).toContain("Questionnaire can't be activated yet");
+    expect(dialog()).toContain('changed since this page was loaded');
+    expect(dialog()).not.toContain('will be active');
+    const dialogButtons = () =>
+      [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')]
+        .filter((b) => b.closest('sd-dialog')?.textContent?.includes('Password basics'))
+        .map((b) => b.textContent?.trim() || b.getAttribute('aria-label'));
+    expect(dialogButtons()).not.toContain('Activate');
+    expect(dialogButtons()).toContain('Close');
     await vi.waitFor(() =>
       expect(text()).toContain('Fix 1 problem to activate this questionnaire.'),
     );
     expect(record.status).toBe('inactive');
+
+    [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')]
+      .find((b) => b.textContent?.trim() === 'Close')!
+      .click();
+    await fixture.whenStable();
+    await vi.waitFor(() => expect(dialog()).not.toContain('Question 1 has no correct answer'));
   });
 
   it('edits the settings in the drawer, and confirms with a toast', async () => {

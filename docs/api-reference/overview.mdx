@@ -187,7 +187,7 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
 | 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use, a second open assignment for the same questionnaire, or a questionnaire that cannot be activated yet. A conflict about a field names it in `errors`, with code `not_unique`. A refused activation lists its reasons in `activationProblems`. |
-| 409 | `/problems/version-conflict` | Saving questions only: the save was based on an older state of the questionnaire. See [Saving questions that changed meanwhile](#saving-questions-that-changed-meanwhile). |
+| 409 | `/problems/version-conflict` | Saving questions only: the questionnaire got a new version, or attempts started on it, since the client loaded it. See [Saving questions that changed meanwhile](#saving-questions-that-changed-meanwhile). |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
 | 500 | `/problems/internal-error` | Something went wrong on the server. |
 
@@ -274,6 +274,8 @@ When the current version is no longer `baseVersionId`, or attempts now use it wh
 ```
 
 The client reloads the version with `GET /questionnaires/{questionnaireId}/questions`, keeps the administrator's edits, tells them what changed (and asks before a new version), then saves again with the new `baseVersionId` and `createsVersion`. The rule is in [Questionnaire versions](/developer-guide/business-rules#questionnaire-versions).
+
+A save in place keeps the version's `id`, so two saves in place on the same version, while no attempts use it, are not detected: the later one replaces the earlier one.
 
 ## Adding an endpoint
 
