@@ -46,6 +46,20 @@ export class QueryReader {
     return raw as T;
   }
 
+  /**
+   * Free text, such as the `q` search parameter. Spaces around it are removed; returns
+   * `undefined` when missing, empty or too long.
+   */
+  text(name: string, rules: { maxLength: number }): string | undefined {
+    const raw = this.params.get(name)?.trim();
+    if (!raw) return undefined;
+    if (raw.length > rules.maxLength) {
+      this.fail(name, 'too_long', `Must be ${rules.maxLength} characters or fewer.`);
+      return undefined;
+    }
+    return raw;
+  }
+
   /** The shared `page` and `pageSize` parameters, with the spec's defaults and limits. */
   pagination(): PageRequest {
     return {

@@ -3,6 +3,7 @@ import type {
   Assignment,
   Attempt,
   AttemptAnswer,
+  AuditEntityType,
   AuditLogEntry,
   Department,
   Notification,
@@ -21,13 +22,25 @@ import type {
  * them out and the handler builds them. See ../rules/ for the derivations.
  */
 
-export type QuestionnaireRecord = Omit<Questionnaire, 'questionCount'>;
+/**
+ * Derived fields per audited record type: the API returns them, but they are never stored and
+ * never listed in an audit entry's `changes`. `recordAudit()` rejects records that carry them.
+ */
+export const DERIVED_FIELDS = {
+  user: [],
+  department: ['employeeCount'],
+  topic: [],
+  questionnaire: ['questionCount'],
+  assignment: ['status', 'attemptCount', 'latestScore', 'completedAt'],
+} as const satisfies Record<AuditEntityType, readonly string[]>;
+
+type Derived<E extends AuditEntityType> = (typeof DERIVED_FIELDS)[E][number];
+
+export type DepartmentRecord = Omit<Department, Derived<'department'>>;
+export type QuestionnaireRecord = Omit<Questionnaire, Derived<'questionnaire'>>;
 export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions'>;
 export type QuestionRecord = Omit<Question, 'answerOptions'>;
-export type AssignmentRecord = Omit<
-  Assignment,
-  'status' | 'attemptCount' | 'latestScore' | 'completedAt'
->;
+export type AssignmentRecord = Omit<Assignment, Derived<'assignment'>>;
 
 /**
  * A signed-in session. The API returns it as `Session`, with the user nested; the stored record
@@ -46,7 +59,7 @@ export interface MockData {
   organization: Organization;
   roles: Role[];
   users: User[];
-  departments: Department[];
+  departments: DepartmentRecord[];
   topics: Topic[];
   questionnaires: QuestionnaireRecord[];
   questionnaireVersions: QuestionnaireVersionRecord[];

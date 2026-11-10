@@ -92,7 +92,9 @@ List endpoints return one page at a time.
 | `pageSize` | `25` | From 1 to 100. |
 | `sort` | Depends on the endpoint | A field name, with `-` in front for descending order, for example `-createdAt`. Each endpoint lists the allowed values. |
 
-Filters are plain query parameters named after the field, for example `?status=active`.
+Filters are plain query parameters named after the field, for example `?status=active`. On records that can be deactivated, a list returns active and inactive records unless `status` is sent.
+
+Lists that can be searched take `q`, a text search. It matches records whose searched fields contain the text, ignoring upper and lower case and spaces around it. Each endpoint says which fields `q` searches, for example the name.
 
 The response is an envelope with the items and the page position:
 
@@ -104,6 +106,61 @@ The response is an envelope with the items and the page position:
 ```
 
 A page past the end returns an empty `items` list, not an error.
+
+### Creating and changing records
+
+Administrator endpoints that change data follow one pattern. [Departments](/api-reference/overview#departments-the-reference) are the first resource built on it.
+
+| Request | Answer | What it does |
+| - | - | - |
+| `GET /departments` | `200` with a page | Lists records, with paging, filters, `q` and `sort`. |
+| `POST /departments` | `201` with the record | Creates a record. |
+| `GET /departments/{departmentId}` | `200` with the record | Reads one record. |
+| `PATCH /departments/{departmentId}` | `200` with the record | Changes the fields sent. Fields left out stay as they are. |
+
+- **Deactivate and reactivate with `PATCH`.** Send `{ "status": "inactive" }` to deactivate and `{ "status": "active" }` to reactivate. There are no separate deactivate endpoints, and records that can be deactivated have no `DELETE`: deactivating keeps their history.
+- **Request bodies list only fields the client may set.** Each resource has a `<Entity>Create` and a `<Entity>Update` schema. They leave out `id`, `organizationId`, `createdAt`, `updatedAt` and derived fields. Unknown fields are rejected with `422`.
+- **Text is trimmed.** Spaces around text fields are removed before they are checked and saved. An optional text field sent empty is saved as `null`.
+- **Derived fields** are computed by the server and marked read-only in the spec, for example a department's `employeeCount`. They are never sent in requests and never stored.
+- **Unique fields** are unique within the organization, among active and inactive records. A value already in use answers `409` with type `/problems/conflict`; its `errors` names the field with code `not_unique`, so a form can show the message next to it.
+- **Invalid fields** answer `422` with every invalid field in `errors`, with `location` set to `body`.
+- **Administrator only.** An employee gets `403` before the body is validated.
+- **Audit log.** Every successful change is logged. See [Audit log](/developer-guide/business-rules#audit-log).
+
+#### Departments, the reference
+
+```http
+POST /api/v1/departments
+Content-Type: application/json
+
+{ "name": "Legal", "description": "Contracts and compliance." }
+```
+
+```http
+HTTP/1.1 201 Created
+
+{ "id": "…", "organizationId": "…", "name": "Legal", "description": "Contracts and compliance.",
+  "status": "active", "employeeCount": 0, "createdAt": "…", "updatedAt": "…" }
+```
+
+A duplicate name:
+
+```json
+{
+  "type": "/problems/conflict",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "A department named Finance already exists.",
+  "errors": [
+    {
+      "location": "body",
+      "field": "name",
+      "code": "not_unique",
+      "message": "A department with this name already exists."
+    }
+  ]
+}
+```
 
 ### Errors
 
@@ -129,7 +186,7 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 403 | `/problems/account-inactive` | Sign-in only: the password is right, but the account is deactivated. |
 | 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
-| 409 | `/problems/conflict` | The request conflicts with the current state, for example a second open assignment for the same questionnaire. |
+| 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use or a second open assignment for the same questionnaire. A conflict about a field names it in `errors`, with code `not_unique`. |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
 | 500 | `/problems/internal-error` | Something went wrong on the server. |
 
@@ -154,7 +211,7 @@ Validation errors list every invalid field in `errors`:
 
 - `location` is `body`, `query`, `path` or `header`.
 - `field` names the field. Nested body fields use dots and indexes, for example `questions[2].text`.
-- `code` is one of `required`, `invalid_type`, `invalid_format`, `invalid_value`, `out_of_range`, `too_short`, `too_long` or `not_unique`.
+- `code` is one of `required`, `invalid_type`, `invalid_format`, `invalid_value`, `out_of_range`, `too_short`, `too_long` or `not_unique`. `not_unique` comes with a `409`, not a `422`.
 - `message` can be shown next to the field.
 
 ## Adding an endpoint
@@ -162,7 +219,8 @@ Validation errors list every invalid field in `errors`:
 Follow the steps in [Mock API](/developer-guide/mock-api#add-an-endpoint). In the spec:
 
 - Give the operation an `operationId` in camelCase, one tag, and `x-mint: *spec-status` so its page shows the "Specification, not yet implemented" banner.
-- Reuse the shared parameters (`Page`, `PageSize`), schemas (`Id`, `Timestamp`, `ActivityStatus`, `PageInfo`) and error responses under `components`.
-- Name list responses `<Entity>Page`.
+- Reuse the shared parameters (`Page`, `PageSize`), schemas (`Id`, `Timestamp`, `ActivityStatus`, `PageInfo`) and error responses under `components`, including `NotUnique` for a `409` on a unique field.
+- Name list responses `<Entity>Page`, and request bodies `<Entity>Create` and `<Entity>Update` with `additionalProperties: false`.
+- Mark derived fields `readOnly: true` and start their description with "Derived.".
 
 See the [Data model](/developer-guide/data-model) for the fields of every entity.

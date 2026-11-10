@@ -7,15 +7,19 @@ import {
   SdPopover,
   SdPopoverTrigger,
   SdSidenav,
+  SdToast,
+  SdToastStack,
   SdTopbar,
 } from '@specora-dev/ui-kit';
 import type { RoleKey } from '../api';
 import { AuthService, LOGIN_PATH, ROLE_LABELS } from '../auth';
 import { NAV_ITEMS, navItemsFor } from '../navigation';
+import { ToastService } from '../toast';
 
 /**
- * Signed-in layout: the top bar with the user menu, the side navigation for the user's role, and
- * the area where routed pages render. The navigation entries come from `app.navigation.ts`.
+ * Signed-in layout: the top bar with the user menu, the side navigation for the user's role, the
+ * area where routed pages render, and the toast stack for feedback after actions. The navigation
+ * entries come from `app.navigation.ts`.
  */
 @Component({
   selector: 'app-shell',
@@ -27,6 +31,8 @@ import { NAV_ITEMS, navItemsFor } from '../navigation';
     SdPopover,
     SdPopoverTrigger,
     SdSidenav,
+    SdToast,
+    SdToastStack,
     SdTopbar,
   ],
   templateUrl: './shell.html',
@@ -36,6 +42,10 @@ import { NAV_ITEMS, navItemsFor } from '../navigation';
 export class Shell {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly toastService = inject(ToastService);
+
+  /** Feedback after actions, such as "Department created". Features add them through ToastService. */
+  protected readonly toasts = this.toastService.toasts;
 
   protected readonly icons = {
     user: LucideCircleUser,
@@ -91,6 +101,10 @@ export class Shell {
     } finally {
       this.busy.set(null);
     }
+  }
+
+  protected dismissToast(id: number): void {
+    this.toastService.dismiss(id);
   }
 
   protected async signOut(): Promise<void> {

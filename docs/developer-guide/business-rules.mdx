@@ -16,6 +16,18 @@ The mock API follows these rules so the frontend behaves as it will with the rea
 - The MVP has a single organization. There is no organization switcher and no role above Administrator.
 - The model supports several organizations later. Data from one organization must never be visible in another.
 
+## Departments
+
+- Administrators create, rename, describe, deactivate and reactivate departments. Employees have no access. See [Access by role](#access-by-role).
+- A department has a name of 1 to 100 characters and an optional description of up to 500. Spaces around them are removed.
+- The name is unique within the organization, among active and inactive departments, ignoring upper and lower case. "finance" cannot be added next to "Finance".
+- A new department is active.
+- Departments are deactivated, never deleted. Deactivating keeps the department's history, and its employees keep their department. Reactivating makes it active again, with nothing else changed.
+- The employee count of a department is the number of its **active** users. Deactivated users are not counted.
+
+{/* TODO: confirm with the PO whether administrators who belong to a department count as its employees. The mock counts every active user with the department, administrators included. */}
+{/* TODO: confirm with the PO what deactivating a department blocks, for example adding employees to it or assigning training to it. Nothing is blocked yet. */}
+
 ## Scoring
 
 The score is the share of correct answers:
@@ -154,7 +166,7 @@ The [API reference](/api-reference/overview#authorization) describes the answers
 ## Data integrity
 
 - Submitted attempts are never changed or deleted.
-- Deactivating an employee, topic or questionnaire keeps its history.
+- Deactivating an employee, department, topic or questionnaire keeps its history.
 
 ## Audit log
 

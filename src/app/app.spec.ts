@@ -99,12 +99,18 @@ describe('App', () => {
   });
 
   it.each([
-    ['administrator', '/admin/home'],
-    ['employee', '/my/home'],
-  ] as const)('shows the %s only their own navigation entries', async (role, home) => {
+    [
+      'administrator',
+      [
+        ['Home', '/admin/home'],
+        ['Departments', '/admin/departments'],
+      ],
+    ],
+    ['employee', [['Home', '/my/home']]],
+  ] as const)('shows the %s only their own navigation entries', async (role, entries) => {
     const { navLinks } = await renderAt('/', role);
 
-    expect(navLinks()).toEqual([['Home', home]]);
+    expect(navLinks()).toEqual(entries);
   });
 
   it.each([

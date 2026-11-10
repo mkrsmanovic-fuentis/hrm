@@ -25,6 +25,12 @@
             "pages": [
               "user-guide/sign-in-and-out"
             ]
+          },
+          {
+            "group": "For administrators",
+            "pages": [
+              "user-guide/manage-departments"
+            ]
           }
         ]
       },
@@ -49,7 +55,8 @@
             "pages": [
               "developer-guide/mock-api",
               "developer-guide/authentication",
-              "developer-guide/access-control"
+              "developer-guide/access-control",
+              "developer-guide/admin-list-and-form-pattern"
             ]
           },
           {

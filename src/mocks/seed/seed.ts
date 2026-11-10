@@ -3,7 +3,6 @@ import type {
   Attempt,
   AttemptAnswer,
   AuditLogEntry,
-  Department,
   Notification,
   Role,
   Topic,
@@ -12,6 +11,7 @@ import type {
 import { auditChanges } from '../db/audit';
 import type {
   AssignmentRecord,
+  DepartmentRecord,
   MockData,
   QuestionnaireRecord,
   QuestionnaireVersionRecord,
@@ -109,7 +109,7 @@ export function buildSeed(now: Date = new Date()): MockData {
 
   // ---------------------------------------------------------------- departments and users
 
-  const departments: Department[] = departmentSeeds.map((seed, index) => {
+  const departments: DepartmentRecord[] = departmentSeeds.map((seed, index) => {
     const created = orgCreated + 5 * DAY + index * HOUR;
     return {
       ...record(created, seed.status === 'inactive' ? nowMs - 60 * DAY : created),

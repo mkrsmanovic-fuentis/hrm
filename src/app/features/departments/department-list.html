@@ -1,0 +1,97 @@
+<sd-status-bar
+  heading="Departments"
+  description="Group employees by department. Deactivate a department you no longer use; its history is kept."
+>
+  @if (!error()?.isForbidden) {
+    <button
+      sdStatusBarActions
+      sd-button
+      variant="primary"
+      type="button"
+      [icon]="icons.create"
+      (click)="create()"
+    >
+      New department
+    </button>
+  }
+</sd-status-bar>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading departments">
+    <sd-skeleton height="2.5rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied
+    description="You don't have permission to see departments."
+    [headingLevel]="2"
+  />
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load departments">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="departments.reload()">
+      Try again
+    </button>
+  </sd-callout>
+} @else {
+  <sd-list
+    class="list"
+    [items]="departments.value() ?? []"
+    [columns]="columns"
+    [rowId]="byId"
+    [actions]="actions"
+    [filters]="filters"
+    [labels]="listLabels"
+    searchable
+    interactive
+    [(search)]="search"
+    [(filterValues)]="filterValues"
+    [(sort)]="sort"
+    (rowClick)="edit($event)"
+    (actionClick)="onAction($event)"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No departments yet"
+      description="Create the first department to group your employees."
+    >
+      <button sd-button variant="primary" type="button" [icon]="icons.create" (click)="create()">
+        New department
+      </button>
+    </sd-empty-state>
+  </sd-list>
+}
+
+@if (editing(); as drawer) {
+  <app-department-form
+    [department]="drawer.department"
+    (saved)="onSaved($event, drawer.department === null)"
+    (closed)="editing.set(null)"
+  />
+}
+
+<app-confirm-dialog
+  [open]="statusTarget() !== null"
+  [heading]="deactivating() ? 'Deactivate department?' : 'Reactivate department?'"
+  [confirmLabel]="deactivating() ? 'Deactivate' : 'Reactivate'"
+  [tone]="deactivating() ? 'danger' : 'primary'"
+  [busy]="statusSaving()"
+  [error]="statusError()"
+  (confirmed)="changeStatus()"
+  (closed)="statusTarget.set(null)"
+>
+  @if (statusTarget(); as target) {
+    @if (deactivating()) {
+      <p class="message">
+        <strong>{{ target.name }}</strong> will be marked inactive. Its history is kept, and its
+        employees keep their department. You can reactivate it at any time.
+      </p>
+    } @else {
+      <p class="message">
+        <strong>{{ target.name }}</strong> will be active again. Its history and its employees are
+        unchanged.
+      </p>
+    }
+  }
+</app-confirm-dialog>

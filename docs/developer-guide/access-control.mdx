@@ -56,7 +56,8 @@ Example: the Departments feature adds an administrator page at `/admin/departmen
         {
           path: 'departments',
           title: 'Departments · HRM Platform',
-          loadChildren: () => import('./features/departments/departments.routes').then((m) => m.routes),
+          loadComponent: () =>
+            import('./features/departments/department-list').then((m) => m.DepartmentList),
         },
       ],
     },

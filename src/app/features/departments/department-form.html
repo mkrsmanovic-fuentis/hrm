@@ -1,0 +1,43 @@
+<sd-drawer
+  modal
+  size="md"
+  [heading]="heading()"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  <form id="department-form" class="form" novalidate (submit)="save($event)">
+    @if (formError(); as error) {
+      <sd-callout tone="danger" role="alert" heading="Could not save the department">
+        {{ error }}
+      </sd-callout>
+    }
+
+    <sd-field label="Name" [error]="visibleError(f.name)" required>
+      <input sd-input autocomplete="off" [formField]="f.name" />
+    </sd-field>
+
+    <sd-field
+      label="Description"
+      hint="Optional. What the department does."
+      [error]="visibleError(f.description)"
+    >
+      <textarea sd-input rows="4" [formField]="f.description"></textarea>
+    </sd-field>
+  </form>
+
+  <ng-container sdDrawerFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="department-form"
+      [loading]="saving()"
+      [disabled]="saving()"
+    >
+      {{ isNew() ? 'Create department' : 'Save changes' }}
+    </button>
+  </ng-container>
+</sd-drawer>

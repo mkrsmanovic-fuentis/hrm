@@ -152,7 +152,8 @@ Follow these steps, in this order, in the same pull request as the feature.
     ```
 
     - Check the role first. Administrator endpoints call `requireRole(ctx, 'administrator')`; records that belong to a user go through `ownRecords()` or `requireOwnRecord()`. See [How a handler requires a role](/developer-guide/access-control#how-a-handler-requires-a-role).
-    - Validate every parameter and body field the spec constrains, and answer `validationFailed()` with all problems at once.
+    - Validate every parameter and body field the spec constrains, and answer `validationFailed()` with all problems at once. `ctx.query` reads query parameters; `BodyReader` from `src/mocks/support/body.ts` reads a JSON body the same way, trims text and rejects unknown fields.
+    - Answer a value already used by a unique field with `throw notUnique(field, message, detail)` from the same file: a `409` that names the field.
     - Use `notFound()`, `problem(status, detail)` or throw `MockProblem` for other errors.
     - Change data only inside `db.update()`, so it is saved when the request ends.
     - Apply business rules from `src/mocks/rules/`. Add a rule there when you need a new one, mirrored from [Business rules](/developer-guide/business-rules).
@@ -170,7 +171,7 @@ Follow these steps, in this order, in the same pull request as the feature.
     TestBed.configureTestingModule({ providers: [provideHttpClient(), ...mock.providers] });
     ```
 
-    Test the endpoint as both roles: `createTestMockApi({ signedInAs: 'employee' })` sends requests as an employee. `src/mocks/resources/topics/topics.handlers.spec.ts` is a complete example.
+    Test the endpoint as both roles: `createTestMockApi({ signedInAs: 'employee' })` sends requests as an employee. `src/mocks/resources/topics/topics.handlers.spec.ts` is a complete example of a read endpoint, and `src/mocks/resources/departments/departments.handlers.spec.ts` of create and edit endpoints.
   </Step>
 </Steps>
 
@@ -179,17 +180,30 @@ Follow these steps, in this order, in the same pull request as the feature.
 Every administrator handler that creates, edits, deactivates or reactivates a record calls `recordAudit()` from `src/mocks/db/audit.ts`, inside the same `db.update()` as the change. It fills in the `changes` list from the records before and after, and adds the entry to the mock database. The [audit log rules](/developer-guide/business-rules#audit-log) say which actions are logged and what each entry holds.
 
 ```ts
-// Inside an edit handler, after validating the body and finding the stored topic:
+// Inside an edit handler, after validating the body and finding the stored department.
+// `changes` holds the fields the request sent, status included.
 const updated = db.update((data) => {
-  const before = structuredClone(topic);
-  Object.assign(topic, body, { updatedAt: now.toISOString() });
-  recordAudit(data, { action: 'updated', entityType: 'topic', actorId, now, before, after: topic });
-  return topic;
+  const before = structuredClone(department);
+  Object.assign(department, changes);
+  const entries = recordAudit(data, {
+    action: 'updated',
+    entityType: 'department',
+    actorId: admin.id,
+    now,
+    before,
+    after: department,
+  });
+  if (entries.length > 0) department.updatedAt = now.toISOString();
+  return department;
 });
 ```
 
-- `created` takes `after`, the new record. `updated` takes `before` and `after`, and records nothing when no field changed. `deactivated` and `reactivated` take `after`.
-- Pass stored records, not API responses, so derived fields stay out of `changes`.
+- `created` takes `after`, the new record, and logs one entry.
+- `updated` takes `before` and `after`. Pass every edit as `updated`, also one that changes `status`: changed fields other than `status` are logged as one `updated` entry, then a change of `status` as `deactivated` or `reactivated`. An edit that changes nothing logs nothing.
+- `deactivated` and `reactivated` take `after`, for handlers that only change the status.
+- `recordAudit()` returns the entries it added, in order. An empty list means nothing changed, so leave `updatedAt` as it is.
+- Values are compared by content, regardless of the order of object keys.
+- Pass stored records, not API responses. Derived fields, such as `employeeCount`, are never listed in `changes`; `recordAudit()` throws when a record carries one. The derived fields of each record type are `DERIVED_FIELDS` in `src/mocks/db/mock-data.ts`, and the stored record types leave them out.
 - `actorId` is the signed-in administrator. `requireRole(ctx, 'administrator')` returns that user.
 - Assigning to a department creates many assignments: call `recordAudit()` once for each.
 

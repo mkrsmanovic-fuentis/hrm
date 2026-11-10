@@ -25,7 +25,10 @@ export const ProblemType = {
 export class ApiError extends Error {
   readonly status: number;
   readonly problem: Problem;
-  /** Field-level validation errors. Empty unless `status` is 422. */
+  /**
+   * Field-level errors from the problem's `errors`: invalid fields on a `422`, and the duplicate
+   * field (code `not_unique`) on a `409`. Empty otherwise.
+   */
   readonly fieldErrors: readonly FieldError[];
 
   constructor(problem: Problem, fieldErrors: readonly FieldError[] = []) {
@@ -46,6 +49,10 @@ export class ApiError extends Error {
 
   get isNotFound(): boolean {
     return this.status === 404;
+  }
+
+  get isConflict(): boolean {
+    return this.status === 409;
   }
 
   get isValidation(): boolean {
