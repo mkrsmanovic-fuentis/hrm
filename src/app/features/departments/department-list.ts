@@ -29,7 +29,9 @@ const STATUS_LABELS: Record<Department['status'], string> = {
 };
 
 /** The form drawer: a new department, or the one being edited. */
-type Editing = { department: Department | null };
+interface Editing {
+  department: Department | null;
+}
 
 /**
  * The Departments page at `/admin/departments`: every department in a list, with search, a status
