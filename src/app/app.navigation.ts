@@ -1,4 +1,10 @@
-import { LucideBookOpen, LucideBuilding2, LucideHouse, LucideUsers } from '@lucide/angular';
+import {
+  LucideBookOpen,
+  LucideBuilding2,
+  LucideClipboardList,
+  LucideHouse,
+  LucideUsers,
+} from '@lucide/angular';
 import { homeUrl } from './core/auth';
 import type { AppNavItem } from './core/navigation';
 
@@ -23,5 +29,11 @@ export const navigation: AppNavItem[] = [
     role: 'administrator',
   },
   { label: 'Topics', icon: LucideBookOpen, route: '/admin/topics', role: 'administrator' },
+  {
+    label: 'Questionnaires',
+    icon: LucideClipboardList,
+    route: '/admin/questionnaires',
+    role: 'administrator',
+  },
   { label: 'Home', icon: LucideHouse, route: homeUrl('employee'), role: 'employee' },
 ];

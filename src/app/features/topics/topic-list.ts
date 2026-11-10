@@ -22,7 +22,7 @@ import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
 import { saveFailedMessage } from '../../shared/forms/form-errors';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
 import { TopicForm } from './topic-form';
-import { topicIcon } from './topic-icons';
+import { topicListIcon } from './topic-icons';
 
 const STATUS_LABELS: Record<Topic['status'], string> = {
   active: 'Active',
@@ -88,7 +88,8 @@ export class TopicList {
       label: 'Name',
       type: 'title',
       value: (t) => t.name,
-      icon: (t) => topicIcon(t.icon),
+      // A topic without an icon gets the generic one, so names line up.
+      icon: (t) => topicListIcon(t.icon),
       sortable: true,
     },
     {

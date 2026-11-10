@@ -89,6 +89,25 @@ Create and edit share one component. The page adds it with `@if` while it is ope
 - **While saving**, the fields are disabled, the save button shows a spinner and the drawer cannot be closed.
 - **Footer buttons**: **Cancel**, then the primary **Create …** or **Save changes**. The save button submits the form with `form="<form id>"`.
 
+## List with a detail page
+
+Some records have more than fits in a drawer, such as a questionnaire with its questions. Their list opens a detail page instead of the edit drawer. Questionnaires are the reference: `src/app/features/questionnaires/`.
+
+| Part | Plain list | List with a detail page |
+| - | - | - |
+| Row click | Opens the edit drawer. | Opens the detail page, for example `/admin/questionnaires/{questionnaireId}`, a second route in the administrator area. |
+| Open action | Edit, with the pencil icon. | Open, with an arrow icon (`LucideChevronRight`). The pencil is for actions that edit in place. |
+| Create | The drawer creates the record, and the list reloads. | The drawer creates the record, then the new record's detail page opens. |
+| Edit | The drawer, from the list. | **Edit settings** on the detail page opens the same drawer. |
+| Deactivate and reactivate | Row actions with a confirmation. | The same row actions, and buttons in the detail page's `sd-status-bar`. Share the confirmation in one component, as `questionnaire-status-dialog.ts` does. |
+
+The detail page:
+
+- **Header:** `sd-status-bar` with `back`, a `breadcrumb` to the list, the record's title as `heading`, `stats` for status and key numbers, and the actions in `sdStatusBarActions`.
+- **Sections:** one `sd-panel` per section, with an `sd-panel-section` `eyebrow` as its heading. A section for a feature that is not built yet shows an `sd-empty-state` that says so.
+- **States:** `sd-skeleton` on the first load, `<app-access-denied>` on `403`, an `sd-empty-state` with a link back to the list on `404`, and an `sd-callout` with **Try again** on other errors.
+- **Route parameter:** read it from `ActivatedRoute.paramMap`, and load with `rxResource`. Read the resource's value only while `hasValue()` is true: `value()` throws in the error state.
+
 ## Deactivate and reactivate
 
 ```html

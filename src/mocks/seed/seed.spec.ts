@@ -142,4 +142,23 @@ describe('seed data', () => {
       if (entry.entityType === 'assignment') expect(entry.action).toBe('created');
     }
   });
+
+  it('has one inactive draft questionnaire with an empty version 1 and no assignments', () => {
+    const drafts = data.questionnaires.filter(
+      (q) =>
+        !data.questions.some((question) => question.questionnaireVersionId === q.currentVersionId),
+    );
+
+    expect(drafts.map((q) => [q.title, q.status])).toEqual([
+      ['Reporting suspicious messages', 'inactive'],
+    ]);
+    const [draft] = drafts;
+    expect(data.questionnaireVersions.filter((v) => v.questionnaireId === draft.id)).toEqual([
+      expect.objectContaining({ id: draft.currentVersionId, versionNumber: 1 }),
+    ]);
+    expect(data.assignments.filter((a) => a.questionnaireId === draft.id)).toEqual([]);
+    expect(data.auditLog.filter((e) => e.entityId === draft.id).map((e) => e.action)).toEqual([
+      'created',
+    ]);
+  });
 });

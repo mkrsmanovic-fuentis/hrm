@@ -122,12 +122,12 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | Field | Type | Notes |
 | - | - | - |
 | `topicId` | UUID | The topic it belongs to. |
-| `title` | String, 1–200 | |
-| `description` | String | Up to 2,000 characters. |
+| `title` | String, 1–200 | Not unique. |
+| `description` | String or null | Optional, up to 2,000 characters. |
 | `passingScore` | Integer, 1–100 | Percent needed to pass. Defaults to 80. |
-| `timeLimitMinutes` | Integer or null | Optional time limit. Null means no limit. |
-| `status` | `active` or `inactive` | Inactive questionnaires cannot be assigned. |
-| `currentVersionId` | UUID | The latest version. New attempts use it. |
+| `timeLimitMinutes` | Integer, 1–480, or null | Optional time limit in minutes. Null means no limit. |
+| `status` | `active` or `inactive` | A new questionnaire is inactive. Inactive questionnaires cannot be assigned. |
+| `currentVersionId` | UUID | The latest version. New attempts use it. Set by the server: a new questionnaire gets an empty version 1. |
 | `questionCount` | Integer | *Derived.* Questions in the current version. |
 
 ### Questionnaire Version

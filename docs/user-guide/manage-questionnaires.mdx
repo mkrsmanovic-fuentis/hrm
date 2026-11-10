@@ -1,0 +1,98 @@
+---
+title: "Manage questionnaires"
+description: "Create questionnaires, change their settings, and activate or deactivate them."
+icon: "clipboard-list"
+---
+
+This page is for administrators. A questionnaire is a set of multiple-choice questions on one security topic, with a passing score and an optional time limit. The **Questionnaires** page lists every questionnaire, and each questionnaire has its own page with its settings.
+
+This page covers the settings. Adding and editing questions is not available yet.
+
+## Before you start
+
+- You need to be signed in as an administrator. Employees cannot open these pages.
+- You need at least one active topic. See [Manage topics](/user-guide/manage-topics).
+- Open **Questionnaires** in the side navigation.
+
+## See your questionnaires
+
+The list shows each questionnaire's **Title**, **Topic**, number of **Questions**, **Passing score**, **Status** and the date it was **Created**.
+
+- **Search by title** finds questionnaires whose title contains the text you type. Upper and lower case do not matter.
+- **Filters** shows only the questionnaires of one **Topic**, or only **Active** or **Inactive** ones.
+- Select a column header to sort by it. Select it again to reverse the order.
+- Select a row, or the arrow icon at the end of it, to open the questionnaire's page.
+
+## Create a questionnaire
+
+<Steps>
+  <Step title="Select New questionnaire">
+    The button is at the top right of the page. A panel opens on the right.
+  </Step>
+  <Step title="Fill in the form">
+    **Title** is required, up to 200 characters. Titles do not have to be unique: two questionnaires can have the same title, for example in different topics.
+
+    **Description** is optional, up to 2,000 characters.
+
+    **Topic** is required. Only active topics can be chosen. Inactive topics are listed, but you cannot pick them.
+
+    **Passing score (%)** is the score an employee needs to pass: a whole number from 1 to 100. It starts at **80**.
+
+    **Time limit (minutes)** is optional, from 1 to 480 minutes. Leave it empty for no time limit.
+  </Step>
+  <Step title="Select Create questionnaire">
+    A message confirms the new questionnaire, and its page opens. The questionnaire is **Inactive**: it is a draft until you activate it.
+  </Step>
+</Steps>
+
+## Change the settings
+
+<Steps>
+  <Step title="Open the questionnaire">
+    Select its row in the list.
+  </Step>
+  <Step title="Select Edit settings">
+    The same form opens, with the current settings. The same rules apply as when you create a questionnaire. You can move the questionnaire to another active topic. If its topic was deactivated, it can stay in that topic.
+  </Step>
+  <Step title="Select Save changes">
+    The panel closes and a message confirms the change. If you changed nothing, the panel just closes. To leave without saving, select **Cancel**.
+  </Step>
+</Steps>
+
+Changing the passing score does not change earlier results. Each attempt keeps the passing score it started with.
+
+## Activate a questionnaire
+
+A questionnaire must be active before it can be assigned.
+
+<Steps>
+  <Step title="Open the questionnaire and select Activate">
+    You can also select the circular arrow icon in its row in the list.
+  </Step>
+  <Step title="Confirm">
+    Select **Activate**. The questionnaire is active, and it can be assigned to employees.
+  </Step>
+</Steps>
+
+A questionnaire without questions cannot be activated. Its page says it is a draft, and **Activate** is not available.
+
+## Deactivate a questionnaire
+
+Deactivate a questionnaire you no longer want to assign.
+
+<Steps>
+  <Step title="Open the questionnaire and select Deactivate">
+    You can also select the power icon in its row in the list.
+  </Step>
+  <Step title="Confirm">
+    The dialog explains what happens. Select **Deactivate** to go ahead, or **Cancel** to keep it active.
+  </Step>
+</Steps>
+
+An inactive questionnaire cannot be assigned. Employees who already have it assigned can still complete it, and all results are kept. You can activate it again at any time.
+
+## Good to know
+
+- Questionnaires are never deleted. Deactivate them instead.
+- Every change you make is recorded with your name and the time, so it is clear who changed what.
+- The rules are in [Business rules](/developer-guide/business-rules#questionnaires).

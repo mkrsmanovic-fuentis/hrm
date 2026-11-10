@@ -33,7 +33,8 @@
             "pages": [
               "user-guide/manage-employees",
               "user-guide/manage-departments",
-              "user-guide/manage-topics"
+              "user-guide/manage-topics",
+              "user-guide/manage-questionnaires"
             ]
           }
         ]

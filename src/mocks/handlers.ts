@@ -4,6 +4,7 @@ import { accountLinkRoutes } from './resources/auth/account-links.handlers';
 import { authRoutes } from './resources/auth/auth.handlers';
 import { departmentRoutes } from './resources/departments/departments.handlers';
 import { organizationRoutes } from './resources/organization/organization.handlers';
+import { questionnaireRoutes } from './resources/questionnaires/questionnaires.handlers';
 import { topicRoutes } from './resources/topics/topics.handlers';
 import { userRoutes } from './resources/users/users.handlers';
 
@@ -18,6 +19,7 @@ export const mockRoutes: MockRoute[] = [
   ...departmentRoutes,
   ...userRoutes,
   ...topicRoutes,
+  ...questionnaireRoutes,
 ];
 
 /** Binds every route to an environment. The catch-all for unknown API paths comes last. */

@@ -95,6 +95,22 @@ export const routes: Routes = [
             title: 'Topics · HRM Platform',
             loadComponent: () => import('./features/topics/topic-list').then((m) => m.TopicList),
           },
+          {
+            path: 'questionnaires',
+            title: 'Questionnaires · HRM Platform',
+            loadComponent: () =>
+              import('./features/questionnaires/questionnaire-list').then(
+                (m) => m.QuestionnaireList,
+              ),
+          },
+          {
+            path: 'questionnaires/:questionnaireId',
+            title: 'Questionnaire · HRM Platform',
+            loadComponent: () =>
+              import('./features/questionnaires/questionnaire-detail').then(
+                (m) => m.QuestionnaireDetail,
+              ),
+          },
         ],
       },
       {
