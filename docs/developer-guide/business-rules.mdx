@@ -23,10 +23,8 @@ The mock API follows these rules so the frontend behaves as it will with the rea
 - The name is unique within the organization, among active and inactive departments, ignoring upper and lower case. "finance" cannot be added next to "Finance".
 - A new department is active.
 - Departments are deactivated, never deleted. Deactivating keeps the department's history, and its employees keep their department. Reactivating makes it active again, with nothing else changed.
-- The employee count of a department is the number of its **active** users. Deactivated users are not counted.
-
-{/* TODO: confirm with the PO whether administrators who belong to a department count as its employees. The mock counts every active user with the department, administrators included. */}
-{/* TODO: confirm with the PO what deactivating a department blocks, for example adding employees to it or assigning training to it. Nothing is blocked yet. */}
+- The employee count of a department is the number of its **active** users, administrators included. Deactivated users are not counted.
+- An **inactive** department cannot be chosen for a new or edited user, and cannot be used to assign training by department. Its current members keep it as their department, and it still appears in lists, filters, reports and history.
 
 ## Scoring
 
