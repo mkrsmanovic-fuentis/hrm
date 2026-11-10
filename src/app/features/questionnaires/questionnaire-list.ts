@@ -81,8 +81,10 @@ export class QuestionnaireList {
       }),
   });
 
-  protected readonly questionnaires = computed(() => this.data.value()?.questionnaires ?? []);
-  protected readonly topics = computed(() => this.data.value()?.topics ?? []);
+  /** The loaded data; `value()` throws while the resource is in an error state. */
+  private readonly loaded = computed(() => (this.data.hasValue() ? this.data.value() : null));
+  protected readonly questionnaires = computed(() => this.loaded()?.questionnaires ?? []);
+  protected readonly topics = computed(() => this.loaded()?.topics ?? []);
   private readonly topicNames = computed(
     () => new Map(this.topics().map((topic) => [topic.id, topic.name])),
   );

@@ -8,7 +8,16 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { disabled, form, FormField, required, submit, validate } from '@angular/forms/signals';
+import {
+  disabled,
+  form,
+  FormField,
+  max,
+  min,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import {
   SdButton,
   SdCallout,
@@ -119,15 +128,15 @@ export class QuestionnaireForm implements OnInit {
     validate(p.title, ({ value }) => checkText(value(), TITLE_MAX_LENGTH, 'Enter a title.'));
     validate(p.description, ({ value }) => checkText(value(), DESCRIPTION_MAX_LENGTH));
     required(p.topicId, { message: 'Choose a topic.' });
-    required(p.passingScore, {
-      message: `Enter a whole number from ${PASSING_SCORE_MIN} to ${PASSING_SCORE_MAX}.`,
-    });
-    validate(p.passingScore, ({ value }) =>
-      checkWholeNumber(value(), PASSING_SCORE_MIN, PASSING_SCORE_MAX),
-    );
-    validate(p.timeLimitMinutes, ({ value }) =>
-      checkWholeNumber(value(), TIME_LIMIT_MIN, TIME_LIMIT_MAX),
-    );
+    const scoreMessage = rangeMessage(PASSING_SCORE_MIN, PASSING_SCORE_MAX);
+    required(p.passingScore, { message: scoreMessage });
+    min(p.passingScore, PASSING_SCORE_MIN, { message: scoreMessage });
+    max(p.passingScore, PASSING_SCORE_MAX, { message: scoreMessage });
+    validate(p.passingScore, ({ value }) => checkWholeNumber(value(), scoreMessage));
+    const timeMessage = rangeMessage(TIME_LIMIT_MIN, TIME_LIMIT_MAX);
+    min(p.timeLimitMinutes, TIME_LIMIT_MIN, { message: timeMessage });
+    max(p.timeLimitMinutes, TIME_LIMIT_MAX, { message: timeMessage });
+    validate(p.timeLimitMinutes, ({ value }) => checkWholeNumber(value(), timeMessage));
     disabled(p.title, () => this.saving());
     disabled(p.description, () => this.saving());
     disabled(p.topicId, () => this.saving());
@@ -241,11 +250,12 @@ function checkText(value: string, max: number, blankMessage?: string) {
   return undefined;
 }
 
-/** A number field: when set, a whole number from `min` to `max`. */
-function checkWholeNumber(value: number | null, min: number, max: number) {
-  if (value === null) return undefined;
-  if (!Number.isInteger(value) || value < min || value > max) {
-    return { kind: 'range', message: `Enter a whole number from ${min} to ${max}.` };
-  }
-  return undefined;
+function rangeMessage(from: number, to: number): string {
+  return `Enter a whole number from ${from} to ${to}.`;
+}
+
+/** A number field: when set, a whole number. The range is checked by `min()` and `max()`. */
+function checkWholeNumber(value: number | null, message: string) {
+  if (value === null || Number.isInteger(value)) return undefined;
+  return { kind: 'wholeNumber', message };
 }

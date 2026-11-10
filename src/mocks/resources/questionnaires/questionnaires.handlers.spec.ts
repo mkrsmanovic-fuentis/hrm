@@ -46,9 +46,7 @@ describe('questionnaires mock handlers', () => {
     it('lists every questionnaire, active and inactive, with its question count, sorted by title', async () => {
       const { api, mock } = setup();
 
-      const result = await firstValueFrom(
-        api.get('/questionnaires', { query: { pageSize: 100 } }),
-      );
+      const result = await firstValueFrom(api.get('/questionnaires', { query: { pageSize: 100 } }));
 
       expect(result.page.totalItems).toBe(mock.db.data.questionnaires.length);
       const titles = result.items.map((q) => q.title);
@@ -70,7 +68,9 @@ describe('questionnaires mock handlers', () => {
       const inTopic = await firstValueFrom(
         api.get('/questionnaires', { query: { topicId: password } }),
       );
-      const search = await firstValueFrom(api.get('/questionnaires', { query: { q: ' PHISHING ' } }));
+      const search = await firstValueFrom(
+        api.get('/questionnaires', { query: { q: ' PHISHING ' } }),
+      );
       const byScore = await firstValueFrom(
         api.get('/questionnaires', { query: { sort: '-passingScore' } }),
       );
@@ -316,7 +316,11 @@ describe('questionnaires mock handlers', () => {
           entityType: 'questionnaire',
           entityId: record.id,
           changes: [
-            { field: 'topicId', oldValue: topicId(mock, 'Safe Internet Usage'), newValue: newTopic },
+            {
+              field: 'topicId',
+              oldValue: topicId(mock, 'Safe Internet Usage'),
+              newValue: newTopic,
+            },
             { field: 'title', oldValue: 'Browsing and downloads', newValue: 'Safe browsing' },
             { field: 'passingScore', oldValue: 80, newValue: 75 },
             { field: 'timeLimitMinutes', oldValue: null, newValue: 20 },

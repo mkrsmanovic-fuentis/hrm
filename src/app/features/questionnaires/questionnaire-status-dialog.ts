@@ -47,13 +47,13 @@ import { STATUS_LABELS } from './questionnaire-text';
         @if (deactivating()) {
           <p class="message">
             <strong>{{ target.title }}</strong> will be marked inactive, and it can no longer be
-            assigned. Employees who already have it assigned can still complete it, and all
-            results are kept. You can activate it again at any time.
+            assigned. Employees who already have it assigned can still complete it, and all results
+            are kept. You can activate it again at any time.
           </p>
         } @else {
           <p class="message">
-            <strong>{{ target.title }}</strong> will be active, and it can be assigned to
-            employees. Its settings and questions are unchanged.
+            <strong>{{ target.title }}</strong> will be active, and it can be assigned to employees.
+            Its settings and questions are unchanged.
           </p>
         }
       }

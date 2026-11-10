@@ -16,8 +16,7 @@
 
     @if (isNew()) {
       <sd-callout tone="info">
-        A new questionnaire starts inactive, as a draft. You can activate it once it has
-        questions.
+        A new questionnaire starts inactive, as a draft. You can activate it once it has questions.
       </sd-callout>
     }
 
@@ -54,7 +53,7 @@
       [error]="visibleError(f.passingScore)"
       required
     >
-      <input sd-input type="number" min="1" max="100" step="1" [formField]="f.passingScore" />
+      <input sd-input type="number" step="1" [formField]="f.passingScore" />
     </sd-field>
 
     <sd-field
@@ -62,7 +61,7 @@
       hint="Optional, up to 480 minutes. Leave it empty for no time limit."
       [error]="visibleError(f.timeLimitMinutes)"
     >
-      <input sd-input type="number" min="1" max="480" step="1" [formField]="f.timeLimitMinutes" />
+      <input sd-input type="number" step="1" [formField]="f.timeLimitMinutes" />
     </sd-field>
   </form>
 
