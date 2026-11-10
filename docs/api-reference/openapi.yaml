@@ -1,0 +1,947 @@
+openapi: 3.1.0
+
+# Conventions for this file (also documented in api-reference/overview.mdx):
+# - Paths are written without the /api/v1 base path; it is part of the server URL.
+# - Resource URLs are plural kebab-case nouns. A singleton (the current organization) is singular.
+# - Every operation has an operationId in camelCase, one tag, and `x-mint: *spec-status`.
+# - Errors use the shared responses under components.responses (application/problem+json).
+# - List endpoints use the Page and PageSize parameters and return a `<Entity>Page` envelope.
+# - Every entity has `id`, `organizationId`, `createdAt` and `updatedAt`.
+
+x-spec-status: &spec-status
+  content: |
+    <Warning>
+      **Specification, not yet implemented.** This endpoint describes what the real backend must do. The current app is a frontend demo running on a mocked API.
+    </Warning>
+
+info:
+  title: HRM Platform API
+  version: 1.0.0
+  summary: The contract between the HRM Platform frontend and its future backend.
+  description: |
+    Specification, not yet implemented. The frontend runs against a mocked API that implements this contract in the browser.
+
+    All requests are scoped to the current organization, which is derived from the session. Organization IDs never appear in URLs.
+
+servers:
+  - url: '{origin}/api/v1'
+    description: HRM Platform API
+    variables:
+      origin:
+        default: http://localhost:4200
+        description: Scheme and host of the deployment. The frontend calls the API on its own origin.
+
+security:
+  - sessionToken: []
+
+tags:
+  - name: Organization
+    description: The organization the signed-in user belongs to.
+  - name: Topics
+    description: Cybersecurity training subjects, such as Phishing Awareness.
+
+paths:
+  /organization:
+    get:
+      operationId: getCurrentOrganization
+      tags: [Organization]
+      summary: Get the current organization
+      description: Returns the organization the signed-in user belongs to. Available to every signed-in user.
+      x-mint: *spec-status
+      responses:
+        '200':
+          description: The current organization.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Organization'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /topics:
+    get:
+      operationId: listTopics
+      tags: [Topics]
+      summary: List topics
+      description: Returns the organization's topics, one page at a time.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          description: Only return topics with this status. Omit to return all topics.
+          schema:
+            $ref: '#/components/schemas/ActivityStatus'
+        - name: sort
+          in: query
+          description: Sort order. Prefix a field with `-` for descending order.
+          schema:
+            type: string
+            enum: [name, -name, createdAt, -createdAt]
+            default: name
+      responses:
+        '200':
+          description: One page of topics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopicPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /topics/{topicId}:
+    get:
+      operationId: getTopic
+      tags: [Topics]
+      summary: Get a topic
+      description: Returns one topic of the current organization.
+      x-mint: *spec-status
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          description: ID of the topic.
+          schema:
+            $ref: '#/components/schemas/Id'
+      responses:
+        '200':
+          description: The topic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  securitySchemes:
+    sessionToken:
+      type: http
+      scheme: bearer
+      description: |
+        Session token issued by the authentication endpoints under `/auth` (email and password in the MVP, SSO later).
+        Send it on every request as `Authorization: Bearer <token>`. The rest of the API only knows the token, never how it was obtained.
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      description: Page number, starting at 1.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: Number of items per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+
+  responses:
+    BadRequest:
+      description: The request could not be read, for example because the body is not valid JSON.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/bad-request
+            title: Bad request
+            status: 400
+            detail: The request body is not valid JSON.
+    Unauthenticated:
+      description: No valid session token was sent. The user must sign in.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/unauthenticated
+            title: Not signed in
+            status: 401
+            detail: Sign in to continue.
+    Forbidden:
+      description: The user is signed in but not allowed to do this, for example an employee calling an administrator endpoint.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/forbidden
+            title: Access denied
+            status: 403
+            detail: You do not have permission to do this.
+    NotFound:
+      description: The resource does not exist in the current organization.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/not-found
+            title: Not found
+            status: 404
+            detail: Topic 2f0c1a7e-3b6d-4c1e-9f7a-5d2e8b4c6a10 was not found.
+    Conflict:
+      description: The request conflicts with the current state, for example assigning a questionnaire the employee already has open.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/conflict
+            title: Conflict
+            status: 409
+            detail: The employee already has an open assignment for this questionnaire.
+    ValidationFailed:
+      description: One or more request fields are invalid. Each problem is listed in `errors`.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+          example:
+            type: /problems/validation-failed
+            title: Validation failed
+            status: 422
+            detail: 1 field is invalid.
+            errors:
+              - location: query
+                field: pageSize
+                code: out_of_range
+                message: Must be between 1 and 100.
+    InternalError:
+      description: Something went wrong on the server.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/internal-error
+            title: Something went wrong
+            status: 500
+            detail: Try again later.
+
+  schemas:
+    # ---------------------------------------------------------------- shared
+
+    Id:
+      type: string
+      format: uuid
+      description: Unique identifier (UUID).
+      examples: [2f0c1a7e-3b6d-4c1e-9f7a-5d2e8b4c6a10]
+
+    Timestamp:
+      type: string
+      format: date-time
+      description: Date and time in UTC, in ISO 8601 format.
+      examples: ['2026-11-10T09:30:00Z']
+
+    ActivityStatus:
+      type: string
+      enum: [active, inactive]
+      description: Whether the record is in use. Inactive records keep their history.
+
+    PassingScore:
+      type: integer
+      minimum: 1
+      maximum: 100
+      default: 80
+      description: Minimum score, in percent, needed to pass. Whole number from 1 to 100. Defaults to 80.
+
+    Score:
+      type: number
+      minimum: 0
+      maximum: 100
+      description: Exact score in percent, `correct answers / total questions × 100`. Compare the exact value with the passing score; show it rounded down.
+      examples: [79.6]
+
+    PageInfo:
+      type: object
+      description: Position of a page within the full result.
+      required: [page, pageSize, totalItems, totalPages]
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          description: Current page number, starting at 1.
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Requested number of items per page.
+        totalItems:
+          type: integer
+          minimum: 0
+          description: Number of items across all pages.
+        totalPages:
+          type: integer
+          minimum: 0
+          description: Number of pages. 0 when there are no items.
+
+    Problem:
+      type: object
+      description: Error details in the RFC 9457 problem format, sent as `application/problem+json`.
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: Identifies the kind of problem, for example `/problems/not-found`. Clients branch on this value.
+        title:
+          type: string
+          description: Short, human-readable summary of the problem kind.
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: HTTP status code.
+        detail:
+          type: string
+          description: Human-readable explanation of this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: The request path that caused the problem.
+
+    ValidationProblem:
+      description: A problem with a list of invalid fields.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      description: One invalid field in a request.
+      required: [location, field, code, message]
+      properties:
+        location:
+          type: string
+          enum: [body, query, path, header]
+          description: Where the field was sent.
+        field:
+          type: string
+          description: Name of the field. Nested body fields use dots and indexes, for example `questions[2].text`.
+        code:
+          type: string
+          description: |
+            Machine-readable reason. Known codes: `required`, `invalid_type`, `invalid_format`, `invalid_value`,
+            `out_of_range`, `too_short`, `too_long`, `not_unique`.
+        message:
+          type: string
+          description: Human-readable explanation, safe to show next to the field.
+
+    # ---------------------------------------------------------------- organization and people
+
+    Organization:
+      type: object
+      description: Owns all other records. The MVP has one organization, exposed as the current organization.
+      required: [id, name, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Display name of the organization.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    RoleKey:
+      type: string
+      enum: [administrator, employee]
+      description: Stable key of a role. The MVP has one Administrator role with full access and one Employee role.
+
+    Role:
+      type: object
+      description: Permissions for a kind of user. Users reference a role by its key.
+      required: [id, organizationId, key, name, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        key:
+          $ref: '#/components/schemas/RoleKey'
+        name:
+          type: string
+          description: Display name, for example "Administrator".
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    User:
+      type: object
+      description: An administrator or employee account.
+      required:
+        [
+          id,
+          organizationId,
+          email,
+          firstName,
+          lastName,
+          role,
+          departmentId,
+          status,
+          invitationSentAt,
+          invitationExpiresAt,
+          passwordSetAt,
+          lastSignedInAt,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Sign-in email address. Unique within the organization.
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        role:
+          $ref: '#/components/schemas/RoleKey'
+        departmentId:
+          description: Department the user belongs to, if any.
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+          description: Inactive users cannot sign in. Their open assignments stay but are left out of pending and overdue counts.
+        invitationSentAt:
+          description: When the latest invite link was sent. Null once the password is set.
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        invitationExpiresAt:
+          description: When the latest invite link expires, 7 days after it was sent. Null once the password is set.
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        passwordSetAt:
+          description: When the user set a password through the invite link. Null while the invite is pending.
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        lastSignedInAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    Department:
+      type: object
+      description: Groups employees.
+      required: [id, organizationId, name, description, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Unique within the organization.
+        description:
+          type: ['string', 'null']
+          maxLength: 500
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    # ---------------------------------------------------------------- training content
+
+    Topic:
+      type: object
+      description: A cybersecurity training subject, such as Phishing Awareness. A topic contains questionnaires.
+      required: [id, organizationId, name, description, icon, status, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Unique within the organization.
+        description:
+          type: string
+          maxLength: 1000
+        icon:
+          type: ['string', 'null']
+          maxLength: 64
+          description: Optional icon name from the ui-kit icon set (Lucide), for example `fish`.
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    TopicPage:
+      type: object
+      description: One page of topics.
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Topic'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    Questionnaire:
+      type: object
+      description: A set of questions on one topic, with its settings. The questions live in versions.
+      required:
+        [
+          id,
+          organizationId,
+          topicId,
+          title,
+          description,
+          passingScore,
+          timeLimitMinutes,
+          status,
+          currentVersionId,
+          questionCount,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        topicId:
+          $ref: '#/components/schemas/Id'
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        passingScore:
+          $ref: '#/components/schemas/PassingScore'
+        timeLimitMinutes:
+          type: ['integer', 'null']
+          minimum: 1
+          description: Optional time limit. When it runs out, the attempt is submitted automatically. Null means no limit.
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+          description: Inactive questionnaires cannot be assigned. Existing assignments can still be completed.
+        currentVersionId:
+          $ref: '#/components/schemas/Id'
+          description: The latest version. New attempts use it.
+        questionCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Number of questions in the current version.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    QuestionnaireVersion:
+      type: object
+      description: |
+        A snapshot of a questionnaire's questions. A questionnaire with no attempts is edited in place.
+        Editing one that has attempts creates a new version. Each attempt stays linked to the version it used.
+      required: [id, organizationId, questionnaireId, versionNumber, questions, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        questionnaireId:
+          $ref: '#/components/schemas/Id'
+        versionNumber:
+          type: integer
+          minimum: 1
+          description: Starts at 1 and goes up by one for each new version.
+        questions:
+          type: array
+          description: Questions in display order.
+          items:
+            $ref: '#/components/schemas/Question'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    Question:
+      type: object
+      description: One multiple-choice question with exactly one correct answer. Every question is required.
+      required: [id, organizationId, questionnaireVersionId, position, text, explanation, answerOptions, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        questionnaireVersionId:
+          $ref: '#/components/schemas/Id'
+        position:
+          type: integer
+          minimum: 1
+          description: Display order within the version, starting at 1.
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        explanation:
+          type: ['string', 'null']
+          maxLength: 2000
+          description: Optional feedback shown when the question is answered wrong.
+        answerOptions:
+          type: array
+          minItems: 2
+          description: Possible answers in display order. Exactly one is correct.
+          items:
+            $ref: '#/components/schemas/AnswerOption'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    AnswerOption:
+      type: object
+      description: A possible answer to a question.
+      required: [id, organizationId, questionId, position, text, isCorrect, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        questionId:
+          $ref: '#/components/schemas/Id'
+        position:
+          type: integer
+          minimum: 1
+          description: Display order within the question, starting at 1.
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        isCorrect:
+          type: boolean
+          description: |
+            Whether this is the correct answer. Sent to administrators. Employees receive it only for a questionnaire
+            they passed; after a failed attempt they see which questions were wrong, not the correct answers.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    # ---------------------------------------------------------------- training
+
+    AssignmentStatus:
+      type: string
+      enum: [not_started, in_progress, passed, failed, overdue]
+      description: |
+        Derived, evaluated in this order: `passed` if any attempt passed, even after the deadline; otherwise `overdue`
+        if the deadline has passed; otherwise `failed`, `in_progress` or `not_started`, based on the latest attempt.
+
+    Assignment:
+      type: object
+      description: Links a questionnaire to an employee, with a deadline.
+      required:
+        [
+          id,
+          organizationId,
+          questionnaireId,
+          userId,
+          assignedById,
+          dueAt,
+          status,
+          attemptCount,
+          latestScore,
+          completedAt,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        questionnaireId:
+          $ref: '#/components/schemas/Id'
+        userId:
+          $ref: '#/components/schemas/Id'
+          description: The employee who must complete the questionnaire.
+        assignedById:
+          $ref: '#/components/schemas/Id'
+          description: The administrator who created the assignment.
+        dueAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: Deadline. After it passes, an assignment that is not passed is overdue.
+        status:
+          $ref: '#/components/schemas/AssignmentStatus'
+        attemptCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+        latestScore:
+          readOnly: true
+          description: Score of the latest submitted attempt. Null when no attempt is submitted.
+          oneOf:
+            - $ref: '#/components/schemas/Score'
+            - type: 'null'
+        completedAt:
+          readOnly: true
+          description: When the passing attempt was submitted. Null until passed.
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the questionnaire was assigned.
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    AttemptStatus:
+      type: string
+      enum: [in_progress, submitted]
+      description: An assignment has at most one attempt in progress.
+
+    SubmissionType:
+      type: string
+      enum: [employee, time_limit]
+      description: '`employee` when the employee submitted, `time_limit` when the time limit ran out and the attempt was submitted automatically.'
+
+    Attempt:
+      type: object
+      description: One try at completing an assignment, on one questionnaire version. Submitted attempts are never changed or deleted.
+      required:
+        [
+          id,
+          organizationId,
+          assignmentId,
+          questionnaireVersionId,
+          attemptNumber,
+          status,
+          startedAt,
+          expiresAt,
+          submittedAt,
+          submissionType,
+          passingScore,
+          questionCount,
+          correctCount,
+          score,
+          passed,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        assignmentId:
+          $ref: '#/components/schemas/Id'
+        questionnaireVersionId:
+          $ref: '#/components/schemas/Id'
+          description: The version the attempt started on. It finishes on the same version.
+        attemptNumber:
+          type: integer
+          minimum: 1
+          description: 1 for the first attempt of the assignment, then counting up.
+        status:
+          $ref: '#/components/schemas/AttemptStatus'
+        startedAt:
+          $ref: '#/components/schemas/Timestamp'
+        expiresAt:
+          description: When the time limit runs out. Null when the questionnaire has no time limit.
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        submittedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        submissionType:
+          oneOf:
+            - $ref: '#/components/schemas/SubmissionType'
+            - type: 'null'
+        passingScore:
+          $ref: '#/components/schemas/PassingScore'
+          description: The questionnaire's passing score when the attempt started, so later changes do not alter the result.
+        questionCount:
+          type: integer
+          minimum: 1
+          description: Number of questions in the version.
+        correctCount:
+          type: ['integer', 'null']
+          minimum: 0
+          description: Correct answers. Null until submitted. Unanswered questions count as wrong.
+        score:
+          description: Null until submitted.
+          oneOf:
+            - $ref: '#/components/schemas/Score'
+            - type: 'null'
+        passed:
+          type: ['boolean', 'null']
+          description: True when the exact score is equal to or greater than the passing score. Null until submitted.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    AttemptAnswer:
+      type: object
+      description: The answer chosen for one question in an attempt.
+      required: [id, organizationId, attemptId, questionId, answerOptionId, isCorrect, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        attemptId:
+          $ref: '#/components/schemas/Id'
+        questionId:
+          $ref: '#/components/schemas/Id'
+        answerOptionId:
+          description: The chosen option. Null when the time limit ran out before the question was answered.
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        isCorrect:
+          type: ['boolean', 'null']
+          description: Null until the attempt is submitted.
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the answer was last changed.
+
+    # ---------------------------------------------------------------- notifications and audit
+
+    NotificationType:
+      type: string
+      enum: [assignment_created, deadline_reminder]
+      description: '`assignment_created` when training is assigned; `deadline_reminder` 3 days before the deadline, unless already passed.'
+
+    Notification:
+      type: object
+      description: An in-app message to an employee. The app builds the text from the type and the linked assignment.
+      required: [id, organizationId, userId, type, assignmentId, readAt, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        userId:
+          $ref: '#/components/schemas/Id'
+          description: The recipient.
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        assignmentId:
+          $ref: '#/components/schemas/Id'
+        readAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+
+    AuditAction:
+      type: string
+      enum: [created, updated, deactivated, reactivated]
+
+    AuditEntityType:
+      type: string
+      enum: [user, department, topic, questionnaire, assignment]
+
+    AuditChange:
+      type: object
+      description: One changed field.
+      required: [field, oldValue, newValue]
+      properties:
+        field:
+          type: string
+        oldValue:
+          description: Value before the change. Null for new records.
+        newValue:
+          description: Value after the change.
+
+    AuditLogEntry:
+      type: object
+      description: A record of an administrator action. Entries are never changed or deleted. There is no screen for them in the MVP.
+      required: [id, organizationId, actorId, action, entityType, entityId, changes, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/Id'
+        organizationId:
+          $ref: '#/components/schemas/Id'
+        actorId:
+          $ref: '#/components/schemas/Id'
+          description: The administrator who did it.
+        action:
+          $ref: '#/components/schemas/AuditAction'
+        entityType:
+          $ref: '#/components/schemas/AuditEntityType'
+        entityId:
+          $ref: '#/components/schemas/Id'
+        changes:
+          type: array
+          description: What changed. Empty for deactivation and reactivation.
+          items:
+            $ref: '#/components/schemas/AuditChange'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the action happened.
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'

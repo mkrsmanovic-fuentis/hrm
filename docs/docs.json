@@ -39,6 +39,12 @@
             ]
           },
           {
+            "group": "Frontend",
+            "pages": [
+              "developer-guide/mock-api"
+            ]
+          },
+          {
             "group": "Contributing",
             "pages": [
               "developer-guide/writing-docs"
@@ -54,6 +60,10 @@
             "pages": [
               "api-reference/overview"
             ]
+          },
+          {
+            "group": "Endpoints",
+            "openapi": "api-reference/openapi.yaml"
           }
         ]
       },

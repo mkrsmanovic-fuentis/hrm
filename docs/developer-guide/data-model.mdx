@@ -50,6 +50,163 @@ Every record belongs to an organization. The diagram shows only the main links t
 
 See [Business rules](/developer-guide/business-rules) for how versions, statuses and attempts behave.
 
-{/* TODO: fields for each entity will be added with the API spec. */}
+## Fields
 
-Fields for each entity are defined in the API spec and will be listed here when it is written.
+The schemas in the [API spec](/api-reference/overview) are the source of truth. This section lists the same fields for reading; if the two ever disagree, the spec wins.
+
+Every entity also has the shared fields below. They are not repeated in the tables.
+
+| Field | Type | Notes |
+| - | - | - |
+| `id` | UUID | Unique identifier. |
+| `organizationId` | UUID | The owning organization. Not on Organization itself. |
+| `createdAt` | Timestamp | UTC, ISO 8601. |
+| `updatedAt` | Timestamp | When the record last changed. |
+
+Fields marked *derived* are calculated by the backend and cannot be set. "or null" means the field is always present and may be `null`.
+
+### Organization
+
+| Field | Type | Notes |
+| - | - | - |
+| `name` | String, 1–200 | Display name. |
+
+### Role
+
+| Field | Type | Notes |
+| - | - | - |
+| `key` | `administrator` or `employee` | Stable key. Users reference a role by its key. |
+| `name` | String | Display name, for example "Administrator". |
+
+### User
+
+| Field | Type | Notes |
+| - | - | - |
+| `email` | Email | Sign-in address. Unique within the organization. |
+| `firstName` | String, 1–100 | |
+| `lastName` | String, 1–100 | |
+| `role` | Role key | `administrator` or `employee`. |
+| `departmentId` | UUID or null | The user's department, if any. |
+| `status` | `active` or `inactive` | Inactive users cannot sign in. |
+| `invitationSentAt` | Timestamp or null | When the latest invite link was sent. Null once the password is set. |
+| `invitationExpiresAt` | Timestamp or null | 7 days after `invitationSentAt`. |
+| `passwordSetAt` | Timestamp or null | When the user set a password. Null while the invite is pending. |
+| `lastSignedInAt` | Timestamp or null | |
+
+### Department
+
+| Field | Type | Notes |
+| - | - | - |
+| `name` | String, 1–100 | Unique within the organization. |
+| `description` | String or null | Up to 500 characters. |
+| `status` | `active` or `inactive` | |
+
+### Topic
+
+| Field | Type | Notes |
+| - | - | - |
+| `name` | String, 1–100 | Unique within the organization. |
+| `description` | String | Up to 1,000 characters. |
+| `icon` | String or null | Optional icon name from the ui-kit icon set (Lucide), for example `fish`. |
+| `status` | `active` or `inactive` | |
+
+### Questionnaire
+
+| Field | Type | Notes |
+| - | - | - |
+| `topicId` | UUID | The topic it belongs to. |
+| `title` | String, 1–200 | |
+| `description` | String | Up to 2,000 characters. |
+| `passingScore` | Integer, 1–100 | Percent needed to pass. Defaults to 80. |
+| `timeLimitMinutes` | Integer or null | Optional time limit. Null means no limit. |
+| `status` | `active` or `inactive` | Inactive questionnaires cannot be assigned. |
+| `currentVersionId` | UUID | The latest version. New attempts use it. |
+| `questionCount` | Integer | *Derived.* Questions in the current version. |
+
+### Questionnaire Version
+
+| Field | Type | Notes |
+| - | - | - |
+| `questionnaireId` | UUID | |
+| `versionNumber` | Integer | Starts at 1 and goes up by one. |
+| `questions` | List of Question | Returned nested, in display order. |
+
+### Question
+
+| Field | Type | Notes |
+| - | - | - |
+| `questionnaireVersionId` | UUID | The version it belongs to. |
+| `position` | Integer | Display order, starting at 1. |
+| `text` | String, 1–1,000 | |
+| `explanation` | String or null | Optional feedback for a wrong answer. |
+| `answerOptions` | List of Answer Option | At least two, exactly one correct. Returned nested, in display order. |
+
+### Answer Option
+
+| Field | Type | Notes |
+| - | - | - |
+| `questionId` | UUID | |
+| `position` | Integer | Display order, starting at 1. |
+| `text` | String, 1–500 | |
+| `isCorrect` | Boolean | Sent to administrators. Employees get it only for a questionnaire they passed. |
+
+### Assignment
+
+| Field | Type | Notes |
+| - | - | - |
+| `questionnaireId` | UUID | |
+| `userId` | UUID | The employee who must complete it. |
+| `assignedById` | UUID | The administrator who assigned it. `createdAt` is the assignment date. |
+| `dueAt` | Timestamp | The deadline. |
+| `status` | Assignment status | *Derived.* `not_started`, `in_progress`, `passed`, `failed` or `overdue`. See [Assignment status](/developer-guide/business-rules#assignment-status). |
+| `attemptCount` | Integer | *Derived.* |
+| `latestScore` | Number or null | *Derived.* Score of the latest submitted attempt. |
+| `completedAt` | Timestamp or null | *Derived.* When the passing attempt was submitted. |
+
+### Attempt
+
+| Field | Type | Notes |
+| - | - | - |
+| `assignmentId` | UUID | |
+| `questionnaireVersionId` | UUID | The version the attempt used, from start to finish. |
+| `attemptNumber` | Integer | 1 for the first attempt of the assignment. |
+| `status` | `in_progress` or `submitted` | At most one attempt per assignment is in progress. |
+| `startedAt` | Timestamp | |
+| `expiresAt` | Timestamp or null | When the time limit runs out. Null without a time limit. |
+| `submittedAt` | Timestamp or null | |
+| `submissionType` | `employee`, `time_limit` or null | Who submitted: the employee, or the time limit automatically. |
+| `passingScore` | Integer, 1–100 | The questionnaire's passing score when the attempt started, so later changes do not alter the result. |
+| `questionCount` | Integer | Questions in the version. |
+| `correctCount` | Integer or null | Null until submitted. |
+| `score` | Number or null | Exact percent. Null until submitted. Shown rounded down. |
+| `passed` | Boolean or null | Null until submitted. |
+
+### Attempt Answer
+
+| Field | Type | Notes |
+| - | - | - |
+| `attemptId` | UUID | |
+| `questionId` | UUID | |
+| `answerOptionId` | UUID or null | The chosen option. Null when the time limit ran out first. |
+| `isCorrect` | Boolean or null | Null until the attempt is submitted. |
+
+### Notification
+
+| Field | Type | Notes |
+| - | - | - |
+| `userId` | UUID | The recipient. |
+| `type` | `assignment_created` or `deadline_reminder` | The app builds the message text from the type. |
+| `assignmentId` | UUID | The assignment it is about. |
+| `readAt` | Timestamp or null | |
+
+### Audit Log
+
+Each entry is an `AuditLogEntry` in the spec.
+
+| Field | Type | Notes |
+| - | - | - |
+| `actorId` | UUID | The administrator who did it. |
+| `action` | `created`, `updated`, `deactivated` or `reactivated` | |
+| `entityType` | `user`, `department`, `topic`, `questionnaire` or `assignment` | |
+| `entityId` | UUID | |
+| `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for deactivation and reactivation. |
