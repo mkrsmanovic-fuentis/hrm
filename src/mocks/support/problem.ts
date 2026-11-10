@@ -13,8 +13,19 @@ const titles: Record<number, [type: string, title: string, detail: string]> = {
 };
 
 /** Builds the RFC 9457 problem body for a status, using the spec's type and title. */
-export function problemBody(status: number, detail?: string, instance?: string): Problem {
-  const [type, title, defaultDetail] = titles[status] ?? ['about:blank', `HTTP ${status}`, ''];
+export function problemBody(
+  status: number,
+  detail?: string,
+  instance?: string,
+  kind?: ProblemKind,
+): Problem {
+  const [defaultType, defaultTitle, defaultDetail] = titles[status] ?? [
+    'about:blank',
+    `HTTP ${status}`,
+    '',
+  ];
+  const type = kind?.type ?? defaultType;
+  const title = kind?.title ?? defaultTitle;
   return {
     type,
     title,
@@ -24,14 +35,20 @@ export function problemBody(status: number, detail?: string, instance?: string):
   };
 }
 
+/** A problem `type` and `title` other than the status's default, for example a sign-in failure. */
+export interface ProblemKind {
+  type: string;
+  title: string;
+}
+
 /** An `application/problem+json` response, as described in the spec's shared responses. */
 export function problemResponse(
   status: number,
   detail?: string,
-  extra: { instance?: string; errors?: FieldError[] } = {},
+  extra: { instance?: string; errors?: FieldError[]; kind?: ProblemKind } = {},
 ): Response {
   const body = {
-    ...problemBody(status, detail, extra.instance),
+    ...problemBody(status, detail, extra.instance, extra.kind),
     ...(extra.errors ? { errors: extra.errors } : {}),
   };
   return HttpResponse.json(body, {

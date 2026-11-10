@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/auth/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the current session
+         * @description Returns the session of the sent token, with the signed-in user. Use it to check that a stored token is still valid.
+         */
+        get: operations["getCurrentSession"];
+        put?: never;
+        /**
+         * Sign in
+         * @description Signs in with email and password and starts a session. Needs no session token; it issues one.
+         *
+         *     The session lasts 8 hours from sign-in and is not extended by activity. Send the returned `token` as `Authorization: Bearer <token>` on every other request.
+         *
+         *     Only active users who have set a password can sign in. Wrong credentials, an unknown email and a user whose invite is still pending all get the same `401` answer, so the response does not reveal which emails have accounts. A deactivated user who enters the right password gets `403`.
+         */
+        post: operations["signIn"];
+        /**
+         * Sign out
+         * @description Ends the session of the sent token. The token stops working at once.
+         *
+         *     Signing out always succeeds: with a missing, expired or unknown token there is nothing to end, and the answer is still `204`.
+         */
+        delete: operations["signOut"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organization": {
         parameters: {
             query?: never;
@@ -145,6 +179,28 @@ export interface components {
             code: string;
             /** @description Human-readable explanation, safe to show next to the field. */
             message: string;
+        };
+        /** @description Credentials for signing in with email and password. */
+        SignInRequest: {
+            /**
+             * Format: email
+             * @description Sign-in email address. Matched without regard to upper and lower case.
+             * @example maja.novak@brightwater.example
+             */
+            email: string;
+            /** @description The user's password. */
+            password: string;
+        };
+        /** @description A signed-in session. It lasts 8 hours from sign-in and is not extended by activity. */
+        Session: {
+            /** @description Opaque session token. Send it as `Authorization: Bearer <token>`. Treat it as a secret. */
+            token: string;
+            /** @description When the user signed in. */
+            createdAt: components["schemas"]["Timestamp"];
+            /** @description When the session ends, 8 hours after `createdAt`. After that, the token gets `401`. */
+            expiresAt: components["schemas"]["Timestamp"];
+            /** @description The signed-in user. */
+            user: components["schemas"]["User"];
         };
         /** @description Owns all other records. The MVP has one organization, exposed as the current organization. */
         Organization: {
@@ -440,6 +496,40 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
+        /** @description The email and password do not match an active account that can sign in. */
+        InvalidCredentials: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/invalid-credentials",
+                 *       "title": "Wrong email or password",
+                 *       "status": 401,
+                 *       "detail": "The email or password is wrong."
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The email and password are right, but the account is deactivated. Deactivated users cannot sign in. */
+        AccountInactive: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/account-inactive",
+                 *       "title": "Account deactivated",
+                 *       "status": 403,
+                 *       "detail": "This account is deactivated. Ask an administrator to reactivate it."
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description No valid session token was sent. The user must sign in. */
         Unauthenticated: {
             headers: {
@@ -570,6 +660,8 @@ export type PageInfo = components['schemas']['PageInfo'];
 export type Problem = components['schemas']['Problem'];
 export type ValidationProblem = components['schemas']['ValidationProblem'];
 export type FieldError = components['schemas']['FieldError'];
+export type SignInRequest = components['schemas']['SignInRequest'];
+export type Session = components['schemas']['Session'];
 export type Organization = components['schemas']['Organization'];
 export type RoleKey = components['schemas']['RoleKey'];
 export type Role = components['schemas']['Role'];
@@ -594,6 +686,8 @@ export type AuditEntityType = components['schemas']['AuditEntityType'];
 export type AuditChange = components['schemas']['AuditChange'];
 export type AuditLogEntry = components['schemas']['AuditLogEntry'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
+export type ResponseInvalidCredentials = components['responses']['InvalidCredentials'];
+export type ResponseAccountInactive = components['responses']['AccountInactive'];
 export type ResponseUnauthenticated = components['responses']['Unauthenticated'];
 export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
@@ -604,6 +698,76 @@ export type ParameterPage = components['parameters']['Page'];
 export type ParameterPageSize = components['parameters']['PageSize'];
 export type $defs = Record<string, never>;
 export interface operations {
+    getCurrentSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current session. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    signIn: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignInRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed in. The new session, with its token and the signed-in user. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["InvalidCredentials"];
+            403: components["responses"]["AccountInactive"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    signOut: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed out. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            500: components["responses"]["InternalError"];
+        };
+    };
     getCurrentOrganization: {
         parameters: {
             query?: never;

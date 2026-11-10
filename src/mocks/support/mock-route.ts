@@ -6,8 +6,9 @@ import type {
   ApiResponseBody,
   HttpMethod,
 } from '../../app/core/api/api-types';
-import type { FieldError } from '../../app/core/api/api-schema.gen';
+import type { FieldError, User } from '../../app/core/api/api-schema.gen';
 import type { MockDb } from '../db/mock-db';
+import { authenticate } from './auth';
 import { MockProblem, problemResponse, validationProblem } from './problem';
 import { paginate, QueryReader, type PageRequest } from './query';
 import { flagsApplyTo, type SimulationFlags } from './simulation';
@@ -37,6 +38,11 @@ export interface MockContext<O> {
   query: QueryReader;
   db: MockDb;
   now: Date;
+  /**
+   * The signed-in user, from the session token. Always set, except on public routes
+   * (`{ public: true }`), which run without a session.
+   */
+  currentUser: User | null;
   /** Success response. The body type comes from the spec, so the mock cannot drift from it. */
   ok(body: ApiResponseBody<O>, status?: 200 | 201): Response;
   noContent(): Response;
@@ -54,11 +60,23 @@ export interface MockContext<O> {
 
 type Resolver<O> = (ctx: MockContext<O>) => Response | Promise<Response>;
 
+export interface RouteOptions {
+  /**
+   * Skip the session token check. Only sign-in and sign-out are public; every other route
+   * answers 401 without a valid token.
+   */
+  public?: boolean;
+}
+
 /** A handler definition, bound to an environment when the mock starts. */
 export type MockRoute = (env: MockEnvironment) => HttpHandler;
 
 function define<M extends HttpMethod>(method: M) {
-  return <P extends ApiPathWith<M>>(path: P, resolver: Resolver<ApiOperation<P, M>>): MockRoute =>
+  return <P extends ApiPathWith<M>>(
+      path: P,
+      resolver: Resolver<ApiOperation<P, M>>,
+      options: RouteOptions = {},
+    ): MockRoute =>
     (env) =>
       http[method](`*${env.baseUrl}${toMswPath(path)}`, async ({ request, params }) => {
         const url = new URL(request.url);
@@ -69,12 +87,20 @@ function define<M extends HttpMethod>(method: M) {
         await wait(env.latency, active.delayMs);
         if (active.errorStatus) return simulatedError(active.errorStatus, url.pathname);
 
+        let currentUser: User | null = null;
+        if (!options.public) {
+          const auth = authenticate(env.db.data, request, env.now());
+          if (!auth.ok) return problemResponse(401, auth.detail, { instance: url.pathname });
+          currentUser = auth.user;
+        }
+
         const ctx = createContext<ApiOperation<P, M>>(
           env,
           request,
           url,
           params,
           active.empty === true,
+          currentUser,
         );
         try {
           return await resolver(ctx);
@@ -95,7 +121,8 @@ function define<M extends HttpMethod>(method: M) {
 
 /**
  * Defines mock handlers by spec path and method. Paths and response bodies are type-checked
- * against the generated OpenAPI types.
+ * against the generated OpenAPI types. Every route checks the session token and answers 401
+ * without a valid one, unless it passes `{ public: true }`.
  *
  * @example
  * export const topicRoutes = [
@@ -132,6 +159,7 @@ function createContext<O>(
   url: URL,
   params: Record<string, string | readonly string[] | undefined>,
   emptyLists: boolean,
+  currentUser: User | null,
 ): MockContext<O> {
   const instance = url.pathname;
   return {
@@ -141,6 +169,7 @@ function createContext<O>(
     query: new QueryReader(url.searchParams),
     db: env.db,
     now: env.now(),
+    currentUser,
     ok: (body, status = 200) => HttpResponse.json(body as JsonBodyType, { status }),
     noContent: () => new HttpResponse(null, { status: 204 }),
     problem: (status, detail) => problemResponse(status, detail, { instance }),

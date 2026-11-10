@@ -19,6 +19,12 @@
               "index",
               "user-guide/overview"
             ]
+          },
+          {
+            "group": "Account",
+            "pages": [
+              "user-guide/sign-in-and-out"
+            ]
           }
         ]
       },
@@ -41,7 +47,8 @@
           {
             "group": "Frontend",
             "pages": [
-              "developer-guide/mock-api"
+              "developer-guide/mock-api",
+              "developer-guide/authentication"
             ]
           },
           {

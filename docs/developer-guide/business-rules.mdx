@@ -88,6 +88,24 @@ Employees can still complete overdue training. Reports show the completion date,
 - Deactivated employees cannot log in. Their open assignments stay unchanged but are left out of pending and overdue counts. Reactivating the employee brings them back.
 - All communication uses HTTPS.
 
+## Sign-in and sessions
+
+- Users sign in with their email and password. The email is matched without regard to upper and lower case, and spaces around it are ignored.
+- Only **active** users who have **set a password** can sign in. Users with a pending or expired invite have no password yet.
+- A wrong password, an unknown email and a user without a password get the same answer, so sign-in does not reveal which emails have accounts.
+- A deactivated user who enters the right password is told the account is deactivated.
+- A session lasts **8 hours** from sign-in. Activity does not extend it. After that, the user must sign in again.
+- Signing out ends the session at once. Its token stops working.
+- Every endpoint except signing in and signing out needs a valid session token.
+
+The real backend must also:
+
+- Store passwords only as a secure, salted hash made with a slow password-hashing algorithm such as Argon2id, bcrypt or scrypt. Never store or log passwords in plain text, and never send them back in a response.
+- Serve the app and the API only over HTTPS, and redirect plain HTTP to HTTPS. Session tokens and passwords must never travel unencrypted.
+- Generate session tokens with a cryptographically secure random generator, so they cannot be guessed.
+
+The mock API stores no passwords: every seeded user who has set one signs in with the same demo password. See [Authentication](/developer-guide/authentication#demo-accounts).
+
 ## Questionnaire versions
 
 - A questionnaire with no attempts is edited in place.

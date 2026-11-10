@@ -29,6 +29,17 @@ export type AssignmentRecord = Omit<
   'status' | 'attemptCount' | 'latestScore' | 'completedAt'
 >;
 
+/**
+ * A signed-in session. The API returns it as `Session`, with the user nested; the stored record
+ * keeps only the user's ID. See ../support/auth.ts.
+ */
+export interface SessionRecord {
+  token: string;
+  userId: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
 /** Everything the mock API knows: one table per entity in the data model. */
 export interface MockData {
   /** The current organization. The MVP has exactly one. */
@@ -46,4 +57,6 @@ export interface MockData {
   attemptAnswers: AttemptAnswer[];
   notifications: Notification[];
   auditLog: AuditLogEntry[];
+  /** Signed-in sessions. Empty in the seed; sign-in adds one, sign-out removes it. */
+  sessions: SessionRecord[];
 }

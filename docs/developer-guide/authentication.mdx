@@ -1,0 +1,109 @@
+---
+title: "Authentication"
+description: "How sign-in, sessions and the demo role switch work in the frontend and the mock API, and which demo accounts to use."
+icon: "key"
+---
+
+import SpecStatus from "/snippets/spec-status.mdx";
+
+<SpecStatus />
+
+Users sign in with email and password and get a session token. The frontend sends the token with every API call. The mock API checks it on every endpoint except sign-in and sign-out, as the real backend must.
+
+## Demo accounts
+
+Every seeded user who has set a password signs in with the same demo password:
+
+```text
+demo-2026
+```
+
+The login page offers two of them for one-click sign-in, and the user menu switches between them:
+
+| Role | Name | Email |
+| - | - | - |
+| Administrator | Maja Novak | `maja.novak@brightwater.example` |
+| Employee | Amelia Hughes | `amelia.hughes@brightwater.example` |
+
+Other seeded users sign in with the same password, for example `daniel.brooks@brightwater.example` (the second administrator). These cannot sign in:
+
+- Users with a pending or expired invite, such as `aisha.khan@brightwater.example`. They have no password yet, so they get **Wrong email or password**.
+- Deactivated users, such as `sofia.lindqvist@brightwater.example`. With the right password they get **Account deactivated**.
+
+The demo password and the two accounts are set in `environment.demo` in `src/environments/environment.ts`. The mock's password is `DEMO_PASSWORD` in `src/mocks/seed/people.seed.ts`. A test checks that both demo accounts can sign in. Set `environment.demo` to `null` to hide the demo section and the role switch, for example with a real backend.
+
+## How it works
+
+<Steps>
+  <Step title="Sign in">
+    The login page (`src/app/features/login/`) calls [`POST /auth/session`](/api-reference/overview#authentication) with the email and password. The answer is a `Session`: the token, when it was created, when it expires, and the signed-in user.
+  </Step>
+  <Step title="The session is kept in the browser">
+    `AuthService` (`src/app/core/auth/auth.service.ts`) stores the session in `localStorage` under `hrm.session`, so it survives a reload. On load, a session past its `expiresAt` is dropped.
+  </Step>
+  <Step title="The token goes with every API call">
+    `authInterceptor` adds `Authorization: Bearer <token>` to every request to the API base URL. Other requests, such as assets, get no token.
+  </Step>
+  <Step title="A 401 signs the user out">
+    When any API call answers `401`, the interceptor clears the session and opens `/login?returnUrl=<current page>`. After signing in, the login page returns there. The failed sign-in itself also answers `401`; the interceptor leaves that one to the login page.
+  </Step>
+  <Step title="Guards protect the routes">
+    `signedInGuard` sends signed-out users, and users whose session has expired, to `/login`. `signedOutGuard` sends signed-in users from `/login` to the home page. Every page behind sign-in is a child of the shell route in `src/app/app.routes.ts`, which runs `signedInGuard` on every navigation.
+  </Step>
+  <Step title="The shell checks the session once per load">
+    The shell calls `GET /auth/session` when it starts. If the API no longer knows the token, for example after a mock reset, the `401` signs the user out.
+  </Step>
+  <Step title="Sign out">
+    The user menu calls `DELETE /auth/session`, then clears the session locally and opens `/login`. The session ends locally even if the call fails.
+  </Step>
+</Steps>
+
+### Use it in a feature
+
+Read the signed-in user and role from `AuthService` signals. Import from `core/auth`.
+
+```ts
+private readonly auth = inject(AuthService);
+
+readonly user = this.auth.user;   // Signal<User | null>
+readonly role = this.auth.role;   // Signal<'administrator' | 'employee' | null>
+```
+
+Pages behind sign-in need no extra code: add them as children of the shell route and the guard covers them. Role-based navigation and access come with SPE-11.
+
+### Role switch for demos
+
+**Switch to employee** and **Switch to administrator** in the user menu sign out, then sign in as the demo account of the other role, and open the home page. They appear only when `environment.demo` has an account for the other role.
+
+## Rules
+
+- A session lasts 8 hours from sign-in. Activity does not extend it.
+- Only active users who have set a password can sign in.
+- See [Business rules](/developer-guide/business-rules#sign-in-and-sessions) for the full list, including what the real backend must do.
+
+## Mock behavior
+
+| Request | Answer |
+| - | - |
+| `POST /auth/session`, right email and password | `201` with the session. Updates the user's `lastSignedInAt`. |
+| `POST /auth/session`, wrong password, unknown email, or no password set yet | `401`, type `/problems/invalid-credentials`. |
+| `POST /auth/session`, deactivated user with the right password | `403`, type `/problems/account-inactive`. |
+| `POST /auth/session`, missing email or password, or an email without `@` | `422`, with every invalid field in `errors`. |
+| `GET /auth/session` with a valid token | `200` with the session. |
+| `DELETE /auth/session` | `204`, with or without a valid token. The token stops working. |
+| Any other endpoint without a token, with an unknown token or with an expired one | `401`, type `/problems/unauthenticated`. |
+
+- Sessions are stored in the `sessions` table of the mock database, so they survive a reload. `?mock-reset` empties it, which signs everyone out on their next API call.
+- Simulation flags apply to the authentication endpoints too. `?mock-error=server` also makes sign-in fail. To test errors on one area while staying able to sign in, add a scope, for example `?mock-error=server&mock-scope=/topics`.
+- `?mock-delay=2000&mock-scope=/auth` slows down sign-in, to see the loading state.
+- To see what happens when a session ends, open the app with `?mock-reset`. The stored token is then unknown to the mock, and the app opens the login page.
+
+### In unit tests
+
+`createTestMockApi()` signs in as the first seeded administrator and adds its token to every request that has none. Pass `signedInAs: 'employee'` to send requests as an employee, or `signedInAs: null` to send them without a session, for example to test sign-in.
+
+## Related
+
+- [Sign in and out](/user-guide/sign-in-and-out): what users see.
+- [API reference](/api-reference/overview#authentication): the authentication endpoints.
+- [Mock API](/developer-guide/mock-api): the mock database, flags and seed.

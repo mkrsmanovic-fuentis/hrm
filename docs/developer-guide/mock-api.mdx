@@ -60,6 +60,10 @@ On first load, and after a reset, the mock database is filled from the seed in `
 | Notifications | New assignments and deadline reminders, some read. |
 | Audit log | Creation of every department, topic, questionnaire, employee and assignment, plus edits and deactivations. |
 
+## Sign in to the mock
+
+Every endpoint except sign-in and sign-out needs a session token, as with the real backend. Seeded users sign in with the demo password `demo-2026`. The demo accounts, the session rules and how the mock answers are on the [Authentication](/developer-guide/authentication) page.
+
 ## Reset the data
 
 Any of these restores the seed and throws away every change:

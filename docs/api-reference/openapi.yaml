@@ -35,12 +35,85 @@ security:
   - sessionToken: []
 
 tags:
+  - name: Authentication
+    description: Signing in and out, and the current session. Signing in is the only call that needs no session token.
   - name: Organization
     description: The organization the signed-in user belongs to.
   - name: Topics
     description: Cybersecurity training subjects, such as Phishing Awareness.
 
 paths:
+  /auth/session:
+    post:
+      operationId: signIn
+      tags: [Authentication]
+      summary: Sign in
+      description: |
+        Signs in with email and password and starts a session. Needs no session token; it issues one.
+
+        The session lasts 8 hours from sign-in and is not extended by activity. Send the returned `token` as `Authorization: Bearer <token>` on every other request.
+
+        Only active users who have set a password can sign in. Wrong credentials, an unknown email and a user whose invite is still pending all get the same `401` answer, so the response does not reveal which emails have accounts. A deactivated user who enters the right password gets `403`.
+      x-mint: *spec-status
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+      responses:
+        '201':
+          description: Signed in. The new session, with its token and the signed-in user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/InvalidCredentials'
+        '403':
+          $ref: '#/components/responses/AccountInactive'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      operationId: getCurrentSession
+      tags: [Authentication]
+      summary: Get the current session
+      description: Returns the session of the sent token, with the signed-in user. Use it to check that a stored token is still valid.
+      x-mint: *spec-status
+      responses:
+        '200':
+          description: The current session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: signOut
+      tags: [Authentication]
+      summary: Sign out
+      description: |
+        Ends the session of the sent token. The token stops working at once.
+
+        Signing out always succeeds: with a missing, expired or unknown token there is nothing to end, and the answer is still `204`.
+      x-mint: *spec-status
+      security:
+        - sessionToken: []
+        - {}
+      responses:
+        '204':
+          description: Signed out.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
   /organization:
     get:
       operationId: getCurrentOrganization
@@ -170,6 +243,28 @@ components:
             title: Bad request
             status: 400
             detail: The request body is not valid JSON.
+    InvalidCredentials:
+      description: The email and password do not match an active account that can sign in.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/invalid-credentials
+            title: Wrong email or password
+            status: 401
+            detail: The email or password is wrong.
+    AccountInactive:
+      description: The email and password are right, but the account is deactivated. Deactivated users cannot sign in.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/account-inactive
+            title: Account deactivated
+            status: 403
+            detail: This account is deactivated. Ask an administrator to reactivate it.
     Unauthenticated:
       description: No valid session token was sent. The user must sign in.
       content:
@@ -357,6 +452,45 @@ components:
         message:
           type: string
           description: Human-readable explanation, safe to show next to the field.
+
+    # ---------------------------------------------------------------- authentication
+
+    SignInRequest:
+      type: object
+      description: Credentials for signing in with email and password.
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          description: Sign-in email address. Matched without regard to upper and lower case.
+          examples: [maja.novak@brightwater.example]
+        password:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: The user's password.
+
+    Session:
+      type: object
+      description: A signed-in session. It lasts 8 hours from sign-in and is not extended by activity.
+      required: [token, createdAt, expiresAt, user]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          description: 'Opaque session token. Send it as `Authorization: Bearer <token>`. Treat it as a secret.'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the user signed in.
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the session ends, 8 hours after `createdAt`. After that, the token gets `401`.
+        user:
+          $ref: '#/components/schemas/User'
+          description: The signed-in user.
 
     # ---------------------------------------------------------------- organization and people
 

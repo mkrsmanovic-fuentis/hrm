@@ -32,7 +32,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 2;
+export const SEED_VERSION = 3;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -564,6 +564,7 @@ export function buildSeed(now: Date = new Date()): MockData {
     attemptAnswers,
     notifications,
     auditLog,
+    sessions: [],
   };
 }
 

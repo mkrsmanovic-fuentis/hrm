@@ -39,6 +39,12 @@ export const departmentSeeds: DepartmentSeed[] = [
   { name: 'Facilities', description: 'Merged into Operations.', status: 'inactive' },
 ];
 
+/**
+ * Every seeded user who has set a password signs in with this one. Demo only: the real backend
+ * stores a secure hash of each user's own password. Documented in docs/developer-guide/mock-api.mdx.
+ */
+export const DEMO_PASSWORD = 'demo-2026';
+
 export type UserSeedState = 'active' | 'invited' | 'invite_expired' | 'inactive';
 
 export interface UserSeed {
