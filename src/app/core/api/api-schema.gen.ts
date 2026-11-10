@@ -387,17 +387,25 @@ export interface components {
         };
         /** @enum {string} */
         AuditAction: "created" | "updated" | "deactivated" | "reactivated";
-        /** @enum {string} */
+        /**
+         * @description The kind of record. Employees are `user`. Assignments are only ever `created`.
+         * @enum {string}
+         */
         AuditEntityType: "user" | "department" | "topic" | "questionnaire" | "assignment";
-        /** @description One changed field. */
+        /** @description One changed field, named as in this spec. Shared fields (`id`, `organizationId`, `createdAt`, `updatedAt`) and derived fields are never listed. */
         AuditChange: {
+            /** @description The field name, for example `departmentId`. */
             field: string;
-            /** @description Value before the change. Null for new records. */
+            /** @description Value before the change. Null for new records and for fields that had no value. */
             oldValue: unknown;
-            /** @description Value after the change. */
+            /** @description Value after the change. Null when the field was cleared. */
             newValue: unknown;
         };
-        /** @description A record of an administrator action. Entries are never changed or deleted. There is no screen for them in the MVP. */
+        /**
+         * @description A record of an administrator action. Entries are written together with the change they record, and are never changed or deleted.
+         *
+         *     Internal record: no endpoint returns it and there is no screen for it in the MVP. The rules for what is logged are in the business rules (developer guide, "Audit log").
+         */
         AuditLogEntry: {
             id: components["schemas"]["Id"];
             organizationId: components["schemas"]["Id"];
@@ -406,10 +414,11 @@ export interface components {
             action: components["schemas"]["AuditAction"];
             entityType: components["schemas"]["AuditEntityType"];
             entityId: components["schemas"]["Id"];
-            /** @description What changed. Empty for deactivation and reactivation. */
+            /** @description What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `deactivated` and `reactivated`. */
             changes: components["schemas"]["AuditChange"][];
             /** @description When the action happened. */
             createdAt: components["schemas"]["Timestamp"];
+            /** @description Always equal to `createdAt`, because entries never change. */
             updatedAt: components["schemas"]["Timestamp"];
         };
     };

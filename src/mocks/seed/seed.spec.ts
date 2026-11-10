@@ -113,4 +113,20 @@ describe('seed data', () => {
       expect(user.createdAt <= limit).toBe(true);
     }
   });
+
+  it('logs audit entries the way the audit rules describe', () => {
+    const admins = new Set(data.users.filter((u) => u.role === 'administrator').map((u) => u.id));
+    const bookkeeping = ['id', 'organizationId', 'createdAt', 'updatedAt'];
+    for (const entry of data.auditLog) {
+      expect(admins.has(entry.actorId)).toBe(true);
+      const fields = entry.changes.map((change) => change.field);
+      expect(fields.filter((field) => bookkeeping.includes(field))).toEqual([]);
+      if (entry.action === 'created' || entry.action === 'updated') {
+        expect(entry.changes.length).toBeGreaterThan(0);
+      } else {
+        expect(entry.changes).toEqual([]);
+      }
+      if (entry.entityType === 'assignment') expect(entry.action).toBe('created');
+    }
+  });
 });

@@ -904,22 +904,27 @@ components:
     AuditEntityType:
       type: string
       enum: [user, department, topic, questionnaire, assignment]
+      description: The kind of record. Employees are `user`. Assignments are only ever `created`.
 
     AuditChange:
       type: object
-      description: One changed field.
+      description: One changed field, named as in this spec. Shared fields (`id`, `organizationId`, `createdAt`, `updatedAt`) and derived fields are never listed.
       required: [field, oldValue, newValue]
       properties:
         field:
           type: string
+          description: The field name, for example `departmentId`.
         oldValue:
-          description: Value before the change. Null for new records.
+          description: Value before the change. Null for new records and for fields that had no value.
         newValue:
-          description: Value after the change.
+          description: Value after the change. Null when the field was cleared.
 
     AuditLogEntry:
       type: object
-      description: A record of an administrator action. Entries are never changed or deleted. There is no screen for them in the MVP.
+      description: |
+        A record of an administrator action. Entries are written together with the change they record, and are never changed or deleted.
+
+        Internal record: no endpoint returns it and there is no screen for it in the MVP. The rules for what is logged are in the business rules (developer guide, "Audit log").
       required: [id, organizationId, actorId, action, entityType, entityId, changes, createdAt, updatedAt]
       properties:
         id:
@@ -937,7 +942,7 @@ components:
           $ref: '#/components/schemas/Id'
         changes:
           type: array
-          description: What changed. Empty for deactivation and reactivation.
+          description: What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `deactivated` and `reactivated`.
           items:
             $ref: '#/components/schemas/AuditChange'
         createdAt:
@@ -945,3 +950,4 @@ components:
           description: When the action happened.
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+          description: Always equal to `createdAt`, because entries never change.

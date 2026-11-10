@@ -9,6 +9,7 @@ import type {
   Topic,
   User,
 } from '../../app/core/api/api-schema.gen';
+import { auditChanges } from '../db/audit';
 import type {
   AssignmentRecord,
   MockData,
@@ -31,7 +32,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 1;
+export const SEED_VERSION = 2;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -508,52 +509,43 @@ export function buildSeed(now: Date = new Date()): MockData {
     actorId = admins[0].id,
   ) =>
     auditLog.push({ ...record(atMs), actorId, action, entityType, entityId: entity.id, changes });
-  const setField = (field: string, value: unknown) => [{ field, oldValue: null, newValue: value }];
+  // Created entries list the record as it was when created (active, before any sign-in).
+  const created = <T extends object>(record: T, ...overrides: Partial<T>[]) =>
+    auditChanges(null, Object.assign({}, record, ...overrides));
 
   departments.forEach((d) =>
-    audit('department', d, 'created', Date.parse(d.createdAt), setField('name', d.name)),
+    audit('department', d, 'created', Date.parse(d.createdAt), created(d, { status: 'active' })),
   );
   departments
     .filter((d) => d.status === 'inactive')
     .forEach((d) => audit('department', d, 'deactivated', Date.parse(d.updatedAt)));
-  topics.forEach((t) =>
-    audit('topic', t, 'created', Date.parse(t.createdAt), setField('name', t.name)),
-  );
+  topics.forEach((t) => audit('topic', t, 'created', Date.parse(t.createdAt), created(t)));
   built.forEach(({ record: q, versions }) => {
-    audit('questionnaire', q, 'created', Date.parse(q.createdAt), setField('title', q.title));
+    const first = { status: 'active' as const, currentVersionId: versions[0].id };
+    audit('questionnaire', q, 'created', Date.parse(q.createdAt), created(q, first));
     if (versions.length > 1) {
-      const before = versions[versions.length - 2].questions.length;
-      const after = versions[versions.length - 1].questions.length;
-      audit('questionnaire', q, 'updated', versions[versions.length - 1].createdMs, [
-        { field: 'questionCount', oldValue: before, newValue: after },
+      const previous = versions[versions.length - 2].id;
+      const latest = versions[versions.length - 1];
+      audit('questionnaire', q, 'updated', latest.createdMs, [
+        { field: 'currentVersionId', oldValue: previous, newValue: latest.id },
       ]);
     }
     if (q.status === 'inactive') audit('questionnaire', q, 'deactivated', Date.parse(q.updatedAt));
   });
   employees.forEach((u) => {
-    audit(
-      'user',
-      u,
-      'created',
-      Date.parse(u.createdAt),
-      setField('email', u.email),
-      random.pick(admins).id,
-    );
+    const createdMs = Date.parse(u.createdAt);
+    const invited = {
+      status: 'active' as const,
+      invitationSentAt: u.createdAt,
+      invitationExpiresAt: isoAny(createdMs + INVITATION_LIFETIME_MS),
+      passwordSetAt: null,
+      lastSignedInAt: null,
+    };
+    audit('user', u, 'created', createdMs, created(u, invited), random.pick(admins).id);
     if (u.status === 'inactive') audit('user', u, 'deactivated', Date.parse(u.updatedAt));
   });
   assignments.forEach((a) =>
-    audit(
-      'assignment',
-      a,
-      'created',
-      Date.parse(a.createdAt),
-      [
-        { field: 'questionnaireId', oldValue: null, newValue: a.questionnaireId },
-        { field: 'userId', oldValue: null, newValue: a.userId },
-        { field: 'dueAt', oldValue: null, newValue: a.dueAt },
-      ],
-      a.assignedById,
-    ),
+    audit('assignment', a, 'created', Date.parse(a.createdAt), created(a), a.assignedById),
   );
   auditLog.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 

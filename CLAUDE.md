@@ -78,7 +78,7 @@ To add an endpoint (full guide: `docs/developer-guide/mock-api.mdx`):
 1. **Spec:** add the path and schemas to `docs/api-reference/openapi.yaml`, with `operationId`, one tag, `x-mint: *spec-status` and the shared parameters and error responses. Update `docs/developer-guide/data-model.mdx` if fields change.
 2. **Types:** `pnpm api:types`, then commit `src/app/core/api/api-schema.gen.ts`.
 3. **Client:** call `inject(ApiClient).get('/path/{id}', { path, query })` (or `post`, `put`, `patch`, `delete`). Paths and bodies are type-checked against the spec.
-4. **Handler:** `route.get('/path', (ctx) => …)` in `src/mocks/resources/<resource>/<resource>.handlers.ts`, added to `mockRoutes` in `src/mocks/handlers.ts`. Validate input (`ctx.query`, `ctx.validationFailed`), answer errors as problems, change data only in `ctx.db.update()`, return lists through `ctx.page()`.
+4. **Handler:** `route.get('/path', (ctx) => …)` in `src/mocks/resources/<resource>/<resource>.handlers.ts`, added to `mockRoutes` in `src/mocks/handlers.ts`. Validate input (`ctx.query`, `ctx.validationFailed`), answer errors as problems, change data only in `ctx.db.update()`, return lists through `ctx.page()`. **Administrator create, edit, deactivate and reactivate handlers call `recordAudit()`** from `src/mocks/db/audit.ts` in the same `db.update()`.
 5. **Seed:** add data in `src/mocks/seed/` with `SeededRandom` (never `Math.random()`), and bump `SEED_VERSION`.
 6. **Tests:** `<resource>.handlers.spec.ts` with `createTestMockApi()` from `src/mocks/testing.ts`.
 
@@ -87,7 +87,7 @@ Mock helpers while running the app: `?mock-reset` restores the seed; `?mock-dela
 ## Definition of done
 
 1. `pnpm check` passes.
-2. If the feature's data changed: the API spec, the generated types and the mock are updated.
+2. If the feature's data changed: the API spec, the generated types and the mock are updated. Administrator write handlers record an audit log entry ([rules](docs/developer-guide/business-rules.mdx#audit-log)).
 3. Docs are updated in the same pull request, following `docs/AGENTS.md`: user guide pages for what users see, developer guide pages and business rules for behavior, the API spec for endpoints. `mint validate` and `mint broken-links` pass in `docs/`.
 4. `docs/changelog.mdx` is never edited by workers. The lead adds release entries after merge.
 5. The work stays inside the issue's scope. Extra work found along the way is reported to the lead, not done.
