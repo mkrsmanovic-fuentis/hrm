@@ -102,9 +102,51 @@ Employees can still complete overdue training. Reports show the completion date,
 
 ## Audit log
 
-These administrator actions must be logged, with who did it, what changed and when:
+Administrator actions that change data are logged, so it is always clear who did what and when.
 
-- Creating, editing and deactivating employees, departments, topics and questionnaires.
-- Creating assignments.
+### Logged actions
 
-There is no screen for viewing the audit log in the MVP.
+| Record | `entityType` | Logged actions |
+| - | - | - |
+| Employee | `user` | `created`, `updated`, `deactivated`, `reactivated` |
+| Department | `department` | `created`, `updated`, `deactivated`, `reactivated` |
+| Topic | `topic` | `created`, `updated`, `deactivated`, `reactivated` |
+| Questionnaire | `questionnaire` | `created`, `updated`, `deactivated`, `reactivated` |
+| Assignment | `assignment` | `created` |
+
+- Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
+- Editing a questionnaire that creates a new version is logged as `updated` on the questionnaire. The entry lists the new `currentVersionId` and any other changed fields.
+- Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
+- Employee actions, such as starting and submitting attempts, are not logged.
+
+{/* TODO: confirm with the PO whether resending an invite link is logged. The FRD does not say. */}
+
+### What each entry records
+
+Each entry is an `AuditLogEntry` in the [API spec](/api-reference/overview). See the [Data model](/developer-guide/data-model#audit-log) for its fields.
+
+| What | Field | Rule |
+| - | - | - |
+| Who | `actorId` | The signed-in administrator, taken from the session. |
+| What | `action`, `entityType`, `entityId` | The action and the record it was done to. |
+| What changed | `changes` | A list of `{ field, oldValue, newValue }`, described below. |
+| When | `createdAt` | The time of the action, in UTC. |
+
+The `changes` list depends on the action:
+
+- **`created`:** every field the new record has a value for. `oldValue` is `null`.
+- **`updated`:** only the fields whose value changed, with the value before and after. An edit that changes no field is not logged.
+- **`deactivated`** and **`reactivated`:** empty. The action says what happened.
+
+In `changes`:
+
+- Field names and values are the ones in the API spec, for example `departmentId` with a department ID.
+- `id`, `organizationId`, `createdAt` and `updatedAt` are never listed. Neither are *derived* fields, such as `questionCount`.
+- A field without a value is `null`.
+
+### Keeping the log
+
+- An entry is written together with the change it records. If the change is not saved, the entry is not either.
+- Entries are never changed or deleted. `updatedAt` always equals `createdAt`.
+- Entries belong to the organization of the record, like every other record.
+- There is no screen and no API endpoint for viewing the audit log in the MVP.

@@ -38,7 +38,7 @@ Mocked requests appear in the browser's network panel as normal requests, answer
 | `src/mocks/browser.ts` | Starts the mock in the browser. |
 | `src/mocks/handlers.ts` | The list of all routes. |
 | `src/mocks/resources/<resource>/` | Handlers for one resource, with their tests. |
-| `src/mocks/db/` | The mock database and its tables. |
+| `src/mocks/db/` | The mock database, its tables and the audit log helper. |
 | `src/mocks/seed/` | The seed dataset. |
 | `src/mocks/rules/` | Business rules the mock applies, such as assignment status. |
 | `src/mocks/support/` | Route definitions, problem responses, query validation, paging and simulation flags. |
@@ -137,6 +137,7 @@ Follow these steps, in this order, in the same pull request as the feature.
     - Change data only inside `db.update()`, so it is saved.
     - Apply business rules from `src/mocks/rules/`. Add a rule there when you need a new one, mirrored from [Business rules](/developer-guide/business-rules).
     - Return lists through `page()`, so paging and the `mock-empty` flag work.
+    - In administrator handlers that create, edit, deactivate or reactivate a record, log the action. See [Record the audit log](#record-the-audit-log).
   </Step>
   <Step title="Extend the seed if needed">
     If the resource needs new data, add it to the seed in `src/mocks/seed/` and the table to `MockData` in `src/mocks/db/mock-data.ts`. Keep it realistic and deterministic: use `SeededRandom`, never `Math.random()`. Bump `SEED_VERSION`.
@@ -152,6 +153,25 @@ Follow these steps, in this order, in the same pull request as the feature.
     `src/mocks/resources/topics/topics.handlers.spec.ts` is a complete example.
   </Step>
 </Steps>
+
+## Record the audit log
+
+Every administrator handler that creates, edits, deactivates or reactivates a record calls `recordAudit()` from `src/mocks/db/audit.ts`, inside the same `db.update()` as the change. It fills in the `changes` list from the records before and after, and adds the entry to the mock database. The [audit log rules](/developer-guide/business-rules#audit-log) say which actions are logged and what each entry holds.
+
+```ts
+// Inside an edit handler, after validating the body and finding the stored topic:
+const updated = db.update((data) => {
+  const before = structuredClone(topic);
+  Object.assign(topic, body, { updatedAt: now.toISOString() });
+  recordAudit(data, { action: 'updated', entityType: 'topic', actorId, now, before, after: topic });
+  return topic;
+});
+```
+
+- `created` takes `after`, the new record. `updated` takes `before` and `after`, and records nothing when no field changed. `deactivated` and `reactivated` take `after`.
+- Pass stored records, not API responses, so derived fields stay out of `changes`.
+- `actorId` is the signed-in administrator. Take it from the session.
+- Assigning to a department creates many assignments: call `recordAudit()` once for each.
 
 ## Switching to a real backend
 

@@ -201,12 +201,14 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 
 ### Audit Log
 
-Each entry is an `AuditLogEntry` in the spec.
+Each entry is an `AuditLogEntry` in the spec. Entries are never changed. Which actions are logged, and what `changes` holds for each, is in [Business rules](/developer-guide/business-rules#audit-log).
 
 | Field | Type | Notes |
 | - | - | - |
-| `actorId` | UUID | The administrator who did it. |
+| `actorId` | UUID | The signed-in administrator who did it. |
 | `action` | `created`, `updated`, `deactivated` or `reactivated` | |
-| `entityType` | `user`, `department`, `topic`, `questionnaire` or `assignment` | |
-| `entityId` | UUID | |
+| `entityType` | `user`, `department`, `topic`, `questionnaire` or `assignment` | The kind of record. Employees are `user`. |
+| `entityId` | UUID | The record the action was done to. |
 | `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for deactivation and reactivation. |
+
+`createdAt` is when the action happened.
