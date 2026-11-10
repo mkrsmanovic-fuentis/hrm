@@ -1,0 +1,77 @@
+---
+title: "Manage departments"
+description: "Create, rename, deactivate and reactivate departments, and see how many employees each one has."
+icon: "building"
+---
+
+Administrators group employees by department. The **Departments** page lists every department with its number of employees, and lets you create, edit, deactivate and reactivate them. Employees cannot open this page.
+
+## Before you start
+
+- You need to be signed in as an administrator.
+- Open **Departments** in the side navigation.
+
+## See your departments
+
+The list shows each department's **Name**, **Description**, **Employees** and **Status**. **Employees** counts the active employees in the department. Deactivated employees are not counted.
+
+- **Search by name** finds departments whose name contains the text you type. Upper and lower case do not matter.
+- **Filters** shows only **Active** or only **Inactive** departments. Without a filter, the list shows both.
+- Select a column header to sort by it. Select it again to reverse the order.
+
+## Create a department
+
+<Steps>
+  <Step title="Select New department">
+    The button is at the top right of the page. A panel opens on the right.
+  </Step>
+  <Step title="Fill in the form">
+    **Name** is required, up to 100 characters. It must be different from the name of every other department, active or inactive. Upper and lower case do not count as a difference: if **Finance** exists, you cannot add **finance**.
+
+    **Description** is optional, up to 500 characters. Use it to say what the department does.
+  </Step>
+  <Step title="Select Create department">
+    The panel closes, a message confirms the new department, and it appears in the list as **Active**.
+  </Step>
+</Steps>
+
+## Rename or describe a department
+
+<Steps>
+  <Step title="Open the department">
+    Select its row, or the pencil icon at the end of the row.
+  </Step>
+  <Step title="Change the name or the description">
+    The same rules apply as when you create a department. To remove the description, clear the field.
+  </Step>
+  <Step title="Select Save changes">
+    The panel closes and a message confirms the change. To leave without saving, select **Cancel**.
+  </Step>
+</Steps>
+
+## Deactivate a department
+
+Deactivate a department you no longer use. It stays in the list as **Inactive**.
+
+<Steps>
+  <Step title="Select the power icon in the department's row">
+    The icon appears only for active departments.
+  </Step>
+  <Step title="Confirm">
+    The dialog explains what happens. Select **Deactivate** to go ahead, or **Cancel** to keep the department active.
+  </Step>
+</Steps>
+
+Deactivating keeps the department's history, and its employees keep their department.
+
+## Reactivate a department
+
+Select the circular arrow icon in the row of an inactive department, then **Reactivate**. The department is active again, with its name, description and employees unchanged.
+
+## Good to know
+
+- Departments are never deleted. Deactivate them instead.
+- If the name is already used, the form says so under **Name**. Choose another name.
+- Every change you make is recorded with your name and the time, so it is clear who changed what.
+
+{/* TODO: describe what an inactive department means for assigning training once Assignments is built. */}

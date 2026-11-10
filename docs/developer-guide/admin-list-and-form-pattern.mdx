@@ -1,0 +1,140 @@
+---
+title: "Admin list and form pattern"
+description: "How an administrator page lists, creates, edits, deactivates and reactivates records. Copy it for every new admin resource."
+icon: "table-list"
+---
+
+import SpecStatus from "/snippets/spec-status.mdx";
+
+<SpecStatus />
+
+Every administrator page that manages records works the same way. The Departments page at `/admin/departments` is the reference: copy it for Employees, Topics, Questionnaires and later resources.
+
+## How it works
+
+<Steps>
+  <Step title="The contract comes first">
+    The resource gets four endpoints in `docs/api-reference/openapi.yaml`: list, create, read and `PATCH`. Deactivating and reactivating are `PATCH` with `status`. The conventions are in [Creating and changing records](/api-reference/overview#creating-and-changing-records).
+  </Step>
+  <Step title="The mock implements it">
+    The handlers in `src/mocks/resources/<resource>/` call `requireRole(ctx, 'administrator')` first, read the body with `BodyReader`, answer a duplicate with `notUnique()` and log every change with `recordAudit()`. See [Mock API](/developer-guide/mock-api#add-an-endpoint).
+  </Step>
+  <Step title="The list page loads every record">
+    `loadAllPages()` from `src/app/shared/lists/` fetches every page of the list endpoint. `sd-list` then searches, filters and sorts in the browser.
+  </Step>
+  <Step title="A drawer creates and edits">
+    The form opens in a modal `sd-drawer` and sends `POST` or `PATCH`. Errors from the API land on their fields.
+  </Step>
+  <Step title="A dialog confirms deactivating">
+    `<app-confirm-dialog>` explains what happens, then the page sends `PATCH` with the new `status`.
+  </Step>
+  <Step title="A toast confirms each save">
+    `ToastService` from `src/app/core/toast/` shows a success message, and the list reloads.
+  </Step>
+</Steps>
+
+## Files
+
+| Path | What it holds |
+| - | - |
+| `src/app/features/departments/department-list.ts` | The page: header, list, states, actions, confirmation and toasts. |
+| `src/app/features/departments/department-form.ts` | The create and edit drawer, with signal forms. |
+| `src/app/shared/lists/load-all-pages.ts` | `loadAllPages()` and `MAX_PAGE_SIZE`. |
+| `src/app/shared/forms/form-errors.ts` | `visibleError()`, `serverFieldErrors()` and `saveFailedMessage()`. |
+| `src/app/shared/confirm-dialog/confirm-dialog.ts` | `<app-confirm-dialog>`, the confirmation before a change. |
+| `src/app/core/toast/toast.service.ts` | `ToastService`. The shell shows its toasts in `sd-toast-stack`. |
+
+## The list page
+
+The page is one component, lazy-loaded from the administrator area in `src/app/app.routes.ts`, with one entry in `src/app/app.navigation.ts`. See [How a feature adds a page](/developer-guide/access-control#how-a-feature-adds-a-page-and-a-nav-entry).
+
+| Part | ui-kit | Notes |
+| - | - | - |
+| Page header | `sd-status-bar` | Title, one sentence on what the page is for, and the primary **New …** button in `sdStatusBarActions`. Hide the button when the list answers `403`. |
+| Search, filters, sorting | `sd-list` | `searchable`, a `filters` entry for `status` with **Active** and **Inactive**, and `sortable` columns. Default sort by name. Mark columns that the API's `q` does not search `searchable: false`, so the search matches the same fields. |
+| Status | `sd-list` column of type `badge` | `success` for **Active**, `muted` for **Inactive**. |
+| Row actions | `sd-list` `actions` | Edit (pencil), Deactivate (power, `danger`) and Reactivate (rotate). `hidden` shows only the one that fits the status. A row click also opens Edit. |
+| Loading | `sd-skeleton` | Only on the first load. A reload after a save keeps the list in view. |
+| No access | `<app-access-denied>` | On `403`. See [Handle a 403 on a page](/developer-guide/access-control#handle-a-403-on-a-page). |
+| Error | `sd-callout` | `tone="danger"`, with a **Try again** button in `sdCalloutActions` that reloads. |
+| Empty | `sd-empty-state` in `sdListEmpty` | When there are no records at all, with the **New …** button. When a search or filter matches nothing, `sd-list` shows its own "no matches" state. |
+
+`sd-list` renders only the rows in view, so it needs a height: make the page a flex column and give the list `flex: 1` and a `min-height`.
+
+### Why the list loads every record
+
+`sd-list` searches, filters and sorts the rows it is given, and ui-kit has no pager. So the page loads all records with `loadAllPages()`, 100 per request, and lets `sd-list` do the rest. This fits lists of up to a few thousand records. The list endpoints still take `q`, `status` and `sort` for the real backend and for larger lists later.
+
+## The form drawer
+
+Create and edit share one component. The page adds it with `@if` while it is open, and removes it on `closed`:
+
+```html
+@if (editing(); as drawer) {
+  <app-department-form
+    [department]="drawer.department"
+    (saved)="onSaved($event, drawer.department === null)"
+    (closed)="editing.set(null)"
+  />
+}
+```
+
+- **Drawer, not dialog.** ui-kit's `sd-drawer` is meant for creating and editing a record while the page stays in view, and fits longer forms such as Employees. `sd-dialog` is kept for short questions, such as the confirmation. Use `modal`, so the list cannot change while the form is open.
+- **Signal forms.** The model is a `signal()`, and `form()` holds the rules the API also checks: required fields and maximum lengths, with the same limits as the spec. Each control sits in an `sd-field` with `[error]="visibleError(f.field)"`.
+- **Submit with `submit()`.** Send `POST` for a new record and `PATCH` for an edit. Trim text and send an empty optional field as `null`.
+- **Errors from the API.** Return `serverFieldErrors(error, { name: form.name, … })` from the submit action: it puts the messages of a `422`, and the duplicate of a `409`, on their fields. When it returns `undefined`, show `saveFailedMessage(error)` in an `sd-callout` at the top of the form.
+- **While saving**, the fields are disabled, the save button shows a spinner and the drawer cannot be closed.
+- **Footer buttons**: **Cancel**, then the primary **Create …** or **Save changes**. The save button submits the form with `form="<form id>"`.
+
+## Deactivate and reactivate
+
+```html
+<app-confirm-dialog
+  [open]="statusTarget() !== null"
+  [heading]="deactivating() ? 'Deactivate department?' : 'Reactivate department?'"
+  [confirmLabel]="deactivating() ? 'Deactivate' : 'Reactivate'"
+  [tone]="deactivating() ? 'danger' : 'primary'"
+  [busy]="statusSaving()"
+  [error]="statusError()"
+  (confirmed)="changeStatus()"
+  (closed)="statusTarget.set(null)"
+>
+  <p>…what happens…</p>
+</app-confirm-dialog>
+```
+
+- Say what happens in the dialog: the record's history is kept, and what happens to what depends on it. Take the wording from [Business rules](/developer-guide/business-rules).
+- Deactivating uses `tone="danger"`. Reactivating uses `primary`.
+- On success, close the dialog, show a toast and reload the list. On failure, keep it open and pass `saveFailedMessage(error)` to `error`.
+
+## Feedback
+
+After every successful save, call `inject(ToastService).success(heading, message)`, for example **Department created** with "Legal is now in the list." Toasts close on their own after 5 seconds. Use them only for feedback after an action; messages that stay belong in an `sd-callout`.
+
+## Tests
+
+- **Handlers**: create, edit, duplicate (`409`), validation (`422`), `404`, `403` for employees on every endpoint, and the audit entries, including a status change in an edit. `src/mocks/resources/departments/departments.handlers.spec.ts` is the example.
+- **Page**: the list, the `403`, error and empty states, create, the duplicate on its field, edit, deactivate and reactivate. `src/app/features/departments/department-list.spec.ts` runs against the mock API with `createTestMockApi()`. `sd-list` renders rows only in a real browser, so tests read its inputs and emit its outputs (`rowClick`, `actionClick`).
+
+## Rules
+
+- [Departments](/developer-guide/business-rules#departments) and [Audit log](/developer-guide/business-rules#audit-log) in Business rules.
+
+## Mock behavior
+
+| Request | Answer |
+| - | - |
+| `GET /departments` | Every department, active and inactive, with `employeeCount`. `status`, `q` and `sort` narrow and order it. |
+| `POST /departments` | `201` with the new, active department. Logged as `created`. |
+| `PATCH /departments/{departmentId}` | `200` with the department. Logged as `updated`, then `deactivated` or `reactivated` when `status` changed. Nothing is logged when nothing changed. |
+| A name already in use, in any case | `409`, `errors` names `name` with code `not_unique`. |
+| An empty or too long name, a too long description, an unknown field | `422` with every invalid field. |
+| Any of these as an employee | `403`. |
+| `?mock-error=conflict&mock-scope=/departments` | Every department request fails with `409`. |
+
+## Related
+
+- [Manage departments](/user-guide/manage-departments): the page from the administrator's side.
+- [API reference](/api-reference/overview#creating-and-changing-records): conventions for write endpoints.
+- [Mock API](/developer-guide/mock-api): handlers, body validation and the audit log helper.
+- [Roles and access](/developer-guide/access-control): routes, navigation and `403`.
