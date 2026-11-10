@@ -10,6 +10,12 @@ import SpecStatus from "/snippets/spec-status.mdx";
 
 The mock API follows these rules so the frontend behaves as it will with the real backend.
 
+## Organizations
+
+- Every record belongs to an organization.
+- The MVP has a single organization. There is no organization switcher and no role above Administrator.
+- The model supports several organizations later. Data from one organization must never be visible in another.
+
 ## Scoring
 
 The score is the share of correct answers:
@@ -18,52 +24,80 @@ The score is the share of correct answers:
 Score (%) = (correct answers / total questions) × 100
 ```
 
-- An attempt **passes** when its score is equal to or greater than the questionnaire's passing score. Otherwise it **fails**.
-- Each questionnaire has its own passing score. The default is **80%**.
+- An attempt **passes** when its exact score is equal to or greater than the questionnaire's passing score. Otherwise it **fails**.
+- Scores are shown rounded **down** to a whole percent. For example, 79.6% fails at a passing score of 80% and is shown as 79%.
+- Each questionnaire has its own passing score: a whole number from 1 to 100. The default is **80**.
+- Every question is required. The employee must answer all of them before submitting.
 - A questionnaire counts as completed only after the employee submits it.
-- The employee must answer every question before submitting.
 - The same attempt cannot be submitted twice.
 
-{/* TODO: rounding rule (does 79.6% pass at 80%?) is an open decision. */}
+## Feedback after submitting
+
+- After a **failed** attempt, the employee sees which questions were wrong and the feedback for them, but not the correct answers.
+- After **passing**, the employee also sees the correct answers.
 
 ## Assignment status
 
-Each assignment has one status:
+Each assignment has one status, evaluated in this order:
 
-| Status | Meaning |
-| - | - |
-| Not Started | Assigned, no attempt yet. |
-| In Progress | An attempt has been started but not submitted. |
-| Passed | An attempt reached the passing score. |
-| Failed | The latest attempt was below the passing score. |
-| Overdue | The deadline passed and the employee has not passed. |
+| Order | Status | When |
+| - | - | - |
+| 1 | Passed | Any attempt passed, even after the deadline. |
+| 2 | Overdue | The deadline has passed. |
+| 3 | Failed | The latest attempt failed. |
+| 3 | In Progress | An attempt is started but not submitted. |
+| 3 | Not Started | No attempts yet. |
 
-{/* TODO: which status wins when an assignment is both Failed and Overdue, and whether it can be taken after the deadline, are open decisions. */}
+Employees can still complete overdue training. Reports show the completion date, so late completions are visible.
 
-## Retakes
+## Attempts and retakes
 
+- An assignment has at most one open attempt. Without a time limit, an unfinished attempt stays open and the employee can continue it.
 - Employees can retake a failed questionnaire. There is no limit on attempts.
 - Each retake creates a new attempt. Earlier attempts and scores are kept.
 - Failed attempts stay available for administrators to review.
-- Once an assignment is passed, it cannot be retaken unless an administrator assigns it again.
+- Once an assignment is passed, it cannot be retaken.
+
+## Time limits
+
+- A questionnaire can have an optional time limit.
+- When time runs out, the attempt is submitted automatically. Unanswered questions count as wrong.
 
 ## Assigning training
 
 - A questionnaire can be assigned to one employee, several employees or a whole department.
 - Assigning to a department creates an assignment for every **active** employee in it at that moment. Employees who join later are not included.
-- Inactive questionnaires cannot be assigned.
+- Inactive questionnaires cannot be assigned. Deactivating a questionnaire does not affect existing assignments; they can still be completed.
+- A questionnaire cannot be assigned to an employee who already has an open assignment for it.
+- Assigning again after a pass creates a new assignment. The earlier one stays in the history.
+- There is no automatic recurring training. Administrators assign training again by hand.
 
-## Access
+## Notifications
 
-- Employees can only see their own assignments and results.
-- Employees cannot use administrator functions.
-- Passwords are stored securely hashed.
+- Employees are notified in the app when training is assigned to them.
+- Employees are reminded 3 days before a deadline, unless they have already passed.
+- Email sends the same two messages. This is planned as an enhancement.
+
+## Accounts and access
+
+- There is one Administrator role with full access, and one Employee role.
+- Employees can only see their own assignments and results, and cannot use administrator functions.
+- Users log in with email and password. Passwords are stored securely hashed.
+- Creating an employee sends an invite link to set a password, valid for **7 days**. Administrators can send it again.
+- A password reset link is valid for **1 hour**.
+- Deactivated employees cannot log in. Their open assignments stay unchanged but are left out of pending and overdue counts. Reactivating the employee brings them back.
 - All communication uses HTTPS.
+
+## Questionnaire versions
+
+- A questionnaire with no attempts is edited in place.
+- Editing a questionnaire that has attempts creates a new version.
+- New attempts use the latest version. An attempt in progress finishes on the version it started with.
+- Each attempt stays linked to the version it used, so earlier results never change.
 
 ## Data integrity
 
 - Submitted attempts are never changed or deleted.
-- Editing a questionnaire does not change earlier attempts or results. Each attempt stays linked to the questionnaire version that was used.
 - Deactivating an employee, topic or questionnaire keeps its history.
 
 ## Audit log
@@ -72,3 +106,5 @@ These administrator actions must be logged, with who did it, what changed and wh
 
 - Creating, editing and deactivating employees, departments, topics and questionnaires.
 - Creating assignments.
+
+There is no screen for viewing the audit log in the MVP.
