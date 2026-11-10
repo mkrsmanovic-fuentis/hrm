@@ -83,16 +83,18 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 
 | Field | Type | Notes |
 | - | - | - |
-| `email` | Email | Sign-in address. Unique within the organization. |
+| `email` | Email, up to 254 | Sign-in address. Unique within the organization, ignoring upper and lower case. |
 | `firstName` | String, 1–100 | |
 | `lastName` | String, 1–100 | |
 | `role` | Role key | `administrator` or `employee`. |
-| `departmentId` | UUID or null | The user's department, if any. |
-| `status` | `active` or `inactive` | Inactive users cannot sign in. |
+| `departmentId` | UUID or null | The user's department, if any. Only an active department can be chosen; a user keeps one that was deactivated later. |
+| `status` | `active` or `inactive` | Inactive users cannot sign in, and their sessions end when they are deactivated. |
 | `invitationSentAt` | Timestamp or null | When the latest invite link was sent. Null once the password is set. |
 | `invitationExpiresAt` | Timestamp or null | 7 days after `invitationSentAt`. |
 | `passwordSetAt` | Timestamp or null | When the user set a password. Null while the invite is pending. |
 | `lastSignedInAt` | Timestamp or null | |
+| `assignedTrainingCount` | Integer | *Derived.* Every assignment of the user, in any status. See [Training counts](/developer-guide/business-rules#training-counts). |
+| `completedTrainingCount` | Integer | *Derived.* The user's assignments with the status Passed. |
 
 ### Department
 

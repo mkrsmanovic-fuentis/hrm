@@ -6,6 +6,7 @@ import { organizationRoutes } from './resources/organization/organization.handle
 import { questionnaireQuestionRoutes } from './resources/questionnaires/questionnaire-questions.handlers';
 import { questionnaireRoutes } from './resources/questionnaires/questionnaires.handlers';
 import { topicRoutes } from './resources/topics/topics.handlers';
+import { userRoutes } from './resources/users/users.handlers';
 
 /**
  * Every mock route, one entry per resource folder in ./resources.
@@ -15,6 +16,7 @@ export const mockRoutes: MockRoute[] = [
   ...authRoutes,
   ...organizationRoutes,
   ...departmentRoutes,
+  ...userRoutes,
   ...topicRoutes,
   ...questionnaireRoutes,
   ...questionnaireQuestionRoutes,

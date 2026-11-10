@@ -88,54 +88,19 @@ export function optionLetter(index: number): string {
 }
 
 /**
- * What is wrong with the working copy, by the API's field names (`questions[0].text`, …), with
- * the same rules as the API:
- *
- * - Always: every question and answer option has text, within the length limits.
- * - Only when `complete` (an active questionnaire): at least one question, and each question has
- *   at least two answer options with exactly one correct. An inactive draft may be saved
- *   incomplete.
+ * Why a question is not complete, as one sentence, or `null` when it is. An active
+ * questionnaire needs at least two answer options and exactly one correct answer in every
+ * question: the same rule as the API's `questionSetProblems()`. Text is checked separately, with
+ * `textRules()`.
  */
-export function draftErrors(
-  questions: readonly DraftQuestion[],
-  complete: boolean,
-): Record<string, string> {
-  const errors: Record<string, string> = {};
-  if (complete && questions.length === 0) errors['questions'] = 'Add at least one question.';
-  questions.forEach((question, index) => {
-    const path = `questions[${index}]`;
-    const text = question.text.trim();
-    if (!text) errors[`${path}.text`] = 'Enter the question.';
-    else if (text.length > QUESTION_TEXT_MAX_LENGTH) {
-      errors[`${path}.text`] = tooLong(QUESTION_TEXT_MAX_LENGTH);
-    }
-    if (question.explanation.trim().length > EXPLANATION_MAX_LENGTH) {
-      errors[`${path}.explanation`] = tooLong(EXPLANATION_MAX_LENGTH);
-    }
-    question.answerOptions.forEach((option, optionIndex) => {
-      const optionText = option.text.trim();
-      const field = `${path}.answerOptions[${optionIndex}].text`;
-      if (!optionText) errors[field] = 'Enter the answer.';
-      else if (optionText.length > OPTION_TEXT_MAX_LENGTH)
-        errors[field] = tooLong(OPTION_TEXT_MAX_LENGTH);
-    });
-    if (complete) {
-      const problems: string[] = [];
-      if (question.answerOptions.length < MIN_ANSWER_OPTIONS) {
-        problems.push(`Add at least ${MIN_ANSWER_OPTIONS} answer options.`);
-      }
-      const correct = question.answerOptions.filter((option) => option.isCorrect).length;
-      if (correct !== 1) {
-        problems.push(
-          correct === 0 ? 'Choose the correct answer.' : 'Only one answer can be correct.',
-        );
-      }
-      if (problems.length > 0) errors[`${path}.answerOptions`] = problems.join(' ');
-    }
-  });
-  return errors;
-}
-
-function tooLong(max: number): string {
-  return `Must be ${max.toLocaleString('en-US')} characters or fewer.`;
+export function completenessProblem(question: DraftQuestion): string | null {
+  const problems: string[] = [];
+  if (question.answerOptions.length < MIN_ANSWER_OPTIONS) {
+    problems.push(`Add at least ${MIN_ANSWER_OPTIONS} answer options.`);
+  }
+  const correct = question.answerOptions.filter((option) => option.isCorrect).length;
+  if (correct !== 1) {
+    problems.push(correct === 0 ? 'Choose the correct answer.' : 'Only one answer can be correct.');
+  }
+  return problems.length > 0 ? problems.join(' ') : null;
 }

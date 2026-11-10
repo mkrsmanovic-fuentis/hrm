@@ -71,15 +71,13 @@
               class="grow"
               label="Question"
               required
-              [error]="errorFor('questions[' + qi + '].text')"
+              [error]="visibleError(f.questions[qi].text)"
             >
               <textarea
                 sd-input
                 rows="2"
                 [attr.data-question-text]="question.key"
-                [value]="question.text"
-                [disabled]="saving()"
-                (input)="setQuestionText(qi, $event)"
+                [formField]="f.questions[qi].text"
               ></textarea>
             </sd-field>
             <div class="tools">
@@ -134,15 +132,13 @@
                   class="grow"
                   [label]="'Answer ' + letter(oi)"
                   required
-                  [error]="errorFor('questions[' + qi + '].answerOptions[' + oi + '].text')"
+                  [error]="visibleError(f.questions[qi].answerOptions[oi].text)"
                 >
                   <input
                     sd-input
                     type="text"
                     [attr.data-option-text]="option.key"
-                    [value]="option.text"
-                    [disabled]="saving()"
-                    (input)="setOptionText(qi, oi, $event)"
+                    [formField]="f.questions[qi].answerOptions[oi].text"
                   />
                 </sd-field>
                 <div class="tools">
@@ -211,7 +207,7 @@
             label="Correct answer"
             hint="Exactly one answer is correct."
             required
-            [error]="errorFor('questions[' + qi + '].answerOptions')"
+            [error]="visibleError(f.questions[qi])"
           >
             <sd-select
               placeholder="Choose the correct answer"
@@ -225,15 +221,9 @@
           <sd-field
             label="Feedback for a wrong answer"
             hint="Optional. Employees see it when they answer this question wrong."
-            [error]="errorFor('questions[' + qi + '].explanation')"
+            [error]="visibleError(f.questions[qi].explanation)"
           >
-            <textarea
-              sd-input
-              rows="2"
-              [value]="question.explanation"
-              [disabled]="saving()"
-              (input)="setExplanation(qi, $event)"
-            ></textarea>
+            <textarea sd-input rows="2" [formField]="f.questions[qi].explanation"></textarea>
           </sd-field>
         </div>
       </sd-panel-section>
@@ -256,7 +246,7 @@
             Add question
           </button>
         </sd-empty-state>
-        @if (errorFor('questions'); as error) {
+        @if (visibleError(f.questions); as error) {
           <p class="error" role="alert">{{ error }}</p>
         }
       </sd-panel-section>

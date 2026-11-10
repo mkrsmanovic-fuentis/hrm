@@ -70,17 +70,17 @@ export const authRoutes = [
         user.lastSignedInAt = created.createdAt;
         return created;
       });
-      return ok(toSession(session, user), 201);
+      return ok(toSession(session, user, db.data, now), 201);
     },
     { public: true },
   ),
 
-  route.get('/auth/session', ({ db, request, ok, currentUser, problem }) => {
+  route.get('/auth/session', ({ db, now, request, ok, currentUser, problem }) => {
     const token = readBearerToken(request);
     const session = db.data.sessions.find((s) => s.token === token);
     // The route wrapper has already checked the token, so both are set.
     if (!session || !currentUser) return problem(401);
-    return ok(toSession(session, currentUser));
+    return ok(toSession(session, currentUser, db.data, now));
   }),
 
   route.delete(

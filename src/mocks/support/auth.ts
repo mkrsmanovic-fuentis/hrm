@@ -1,6 +1,7 @@
-import type { Session, User } from '../../app/core/api/api-schema.gen';
-import type { MockData, SessionRecord } from '../db/mock-data';
+import type { Session } from '../../app/core/api/api-schema.gen';
+import type { MockData, SessionRecord, UserRecord } from '../db/mock-data';
 import { isSessionActive } from '../rules/auth-rules';
+import { toUser } from '../rules/user-rules';
 
 /** The bearer token from the `Authorization` header, or null when there is none. */
 export function readBearerToken(request: Request): string | null {
@@ -11,9 +12,13 @@ export function readBearerToken(request: Request): string | null {
 
 /** Result of checking a request's session token. */
 export type Authentication =
-  { ok: true; session: SessionRecord; user: User } | { ok: false; detail: string };
+  { ok: true; session: SessionRecord; user: UserRecord } | { ok: false; detail: string };
 
-/** Checks the request's session token, as every endpoint except sign-in and sign-out does. */
+/**
+ * Checks the request's session token, as every endpoint except sign-in and sign-out does. The
+ * token must belong to a session that has not expired, of a user who is still active: deactivating
+ * a user ends their sessions at once, so their next request gets `401`.
+ */
 export function authenticate(data: MockData, request: Request, now: Date): Authentication {
   const token = readBearerToken(request);
   if (!token) return { ok: false, detail: 'Sign in to continue.' };
@@ -26,16 +31,24 @@ export function authenticate(data: MockData, request: Request, now: Date): Authe
   if (!isSessionActive(session, now)) {
     return { ok: false, detail: 'The session has expired. Sign in again.' };
   }
+  if (user.status !== 'active') {
+    return { ok: false, detail: 'This account is deactivated, so its session has ended.' };
+  }
   return { ok: true, session, user };
 }
 
-/** The API shape of a stored session. */
-export function toSession(session: SessionRecord, user: User): Session {
+/** The API shape of a stored session, with the signed-in user as the API shows it. */
+export function toSession(
+  session: SessionRecord,
+  user: UserRecord,
+  data: MockData,
+  now: Date,
+): Session {
   return {
     token: session.token,
     createdAt: session.createdAt,
     expiresAt: session.expiresAt,
-    user,
+    user: toUser(user, data, now),
   };
 }
 

@@ -13,6 +13,16 @@ import {
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import {
+  applyEach,
+  disabled,
+  type FieldTree,
+  form,
+  FormField,
+  submit,
+  validate,
+  type ValidationError,
+} from '@angular/forms/signals';
+import {
   LucideArrowDown,
   LucideArrowUp,
   LucideListChecks,
@@ -38,14 +48,18 @@ import { AccessDenied } from '../../core/access';
 import { ApiClient, ApiError, type Questionnaire, type QuestionnaireVersion } from '../../core/api';
 import { ToastService } from '../../core/toast';
 import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
-import { saveFailedMessage } from '../../shared/forms/form-errors';
+import { saveFailedMessage, serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
+import { textRules } from '../../shared/forms/text-rules';
 import {
-  draftErrors,
+  completenessProblem,
   type DraftQuestion,
   emptyOption,
   emptyQuestion,
+  EXPLANATION_MAX_LENGTH,
   moveItem,
+  OPTION_TEXT_MAX_LENGTH,
   optionLetter,
+  QUESTION_TEXT_MAX_LENGTH,
   sameQuestions,
   toDraft,
   toInput,
@@ -55,12 +69,19 @@ import { questionCountText } from './questionnaire-text';
 /** Which confirmation is open. */
 type Confirmation = 'new-version' | 'leave' | 'discard';
 
+/** The working copy, as a signal form. */
+interface EditorModel {
+  questions: DraftQuestion[];
+}
+
+const FIX_FIELDS = 'Some questions need fixing. Check the highlighted fields, then save.';
+
 /**
  * The question editor in the questionnaire page's "Questions" section.
  *
- * It edits a working copy of the current version's questions: add, edit, remove and reorder
- * questions and their answer options, pick the one correct answer, and add feedback for a wrong
- * answer. **Save questions** sends the whole ordered list at once with
+ * It edits a working copy of the current version's questions, a signal form: add, edit, remove
+ * and reorder questions and their answer options, pick the one correct answer, and add feedback
+ * for a wrong answer. **Save questions** sends the whole ordered list at once with
  * `PUT /questionnaires/{questionnaireId}/questions`.
  *
  * - While no attempt uses the current version, the save replaces its questions in place.
@@ -76,6 +97,7 @@ type Confirmation = 'new-version' | 'leave' | 'discard';
   imports: [
     AccessDenied,
     ConfirmDialog,
+    FormField,
     SdBadge,
     SdButton,
     SdCallout,
@@ -112,6 +134,7 @@ export class QuestionEditor {
     up: LucideArrowUp,
   };
   protected readonly letter = optionLetter;
+  protected readonly visibleError = visibleError;
 
   /** Only the ID: reloading the questionnaire after a settings change keeps the working copy. */
   private readonly questionnaireId = computed(() => this.questionnaire().id);
@@ -131,8 +154,43 @@ export class QuestionEditor {
     const version = this.version();
     return version ? toDraft(version) : [];
   });
+
   /** The working copy. It starts from the saved questions and is reset by every save. */
-  protected readonly questions = linkedSignal(() => this.savedQuestions());
+  protected readonly model = linkedSignal<EditorModel>(() => ({
+    questions: this.savedQuestions(),
+  }));
+  protected readonly questions = computed(() => this.model().questions);
+
+  protected readonly saving = signal(false);
+  /** An active questionnaire must stay complete when it is saved. */
+  private readonly mustBeComplete = computed(() => this.questionnaire().status === 'active');
+
+  /** The same rules as the API. Text is trimmed before it is checked, as the API does. */
+  protected readonly f = form(this.model, (p) => {
+    validate(p.questions, ({ value }) =>
+      this.mustBeComplete() && value().length === 0
+        ? { kind: 'required', message: 'Add at least one question.' }
+        : undefined,
+    );
+    applyEach(p.questions, (question) => {
+      textRules(question.text, {
+        required: 'Enter the question.',
+        maxLength: QUESTION_TEXT_MAX_LENGTH,
+      });
+      textRules(question.explanation, { maxLength: EXPLANATION_MAX_LENGTH });
+      validate(question, ({ value }) => {
+        const problem = this.mustBeComplete() ? completenessProblem(value()) : null;
+        return problem ? { kind: 'incomplete', message: problem } : undefined;
+      });
+      applyEach(question.answerOptions, (option) => {
+        textRules(option.text, {
+          required: 'Enter the answer.',
+          maxLength: OPTION_TEXT_MAX_LENGTH,
+        });
+      });
+    });
+    disabled(p.questions, () => this.saving());
+  });
 
   protected readonly loadError = computed(() => {
     const error = this.loaded.error();
@@ -146,18 +204,8 @@ export class QuestionEditor {
   /** Attempts use the saved version, so saving creates the next one. */
   protected readonly createsVersion = computed(() => (this.version()?.attemptCount ?? 0) > 0);
   protected readonly nextVersionNumber = computed(() => (this.version()?.versionNumber ?? 0) + 1);
-  /** An active questionnaire must stay complete when it is saved. */
-  private readonly mustBeComplete = computed(() => this.questionnaire().status === 'active');
 
-  protected readonly saving = signal(false);
-  /** Set by the first save attempt, so errors show only once the user tries to save. */
-  private readonly showErrors = signal(false);
-  private readonly clientErrors = computed(() =>
-    draftErrors(this.questions(), this.mustBeComplete()),
-  );
-  /** Errors from the last failed save, by the API's field names. Cleared by the next edit. */
-  private readonly serverErrors = signal<Record<string, string>>({});
-  /** Why the last save failed, when the API named no field of the editor. */
+  /** Why the last save failed, when no field can show it. */
   protected readonly formError = signal<string | null>(null);
   /** Spoken to screen readers after a move or removal. */
   protected readonly announcement = signal('');
@@ -192,13 +240,6 @@ export class QuestionEditor {
     return question.answerOptions.find((option) => option.isCorrect)?.key ?? null;
   }
 
-  /** The error to show for a field, by the API's field name. */
-  protected errorFor(field: string): string | null {
-    return (
-      this.serverErrors()[field] ?? (this.showErrors() ? this.clientErrors()[field] : null) ?? null
-    );
-  }
-
   // ---------------------------------------------------------------- editing
 
   protected addQuestion(): void {
@@ -226,38 +267,19 @@ export class QuestionEditor {
     this.focusMoveButton(`question-${key}`, by, to, questions.length);
   }
 
-  protected setQuestionText(index: number, event: Event): void {
-    const text = (event.target as HTMLTextAreaElement).value;
-    this.updateQuestion(index, (question) => ({ ...question, text }));
-  }
-
-  protected setExplanation(index: number, event: Event): void {
-    const explanation = (event.target as HTMLTextAreaElement).value;
-    this.updateQuestion(index, (question) => ({ ...question, explanation }));
-  }
-
   protected addOption(index: number): void {
     const option = emptyOption();
-    this.updateQuestion(index, (question) => ({
-      ...question,
-      answerOptions: [...question.answerOptions, option],
-    }));
+    this.updateOptions(index, (options) => [...options, option]);
     this.focus(`[data-option-text="${option.key}"]`);
   }
 
   protected removeOption(index: number, optionIndex: number): void {
-    const options = this.questions()[index].answerOptions;
-    this.updateQuestion(index, (question) => ({
-      ...question,
-      answerOptions: question.answerOptions.filter((_, i) => i !== optionIndex),
-    }));
+    const question = this.questions()[index];
+    const options = question.answerOptions;
+    this.updateOptions(index, (list) => list.filter((_, i) => i !== optionIndex));
     this.announce(`Answer ${optionLetter(optionIndex)} of question ${index + 1} removed.`);
     const next = options[optionIndex + 1] ?? options[optionIndex - 1];
-    this.focus(
-      next
-        ? `[data-option-text="${next.key}"]`
-        : `[data-add-option="${this.questions()[index].key}"]`,
-    );
+    this.focus(next ? `[data-option-text="${next.key}"]` : `[data-add-option="${question.key}"]`);
   }
 
   protected moveOption(index: number, optionIndex: number, by: -1 | 1): void {
@@ -265,70 +287,61 @@ export class QuestionEditor {
     const to = optionIndex + by;
     if (to < 0 || to >= options.length) return;
     const key = options[optionIndex].key;
-    this.updateQuestion(index, (question) => ({
-      ...question,
-      answerOptions: moveItem(question.answerOptions, optionIndex, to),
-    }));
+    this.updateOptions(index, (list) => moveItem(list, optionIndex, to));
     this.announce(
       `Answer ${optionLetter(optionIndex)} of question ${index + 1} moved to ${optionLetter(to)}.`,
     );
     this.focusMoveButton(`option-${key}`, by, to, options.length);
   }
 
-  protected setOptionText(index: number, optionIndex: number, event: Event): void {
-    const text = (event.target as HTMLInputElement).value;
-    this.updateQuestion(index, (question) => ({
-      ...question,
-      answerOptions: question.answerOptions.map((option, i) =>
-        i === optionIndex ? { ...option, text } : option,
-      ),
-    }));
-  }
-
   /** Marks one answer option correct, and every other one of the question not correct. */
   protected setCorrect(index: number, key: string | null): void {
-    this.updateQuestion(index, (question) => ({
-      ...question,
-      answerOptions: question.answerOptions.map((option) => ({
-        ...option,
-        isCorrect: option.key === key,
-      })),
-    }));
+    const options = this.f.questions[index].answerOptions;
+    this.questions()[index].answerOptions.forEach((option, i) =>
+      options[i].isCorrect().value.set(option.key === key),
+    );
+    this.formError.set(null);
   }
 
-  private updateQuestion(index: number, change: (question: DraftQuestion) => DraftQuestion): void {
-    this.edit((questions) => questions.map((q, i) => (i === index ? change(q) : q)));
+  /** Changes the list of answer options of one question. Text edits go through the form. */
+  private updateOptions(
+    index: number,
+    change: (options: DraftQuestion['answerOptions']) => DraftQuestion['answerOptions'],
+  ): void {
+    const field = this.f.questions[index].answerOptions;
+    field().value.update(change);
+    this.formError.set(null);
   }
 
-  /** Every edit goes through here: it clears the errors of the last failed save. */
+  /** Changes the list of questions. Text edits go through the form. */
   private edit(change: (questions: DraftQuestion[]) => DraftQuestion[]): void {
-    this.questions.update(change);
-    if (Object.keys(this.serverErrors()).length > 0) this.serverErrors.set({});
+    this.f.questions().value.update(change);
     this.formError.set(null);
   }
 
   // ---------------------------------------------------------------- saving
 
   /** Checks the working copy, then saves, after the new-version confirmation when one is due. */
-  protected requestSave(): void {
+  protected async requestSave(): Promise<void> {
     if (this.saving() || !this.dirty()) return;
-    this.showErrors.set(true);
     this.formError.set(null);
-    if (Object.keys(this.clientErrors()).length > 0) {
-      this.formError.set('Some questions need fixing. Check the highlighted fields, then save.');
-      this.focus('[aria-invalid="true"]');
-      return;
-    }
-    if (this.createsVersion()) {
+    await submit(this.f, async () => {
+      if (!this.createsVersion()) return this.send();
       this.confirmError.set(null);
       this.confirmation.set('new-version');
-      return;
-    }
-    void this.save();
+      return undefined;
+    });
+    this.showInvalid();
   }
 
-  protected async save(): Promise<void> {
-    if (this.saving()) return;
+  /** The new-version confirmation was accepted. */
+  private async saveNewVersion(): Promise<void> {
+    await submit(this.f, () => this.send());
+    this.showInvalid();
+  }
+
+  /** Sends the working copy. Returns the API's field errors for `submit()` to show. */
+  private async send(): Promise<ValidationError.WithOptionalFieldTree[] | undefined> {
     this.saving.set(true);
     this.confirmError.set(null);
     const before = this.version();
@@ -340,7 +353,6 @@ export class QuestionEditor {
         }),
       );
       this.version.set(version);
-      this.showErrors.set(false);
       this.confirmation.set(null);
       if (before && version.id !== before.id) {
         this.toasts.success(
@@ -351,37 +363,46 @@ export class QuestionEditor {
         this.toasts.success('Questions saved', `${this.questionnaire().title} is up to date.`);
       }
       this.saved.emit(version);
+      return undefined;
     } catch (error) {
-      this.onSaveFailed(error);
+      const fieldErrors = serverFieldErrors(error, this.fieldsByApiName());
+      if (fieldErrors) {
+        this.confirmation.set(null);
+        return fieldErrors;
+      }
+      const message = saveFailedMessage(error);
+      if (this.confirmation() === 'new-version') this.confirmError.set(message);
+      else this.formError.set(message);
+      return undefined;
     } finally {
       this.saving.set(false);
     }
   }
 
-  private onSaveFailed(error: unknown): void {
-    const fieldErrors =
-      error instanceof ApiError && error.isValidation
-        ? error.fieldErrors.filter((e) => e.location === 'body')
-        : [];
-    if (fieldErrors.length > 0) {
-      const errors: Record<string, string> = {};
-      for (const fieldError of fieldErrors) {
-        errors[fieldError.field] = errors[fieldError.field]
-          ? `${errors[fieldError.field]} ${fieldError.message}`
-          : fieldError.message;
-      }
-      this.serverErrors.set(errors);
-      this.confirmation.set(null);
-      this.formError.set(
-        errors['questions'] ??
-          'Some questions need fixing. Check the highlighted fields, then save.',
-      );
-      this.focus('[aria-invalid="true"]');
-      return;
-    }
-    const message = saveFailedMessage(error);
-    if (this.confirmation() === 'new-version') this.confirmError.set(message);
-    else this.formError.set(message);
+  /** After a save attempt with invalid fields: say so, and focus the first one. */
+  private showInvalid(): void {
+    if (!this.f().invalid()) return;
+    this.formError.set(visibleError(this.f.questions) ?? FIX_FIELDS);
+    this.focus('[aria-invalid="true"]');
+  }
+
+  /**
+   * The form's fields by the API's field names, such as `questions[2].answerOptions[0].text`, so
+   * the errors of a `422` land on their fields.
+   */
+  private fieldsByApiName(): Record<string, FieldTree<unknown>> {
+    const fields: Record<string, FieldTree<unknown>> = { questions: this.f.questions };
+    this.questions().forEach((question, i) => {
+      const field = this.f.questions[i];
+      const path = `questions[${i}]`;
+      fields[`${path}.text`] = field.text;
+      fields[`${path}.explanation`] = field.explanation;
+      fields[`${path}.answerOptions`] = field;
+      question.answerOptions.forEach((_, j) => {
+        fields[`${path}.answerOptions[${j}].text`] = field.answerOptions[j].text;
+      });
+    });
+    return fields;
   }
 
   // ---------------------------------------------------------------- leaving and discarding
@@ -401,17 +422,16 @@ export class QuestionEditor {
   protected onConfirmed(): void {
     switch (this.confirmation()) {
       case 'new-version':
-        void this.save();
+        void this.saveNewVersion();
         return;
       case 'leave':
         this.decideLeave(true);
         this.confirmation.set(null);
         return;
       case 'discard':
-        this.questions.set(this.savedQuestions());
-        this.serverErrors.set({});
+        this.model.set({ questions: this.savedQuestions() });
+        this.f().reset();
         this.formError.set(null);
-        this.showErrors.set(false);
         this.confirmation.set(null);
         this.announce('Changes discarded.');
         return;

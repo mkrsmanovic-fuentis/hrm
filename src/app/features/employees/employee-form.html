@@ -1,0 +1,75 @@
+<sd-drawer
+  modal
+  size="md"
+  [heading]="heading()"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  <form id="employee-form" class="form" novalidate (submit)="save($event)">
+    @if (formError(); as error) {
+      <sd-callout tone="danger" role="alert" heading="Could not save the employee">
+        {{ error }}
+      </sd-callout>
+    }
+
+    <div class="names">
+      <sd-field label="First name" [error]="visibleError(f.firstName)" required>
+        <input sd-input autocomplete="off" [formField]="f.firstName" />
+      </sd-field>
+      <sd-field label="Last name" [error]="visibleError(f.lastName)" required>
+        <input sd-input autocomplete="off" [formField]="f.lastName" />
+      </sd-field>
+    </div>
+
+    <sd-field
+      label="Email"
+      [hint]="isNew() ? 'They get an invite at this address to set a password.' : null"
+      [error]="visibleError(f.email)"
+      required
+    >
+      <input sd-input type="email" autocomplete="off" [formField]="f.email" />
+    </sd-field>
+
+    <sd-field
+      label="Role"
+      [hint]="
+        isSelf()
+          ? 'You cannot change your own role.'
+          : 'Administrators manage the organization. Employees take training.'
+      "
+      [error]="visibleError(f.role)"
+      required
+    >
+      <sd-segmented [options]="roleOptions" [formField]="f.role" />
+    </sd-field>
+
+    <sd-field
+      label="Department"
+      hint="Only active departments can be chosen."
+      [error]="visibleError(f.departmentId)"
+    >
+      <sd-select
+        searchable
+        [options]="departmentOptions()"
+        [formField]="f.departmentId"
+        searchPlaceholder="Search departments"
+      />
+    </sd-field>
+  </form>
+
+  <ng-container sdDrawerFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="employee-form"
+      [loading]="saving()"
+      [disabled]="saving()"
+    >
+      {{ isNew() ? 'Create employee' : 'Save changes' }}
+    </button>
+  </ng-container>
+</sd-drawer>

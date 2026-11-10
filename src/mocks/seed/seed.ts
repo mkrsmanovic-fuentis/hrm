@@ -5,7 +5,6 @@ import type {
   AuditLogEntry,
   Notification,
   Role,
-  User,
 } from '../../app/core/api/api-schema.gen';
 import { auditChanges } from '../db/audit';
 import type {
@@ -16,6 +15,7 @@ import type {
   QuestionnaireVersionRecord,
   QuestionRecord,
   TopicRecord,
+  UserRecord,
 } from '../db/mock-data';
 import {
   DEADLINE_REMINDER_MS,
@@ -37,7 +37,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 5;
+export const SEED_VERSION = 6;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -127,7 +127,7 @@ export function buildSeed(now: Date = new Date()): MockData {
   const departmentId = (name: string | null) =>
     departments.find((d) => d.name === name)?.id ?? null;
 
-  const users: User[] = userSeeds.map((seed, index) => {
+  const users: UserRecord[] = userSeeds.map((seed, index) => {
     const email = `${slug(seed.firstName)}.${slug(seed.lastName)}@${organizationSeed.emailDomain}`;
     let created: number;
     let updated: number;
@@ -397,7 +397,7 @@ export function buildSeed(now: Date = new Date()): MockData {
   };
 
   const addAssignment = (
-    user: User,
+    user: UserRecord,
     questionnaire: BuiltQuestionnaire,
     createdMs: number,
     outcomes: Outcome[],

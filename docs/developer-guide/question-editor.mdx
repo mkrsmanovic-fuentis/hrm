@@ -17,10 +17,10 @@ The **Questions** section of the questionnaire page at `/admin/questionnaires/{q
     `GET /questionnaires/{questionnaireId}/questions` returns the current `QuestionnaireVersion`, with its questions and answer options in display order, and its derived `attemptCount`.
   </Step>
   <Step title="Edits change a working copy">
-    The editor copies the questions into a signal and changes only that copy. Nothing is sent while editing. The copy is compared with the saved questions, after trimming, to show **Unsaved changes** and enable **Save questions**.
+    The editor copies the questions into a signal form and changes only that copy. Nothing is sent while editing. The copy is compared with the saved questions, after trimming, to show **Unsaved changes** and enable **Save questions**.
   </Step>
   <Step title="Saving checks the copy first">
-    The editor checks the same rules as the API: text is required, within its limits, and an active questionnaire must be complete. Problems show on their fields, and nothing is sent.
+    `submit()` checks the same rules as the API: text is required and within its limits (`textRules()`), and an active questionnaire must be complete (`completenessProblem()`). Problems show on their fields, and nothing is sent.
   </Step>
   <Step title="A new version is confirmed first">
     When `attemptCount` is above 0, saving creates a new version. The editor says so in a callout above the questions and asks in an `<app-confirm-dialog>` before it sends the save.
@@ -37,7 +37,7 @@ Saving the whole ordered list makes a save one change: either the current versio
 | Path | What it holds |
 | - | - |
 | `src/app/features/questionnaires/question-editor.ts` | The editor: loading, the working copy, editing, saving, confirmations and focus. |
-| `src/app/features/questionnaires/question-draft.ts` | The working copy's types, `toDraft()`, `toInput()`, `moveItem()` and `draftErrors()`, the client copy of the rules. |
+| `src/app/features/questionnaires/question-draft.ts` | The working copy's types, `toDraft()`, `toInput()`, `moveItem()` and `completenessProblem()`, the client copy of the completeness rule. |
 | `src/app/features/questionnaires/unsaved-changes.guard.ts` | `unsavedChangesGuard` and the `LeaveConfirmation` interface. |
 | `src/mocks/resources/questionnaires/questionnaire-questions.handlers.ts` | The mock endpoints. |
 | `src/mocks/rules/questionnaire-rules.ts` | `questionSetProblems()`, the completeness rule, and `toQuestionnaireVersion()`. |
@@ -47,14 +47,14 @@ Saving the whole ordered list makes a save one change: either the current versio
 | Part | ui-kit | Notes |
 | - | - | - |
 | Section | `sd-panel` | One `sd-panel-section` for the summary and actions, one per question, and one for the buttons at the end. |
-| Text fields | `sd-field` with `input[sd-input]` or `textarea[sd-input]` | Errors are keyed by the API's field names, for example `questions[2].answerOptions[0].text`, so client and API errors land in the same place. |
+| Text fields | `sd-field` with `input[sd-input]` or `textarea[sd-input]` | Bound with `[formField]`. A `422` from the API lands on the same fields: `serverFieldErrors()` maps its field names, such as `questions[2].answerOptions[0].text`, to the form. |
 | Correct answer | `sd-select` | One value from the question's answer options, so only one can be correct. The correct option also shows an `sd-badge` **Correct**. |
 | Move and remove | `button[sd-button]` with `iconOnly` | Each has an `aria-label` such as "Move question 2 up". At the top or bottom, the move button is disabled. |
 | Version notice | `sd-callout` `tone="info"` | Shown while `attemptCount` is above 0. |
 | Confirmations | `<app-confirm-dialog>` | Save as a new version, discard changes, and leave without saving. |
 | Feedback | `ToastService` | **Questions saved**, or **Version N created** when a new version was made. |
 
-The editor uses plain signals for the working copy, not signal forms, because questions and answer options are nested lists that change shape while editing.
+The working copy is a signal form with `applyEach()` over questions and answer options. Adding, removing and moving items update the list through the form, so each item keeps its field state when it moves. The completeness error of a question shows under **Correct answer**.
 
 ### Keyboard and screen readers
 
