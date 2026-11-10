@@ -32,7 +32,7 @@ The lead gives you only: the Linear issue (for example `SPE-14`), the branch and
    - Business rules implemented differently from `business-rules.mdx`.
    - Missing or wrong docs for the change. `docs/changelog.mdx` must not be edited.
    - Work outside the issue's scope.
-5. **Test in the browser.** Start the app, open it with the browser tools and walk through every acceptance criterion as a user would. Try the edge cases too: empty lists, errors from the mock, wrong input, the other role. Check the console for errors. Take screenshots of anything that fails.
+5. **Test in the browser.** Start the app, open it with the browser tools and walk through every acceptance criterion as a user would. If the browser tools report that the browser is already running or locked, use your own headless Chrome with a separate profile instead (for example a small Puppeteer or Playwright script, or Chrome's `--headless --user-data-dir=<temp dir>`), and say so in the report. Try the edge cases too: empty lists, errors from the mock, wrong input, the other role. Check the console for errors. Take screenshots of anything that fails.
 6. **Write the review.**
 
 ## Report
