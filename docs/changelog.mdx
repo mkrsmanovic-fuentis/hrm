@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 15:35" description="SPE-17 · Questionnaires" tags={["Frontend", "API", "Docs"]}>
+  Administrators can now list, search and filter questionnaires, create them as inactive drafts, and edit their settings on a detail page: title, description, topic, passing score (80% by default) and optional time limit. A questionnaire can't be activated until it has questions. Deactivated questionnaires can't be assigned, but training already assigned can still be completed.
+
+  Commit: [2b7427b](https://github.com/mkrsmanovic-fuentis/hrm/commit/2b7427bb451ee602332119956f4097c0fe3d62b8)
+</Update>
+
 <Update label="2026-11-10 15:24" description="SPE-14 · Employees" tags={["Frontend", "API", "Docs"]}>
   Administrators can now list, search and filter employees, create them with a role and department, edit them, and deactivate or reactivate them. The list shows each person's assigned and completed training. Creating an employee sends an invite. Deactivating an employee signs them out everywhere at once. Administrators can't deactivate themselves or change their own role.
 
