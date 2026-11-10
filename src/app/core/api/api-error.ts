@@ -12,6 +12,11 @@ export const ProblemType = {
   forbidden: '/problems/forbidden',
   notFound: '/problems/not-found',
   conflict: '/problems/conflict',
+  /**
+   * Saving questions only: the save was based on an older version, or attempts started on it
+   * since it was loaded. Reload the version and save again.
+   */
+  versionConflict: '/problems/version-conflict',
   validationFailed: '/problems/validation-failed',
   internalError: '/problems/internal-error',
   /** Client-side only: the request never reached the API. */
@@ -53,6 +58,11 @@ export class ApiError extends Error {
 
   get isConflict(): boolean {
     return this.status === 409;
+  }
+
+  /** A save of questions based on an older state: see `ProblemType.versionConflict`. */
+  get isVersionConflict(): boolean {
+    return this.isConflict && this.problem.type === ProblemType.versionConflict;
   }
 
   get isValidation(): boolean {

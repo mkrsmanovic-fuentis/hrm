@@ -254,6 +254,7 @@ The [API reference](/api-reference/overview#authorization) describes the answers
 - "Has attempts" means at least one attempt, in progress or submitted, uses the **current** version. Attempts on earlier versions do not count: once a new version exists and nobody has started it, it is edited in place.
 - A new version gets the next version number, and becomes the current version. Earlier versions, their questions and their attempts never change.
 - Before a save creates a new version, the administrator is told so, and that past results are kept.
+- This holds even when the state changes while the administrator edits. A save is based on the version the administrator loaded, and on whether they were told it creates a new version. If the current version is no longer that one, or attempts now use it when they did not, the save is refused and nothing changes. The administrator's edits are kept, they are told what changed, and they save again: after confirming the new version, when there is one.
 - A save that changes nothing creates no version and is not logged.
 - New attempts use the latest version. An attempt in progress finishes on the version it started with.
 - Each attempt stays linked to the version it used, so earlier results never change.

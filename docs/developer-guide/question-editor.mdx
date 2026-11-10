@@ -20,17 +20,25 @@ The **Questions** section of the questionnaire page at `/admin/questionnaires/{q
     The editor copies the questions into a signal form and changes only that copy. Nothing is sent while editing. The copy is compared with the saved questions, after trimming, to show **Unsaved changes** and enable **Save questions**.
   </Step>
   <Step title="Saving checks the copy first">
-    `submit()` checks the same rules as the API: text is required and within its limits (`textRules()`), and an active questionnaire must be complete (`completenessProblem()`). Problems show on their fields, and nothing is sent.
+    `submit()` checks the same rules as the API: text is required and within its limits (`textRules()`), and an active questionnaire must be complete (`answerOptionsProblem()` and `correctAnswerProblem()`). Problems show on their fields, and nothing is sent.
   </Step>
   <Step title="A new version is confirmed first">
     When `attemptCount` is above 0, saving creates a new version. The editor says so in a callout above the questions and asks in an `<app-confirm-dialog>` before it sends the save.
   </Step>
   <Step title="The whole list is sent at once">
-    `PUT /questionnaires/{questionnaireId}/questions` with `{ questions: [...] }` replaces the questions. The answer is the current version after the save, which becomes the editor's new saved state. The page then reloads the questionnaire, so the question count is up to date.
+    `PUT /questionnaires/{questionnaireId}/questions` with `{ baseVersionId, createsVersion, questions: [...] }` replaces the questions. `baseVersionId` is the version the editor loaded, and `createsVersion` says whether it warned about a new version. The answer is the current version after the save, which becomes the editor's new saved state. The page then reloads the questionnaire, so the question count is up to date.
   </Step>
 </Steps>
 
 Saving the whole ordered list makes a save one change: either the current version's questions are replaced, or one new version is created. There are no endpoints for single questions.
+
+### When the version changed while editing
+
+The editor decides whether to warn about a new version from the `attemptCount` it loaded. An employee can start an attempt after that, or another administrator can save a new version. So the save sends what the editor based its decision on, and the API refuses with `409` `/problems/version-conflict` (`ApiError.isVersionConflict`) when that no longer holds. Nothing is saved. The editor then:
+
+1. loads the current version again, and puts the working copy back, so no edit is lost;
+2. when saving now creates a new version, opens **Save as version N?** with the API's reason in a warning callout;
+3. otherwise closes any dialog and shows the reason above the questions, with "Your changes are kept." The next **Save questions** saves against the reloaded version.
 
 ## What needs fixing before activation
 
@@ -48,7 +56,7 @@ An inactive questionnaire carries its derived `activationProblems`: the API's [c
 | Path | What it holds |
 | - | - |
 | `src/app/features/questionnaires/question-editor.ts` | The editor: loading, the working copy, editing, saving, confirmations and focus. |
-| `src/app/features/questionnaires/question-draft.ts` | The working copy's types, `toDraft()`, `toInput()`, `moveItem()` and `completenessProblem()`, the client copy of the completeness rule. |
+| `src/app/features/questionnaires/question-draft.ts` | The working copy's types, `toDraft()`, `toInput()`, `moveItem()`, and `answerOptionsProblem()` and `correctAnswerProblem()`, the client copy of the completeness rule. |
 | `src/app/features/questionnaires/unsaved-changes.guard.ts` | `unsavedChangesGuard` and the `LeaveConfirmation` interface. |
 | `src/mocks/resources/questionnaires/questionnaire-questions.handlers.ts` | The mock endpoints. |
 | `src/mocks/rules/questionnaire-rules.ts` | `completenessIssues()`, the completeness rule, behind `questionSetProblems()` for saving and `activationProblems()` for activating; `hasBeenActive()`; and `toQuestionnaireVersion()`. |
@@ -66,7 +74,7 @@ An inactive questionnaire carries its derived `activationProblems`: the API's [c
 | Confirmations | `<app-confirm-dialog>` | Save as a new version, discard changes, and leave without saving. |
 | Feedback | `ToastService` | **Questions saved**, or **Version N created** when a new version was made. |
 
-The working copy is a signal form with `applyEach()` over questions and answer options. Adding, removing and moving items update the list through the form, so each item keeps its field state when it moves. The completeness error of a question shows under **Correct answer**.
+The working copy is a signal form with `applyEach()` over questions and answer options. Adding, removing and moving items update the list through the form, so each item keeps its field state when it moves. The completeness errors show where they are fixed: too few answer options under **Answer options** (a validator on `answerOptions`), and a missing or second correct answer under **Correct answer** (a validator on the question).
 
 ### Keyboard and screen readers
 
@@ -97,6 +105,8 @@ Another page with unsaved changes can reuse the guard: implement `LeaveConfirmat
 | `PUT …/questions`, no attempt uses the current version | `200`. The version's questions are replaced in place. Logged as `updated` with `questions`. |
 | `PUT …/questions`, attempts use the current version | `200` with a new version, number plus one. `currentVersionId` points to it. Earlier versions and attempts are unchanged. Logged as `updated` with `currentVersionId` and `questions`. |
 | `PUT …/questions` with the same questions as now | `200` with the current version. Nothing is saved or logged. |
+| `PUT …/questions` with a `baseVersionId` that is not the current version | `409` `/problems/version-conflict`. Nothing is saved or logged. |
+| `PUT …/questions` with `createsVersion` that does not match whether attempts use the current version | `409` `/problems/version-conflict`, for example when an attempt started after the editor loaded. Nothing is saved or logged. |
 | An active questionnaire left without questions, or with a question that has fewer than two answer options or not exactly one correct | `422`. `errors` names `questions` or `questions[i].answerOptions`. |
 | Empty or too long text, a value of the wrong type, an unknown field | `422` with every invalid field, for drafts too. |
 | An unknown questionnaire | `404`. |

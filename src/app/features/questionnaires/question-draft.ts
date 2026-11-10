@@ -91,20 +91,23 @@ export function optionLetter(index: number): string {
   return index < 26 ? String.fromCharCode(65 + index) : String(index + 1);
 }
 
-/**
- * Why a question is not complete, as one sentence, or `null` when it is. An active
- * questionnaire needs at least two answer options and exactly one correct answer in every
- * question: the same rule as the API's `questionSetProblems()`. Text is checked separately, with
+/*
+ * A complete question, as an active questionnaire needs every question to be: at least two answer
+ * options and exactly one correct answer. The same rule as the API's `questionSetProblems()`,
+ * split in two so each problem shows next to what fixes it. Text is checked separately, with
  * `textRules()`.
  */
-export function completenessProblem(question: DraftQuestion): string | null {
-  const problems: string[] = [];
-  if (question.answerOptions.length < MIN_ANSWER_OPTIONS) {
-    problems.push(`Add at least ${MIN_ANSWER_OPTIONS} answer options.`);
-  }
+
+/** Why the question has too few answer options, or `null`. Shown under **Answer options**. */
+export function answerOptionsProblem(question: DraftQuestion): string | null {
+  return question.answerOptions.length < MIN_ANSWER_OPTIONS
+    ? `Add at least ${MIN_ANSWER_OPTIONS} answer options.`
+    : null;
+}
+
+/** Why the question does not have exactly one correct answer, or `null`. Shown under **Correct answer**. */
+export function correctAnswerProblem(question: DraftQuestion): string | null {
   const correct = question.answerOptions.filter((option) => option.isCorrect).length;
-  if (correct !== 1) {
-    problems.push(correct === 0 ? 'Choose the correct answer.' : 'Only one answer can be correct.');
-  }
-  return problems.length > 0 ? problems.join(' ') : null;
+  if (correct === 1) return null;
+  return correct === 0 ? 'Choose the correct answer.' : 'Only one answer can be correct.';
 }

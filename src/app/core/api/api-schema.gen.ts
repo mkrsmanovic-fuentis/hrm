@@ -325,6 +325,7 @@ export interface paths {
          *     - **Attempts on the current version** (in progress or submitted): a **new version** is created with the questions sent, its `versionNumber` one higher than the latest, and `currentVersionId` points to it. Earlier versions, their questions and their attempts never change. An attempt in progress finishes on the version it started with; new attempts use the new version.
          *     - **Nothing changed:** when the list sent equals the current questions, nothing is saved, no version is created and nothing is logged.
          *     - Question and answer option IDs are assigned by the server on every save. Do not rely on them staying the same.
+         *     - **The client says what it expects.** `baseVersionId` is the version the edits are based on, and `createsVersion` says whether the client expects the save to create a new version, because attempts use that version. When either no longer matches, because the current version changed, or because an attempt started on it after the client loaded it, the answer is `409` with type `/problems/version-conflict`, and nothing changes. The client reloads the version, keeps its edits, tells the administrator, and saves again.
          *
          *     Every question needs text, and every answer option needs text. An **active** questionnaire must also stay valid: at least one question, and for each question at least two answer options with exactly one correct. A save that breaks this answers `422`, with field names such as `questions[2].answerOptions`. An **inactive** questionnaire, a draft, may be saved incomplete.
          *
@@ -717,6 +718,10 @@ export interface components {
         };
         /** @description The complete, ordered list of questions for the questionnaire. It replaces the current questions; see `PUT /questionnaires/{questionnaireId}/questions` for when that creates a new version. Spaces around text are removed, and an empty explanation is stored as `null`. Unknown fields are rejected. */
         QuestionnaireQuestionsUpdate: {
+            /** @description The version the edits are based on, the `id` of the `QuestionnaireVersion` the client loaded. When it is no longer the current version, the answer is `409`. */
+            baseVersionId: components["schemas"]["Id"];
+            /** @description Whether the client expects the save to create a new version, because attempts use `baseVersionId` (its `attemptCount` is above 0). When the server would decide otherwise, the answer is `409`, so the administrator is always told before a new version is created. */
+            createsVersion: boolean;
             /** @description Questions in display order. An active questionnaire needs at least one; an inactive draft may send none. */
             questions: components["schemas"]["QuestionInput"][];
         };
@@ -1077,6 +1082,23 @@ export interface components {
                 "application/problem+json": components["schemas"]["NotReadyToActivateProblem"];
             };
         };
+        /** @description The questions were not saved, because the save was based on an older state of the questionnaire: the current version is no longer `baseVersionId`, or whether the save creates a new version is not what `createsVersion` said. Nothing was changed. Reload the current version, then save again. */
+        VersionConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/version-conflict",
+                 *       "title": "Version conflict",
+                 *       "status": 409,
+                 *       "detail": "Employees have started this version since you loaded it. Saving now creates a new version."
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description One or more request fields are invalid. Each problem is listed in `errors`. */
         ValidationFailed: {
             headers: {
@@ -1201,6 +1223,7 @@ export type ResponseNotFound = components['responses']['NotFound'];
 export type ResponseConflict = components['responses']['Conflict'];
 export type ResponseNotUnique = components['responses']['NotUnique'];
 export type ResponseNotReadyToActivate = components['responses']['NotReadyToActivate'];
+export type ResponseVersionConflict = components['responses']['VersionConflict'];
 export type ResponseValidationFailed = components['responses']['ValidationFailed'];
 export type ResponseInternalError = components['responses']['InternalError'];
 export type ParameterPage = components['parameters']['Page'];
@@ -1877,6 +1900,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["VersionConflict"];
             422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };

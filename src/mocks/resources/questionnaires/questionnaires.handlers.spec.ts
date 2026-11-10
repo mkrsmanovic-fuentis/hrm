@@ -549,6 +549,8 @@ describe('questionnaires mock handlers', () => {
         api.put('/questionnaires/{questionnaireId}/questions', {
           path,
           body: {
+            baseVersionId: created.currentVersionId,
+            createsVersion: false,
             questions: [
               {
                 text: 'Someone without a badge follows you through the door. What do you do?',

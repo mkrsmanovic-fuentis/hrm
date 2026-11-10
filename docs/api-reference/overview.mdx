@@ -187,6 +187,7 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
 | 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use, a second open assignment for the same questionnaire, or a questionnaire that cannot be activated yet. A conflict about a field names it in `errors`, with code `not_unique`. A refused activation lists its reasons in `activationProblems`. |
+| 409 | `/problems/version-conflict` | Saving questions only: the save was based on an older state of the questionnaire. See [Saving questions that changed meanwhile](#saving-questions-that-changed-meanwhile). |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
 | 500 | `/problems/internal-error` | Something went wrong on the server. |
 
@@ -253,6 +254,26 @@ Activating a questionnaire (`PATCH /questionnaires/{questionnaireId}` with `{ "s
 - `message` names the question and says how to fix it. It can be shown as it is.
 - Problems come question by question, in order, then the topic.
 - Each questionnaire also has the same list as its derived `activationProblems`, so a client can show it before trying. It is always empty for an active questionnaire.
+
+#### Saving questions that changed meanwhile
+
+`PUT /questionnaires/{questionnaireId}/questions` sends what the client based the save on:
+
+- `baseVersionId`: the `id` of the `QuestionnaireVersion` it loaded;
+- `createsVersion`: whether it expects a new version, because that version's `attemptCount` was above 0, and it told the administrator so.
+
+When the current version is no longer `baseVersionId`, or attempts now use it when `createsVersion` is `false` (or none do when it is `true`), the answer is `409` and nothing changes:
+
+```json
+{
+  "type": "/problems/version-conflict",
+  "title": "Version conflict",
+  "status": 409,
+  "detail": "Employees have started this version since you loaded it. Saving now creates a new version."
+}
+```
+
+The client reloads the version with `GET /questionnaires/{questionnaireId}/questions`, keeps the administrator's edits, tells them what changed (and asks before a new version), then saves again with the new `baseVersionId` and `createsVersion`. The rule is in [Questionnaire versions](/developer-guide/business-rules#questionnaire-versions).
 
 ## Adding an endpoint
 

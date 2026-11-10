@@ -89,6 +89,17 @@
   text-align: center;
 }
 
+.notice {
+  margin-bottom: var(--sd-space-md);
+}
+
+// Matches the error text of an sd-field, for an error about the whole list of answer options.
+.options-error {
+  margin: 0;
+  color: var(--sd-color-danger);
+  font-size: var(--sd-font-size-xs);
+}
+
 .message + .message {
   margin-top: var(--sd-space-sm);
 }

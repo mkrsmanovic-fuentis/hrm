@@ -214,6 +214,9 @@
                 Add answer option
               </button>
             </div>
+            @if (visibleError(f.questions[qi].answerOptions); as error) {
+              <p class="options-error" role="alert">{{ error }}</p>
+            }
           </div>
 
           <sd-field
@@ -322,6 +325,11 @@
 >
   @switch (confirmation()) {
     @case ('new-version') {
+      @if (versionNotice(); as notice) {
+        <div class="notice">
+          <sd-callout tone="warning" role="alert">{{ notice }}</sd-callout>
+        </div>
+      }
       <p class="message">
         Employees have already taken version {{ version()?.versionNumber }}. Your changes will be
         saved as version {{ nextVersionNumber() }}, and new attempts will use it.

@@ -82,6 +82,8 @@ export class MockProblem extends Error {
     readonly detail?: string,
     readonly errors?: FieldError[],
     readonly extensions?: Record<string, unknown>,
+    /** A `type` and `title` other than the status's default, e.g. a version conflict. */
+    readonly kind?: ProblemKind,
   ) {
     super(detail ?? `HTTP ${status}`);
   }
