@@ -6,13 +6,13 @@ import {
   inject,
   LOCALE_ID,
   signal,
+  viewChild,
 } from '@angular/core';
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideClipboardList,
-  LucideListChecks,
   LucidePencil,
   LucidePower,
   LucideRotateCcw,
@@ -34,15 +34,11 @@ import { AccessDenied } from '../../core/access';
 import { ApiClient, ApiError, type Questionnaire } from '../../core/api';
 import { ToastService } from '../../core/toast';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
+import { QuestionEditor } from './question-editor';
 import { QuestionnaireForm } from './questionnaire-form';
 import { QuestionnaireStatusDialog } from './questionnaire-status-dialog';
-import {
-  canActivate,
-  passingScoreText,
-  questionCountText,
-  STATUS_LABELS,
-  timeLimitText,
-} from './questionnaire-text';
+import type { LeaveConfirmation } from './unsaved-changes.guard';
+import { canActivate, passingScoreText, STATUS_LABELS, timeLimitText } from './questionnaire-text';
 
 const LIST_URL = '/admin/questionnaires';
 
@@ -50,13 +46,14 @@ const LIST_URL = '/admin/questionnaires';
  * One questionnaire at `/admin/questionnaires/{questionnaireId}`: its settings, with Edit
  * settings in a drawer, and Deactivate or Activate with a confirmation.
  *
- * The "Questions" section is where the question editor goes (SPE-18). Until then it shows how
- * many questions the current version has.
+ * The "Questions" section is the question editor. Leaving the page with unsaved questions asks
+ * first, through `unsavedChangesGuard`.
  */
 @Component({
   selector: 'app-questionnaire-detail',
   imports: [
     AccessDenied,
+    QuestionEditor,
     QuestionnaireForm,
     QuestionnaireStatusDialog,
     RouterLink,
@@ -72,7 +69,7 @@ const LIST_URL = '/admin/questionnaires';
   styleUrl: './questionnaire-detail.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class QuestionnaireDetail {
+export class QuestionnaireDetail implements LeaveConfirmation {
   private readonly api = inject(ApiClient);
   private readonly router = inject(Router);
   private readonly toasts = inject(ToastService);
@@ -85,7 +82,6 @@ export class QuestionnaireDetail {
     activate: LucideRotateCcw,
     notFound: LucideSearchX,
     questionnaire: LucideClipboardList,
-    questions: LucideListChecks,
   };
 
   private readonly questionnaireId = toSignal(
@@ -153,12 +149,19 @@ export class QuestionnaireDetail {
     return q !== null && q.status === 'inactive' && !canActivate(q);
   });
 
-  protected readonly text = { passingScoreText, questionCountText, timeLimitText };
+  protected readonly text = { passingScoreText, timeLimitText };
 
   /** The settings drawer, while it is open. */
   protected readonly editing = signal(false);
   /** The questionnaire whose status is being changed, while the confirmation is open. */
   protected readonly statusTarget = signal<Questionnaire | null>(null);
+
+  private readonly editor = viewChild(QuestionEditor);
+
+  /** For the route guard: the question editor asks before unsaved changes are lost. */
+  confirmLeave(): boolean | Promise<boolean> {
+    return this.editor()?.confirmLeave() ?? true;
+  }
 
   protected date(value: string): string {
     return formatDate(value, 'mediumDate', this.locale);

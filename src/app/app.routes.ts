@@ -12,6 +12,7 @@ import {
   signedOutGuard,
 } from './core/auth';
 import { Shell } from './core/shell/shell';
+import { unsavedChangesGuard } from './features/questionnaires/unsaved-changes.guard';
 
 /*
  * Public pages, outside the shell: sign in, forgot password, and the pages that invite and
@@ -106,6 +107,7 @@ export const routes: Routes = [
           {
             path: 'questionnaires/:questionnaireId',
             title: 'Questionnaire · HRM Platform',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./features/questionnaires/questionnaire-detail').then(
                 (m) => m.QuestionnaireDetail,

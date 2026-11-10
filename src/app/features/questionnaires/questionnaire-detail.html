@@ -114,18 +114,7 @@
     </sd-panel-section>
   </sd-panel>
 
-  <sd-panel>
-    <sd-panel-section eyebrow="Questions">
-      <sd-empty-state
-        [icon]="icons.questions"
-        title="The question editor is coming soon"
-        [description]="
-          text.questionCountText(q.questionCount) +
-          ' in the current version. Adding and editing questions will be available here.'
-        "
-      />
-    </sd-panel-section>
-  </sd-panel>
+  <app-question-editor [questionnaire]="q" (saved)="data.reload()" />
 
   @if (editing()) {
     <app-questionnaire-form

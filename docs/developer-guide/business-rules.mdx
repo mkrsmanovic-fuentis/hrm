@@ -254,7 +254,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 | Employees | List and read every user. Create, edit, deactivate and reactivate users, and set their role, except their own role and their own deactivation. Send the invite link again. | Read only their own user record, through the current session (`GET /auth/session`). No employee list, and no other users. |
 | Departments | List, read, create, edit, deactivate and reactivate departments. | No access. |
 | Topics | List and read every topic, active and inactive. Create, edit, deactivate and reactivate topics. | List and read **active** topics only. An inactive topic answers as if it did not exist. |
-| Questionnaires, questions and versions | List and read every questionnaire, with its questions, answer options and versions. Create, edit, activate, deactivate and preview questionnaires. | Read only questionnaires assigned to them, through their own assignments. No questionnaire list. Correct answers only as [Feedback after submitting](#feedback-after-submitting) allows. |
+| Questionnaires, questions and versions | List and read every questionnaire, with its questions, answer options and versions. Create, edit, activate, deactivate and preview questionnaires, and add, edit, remove and reorder their questions and answer options. | Read only questionnaires assigned to them, through their own assignments. No questionnaire list. Correct answers only as [Feedback after submitting](#feedback-after-submitting) allows. |
 | Assignments | List and read every assignment. Assign questionnaires to employees and departments, with deadlines. | List and read their own assignments only. |
 | My training: attempts and results | List and read every attempt and result, including failed attempts. | Start, answer and submit attempts on their own assignments, retake failed ones, and read their own results, feedback and history. |
 | Reports and dashboards | The training overview, topic, department, employee and questionnaire reports, filters and CSV export. | No access. Their own progress appears on their own dashboard. |
@@ -277,10 +277,26 @@ What each role can do in each module. "Own" means records that belong to the sig
 
 The [API reference](/api-reference/overview#authorization) describes the answers. [Roles and access](/developer-guide/access-control) shows how the frontend and the mock apply these rules.
 
+## Questions
+
+- Administrators add, edit, remove and reorder the questions of a questionnaire, and the answer options of each question. Employees never get questions with their correct answers from the editing endpoints. See [Access by role](#access-by-role).
+- A question has text of 1 to 1,000 characters, answer options of 1 to 500 characters each, and optional feedback for a wrong answer of up to 2,000 characters. Spaces around them are removed, and empty feedback is saved as none.
+- A **complete** question has at least two answer options and exactly one correct answer.
+- Questions and answer options are shown in the order the administrator sets.
+- The questions are saved together: the whole ordered list at once. The save applies the [version rules](#questionnaire-versions).
+- An **active** questionnaire must stay complete: at least one question, and every question complete. A save that would break this is refused, and nothing changes.
+- An **inactive** questionnaire, a draft, may be saved incomplete. Text is still required, within the limits above.
+
+{/* TODO: SPE-19 adds the full checks before activation, reusing the completeness rule (`questionSetProblems()` in src/mocks/rules/questionnaire-rules.ts). Until then a draft with an incomplete question can be activated if it has at least one question. */}
+
 ## Questionnaire versions
 
 - A questionnaire with no attempts is edited in place.
 - Editing the questions of a questionnaire that has attempts creates a new version. Changing its settings does not.
+- "Has attempts" means at least one attempt, in progress or submitted, uses the **current** version. Attempts on earlier versions do not count: once a new version exists and nobody has started it, it is edited in place.
+- A new version gets the next version number, and becomes the current version. Earlier versions, their questions and their attempts never change.
+- Before a save creates a new version, the administrator is told so, and that past results are kept.
+- A save that changes nothing creates no version and is not logged.
 - New attempts use the latest version. An attempt in progress finishes on the version it started with.
 - Each attempt stays linked to the version it used, so earlier results never change.
 
@@ -305,7 +321,8 @@ Administrator actions that change data are logged, so it is always clear who did
 
 - Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
 - A new questionnaire is logged as `created` with `status` `inactive`. Activating it, the first time or later, is logged as `reactivated`.
-- Editing a questionnaire that creates a new version is logged as `updated` on the questionnaire. The entry lists the new `currentVersionId` and any other changed fields.
+- Saving a questionnaire's questions is logged as `updated` on the questionnaire. Its `changes` list `questions`, with the whole ordered list before and after as `oldValue` and `newValue`, in the shape the save sends: each question's `text`, `explanation` and `answerOptions` with their `text` and `isCorrect`.
+- When the save creates a new version, the same entry also lists `currentVersionId`, with the old and the new version ID. A save in place lists only `questions`.
 - A change of `status` is always logged as `deactivated` or `reactivated`, never as `updated`, even when it arrives in an edit request. If the same edit also changes other fields, it logs two entries: `updated` with the other fields, then `deactivated` or `reactivated`.
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
 - Employee actions, such as starting and submitting attempts, are not logged.
@@ -332,7 +349,7 @@ The `changes` list depends on the action:
 
 In `changes`:
 
-- Field names and values are the ones in the API spec, for example `departmentId` with a department ID.
+- Field names and values are the ones in the API spec, for example `departmentId` with a department ID. The one exception is `questions` on a questionnaire, which holds the questions of its current version as the save request sends them (`QuestionInput`). It is the content the administrator changed, not a derived field.
 - `id`, `organizationId`, `createdAt` and `updatedAt` are never listed. Neither are *derived* fields, such as `questionCount`.
 - A field without a value is `null`.
 
