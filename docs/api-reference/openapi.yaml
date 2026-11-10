@@ -43,6 +43,8 @@ tags:
     description: Groups of employees, such as Engineering or Finance. Administrators manage them.
   - name: Topics
     description: Cybersecurity training subjects, such as Phishing Awareness. Both roles read them; administrators manage them.
+  - name: Questionnaires
+    description: Sets of multiple-choice questions on one topic, with their settings. Administrators manage them. Employees reach a questionnaire only through their own assignments.
 
 paths:
   /auth/session:
@@ -438,6 +440,173 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /questionnaires:
+    get:
+      operationId: listQuestionnaires
+      tags: [Questionnaires]
+      summary: List questionnaires
+      description: |
+        Returns the organization's questionnaires, active and inactive, one page at a time, each with its `questionCount`.
+
+        **Access:** administrators only. Employees get `403`: they reach questionnaires only through their own assignments.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          description: Only return questionnaires with this status. Omit to return all questionnaires, active and inactive.
+          schema:
+            $ref: '#/components/schemas/ActivityStatus'
+        - name: topicId
+          in: query
+          description: Only return questionnaires in this topic.
+          schema:
+            $ref: '#/components/schemas/Id'
+        - name: q
+          in: query
+          description: Only return questionnaires whose title contains this text, ignoring upper and lower case. Spaces around the text are ignored.
+          schema:
+            type: string
+            maxLength: 200
+        - name: sort
+          in: query
+          description: Sort order. Prefix a field with `-` for descending order.
+          schema:
+            type: string
+            enum:
+              [
+                title,
+                -title,
+                questionCount,
+                -questionCount,
+                passingScore,
+                -passingScore,
+                createdAt,
+                -createdAt,
+              ]
+            default: title
+      responses:
+        '200':
+          description: One page of questionnaires.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnairePage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createQuestionnaire
+      tags: [Questionnaires]
+      summary: Create a questionnaire
+      description: |
+        Creates an **inactive** questionnaire, a draft, with an empty version 1 as its `currentVersionId`. Add questions, then activate it with `PATCH`.
+
+        The topic must exist and be active. Titles do not have to be unique.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+      x-mint: *spec-status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionnaireCreate'
+      responses:
+        '201':
+          description: Created. The new, inactive questionnaire.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Questionnaire'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /questionnaires/{questionnaireId}:
+    get:
+      operationId: getQuestionnaire
+      tags: [Questionnaires]
+      summary: Get a questionnaire
+      description: |
+        Returns one questionnaire of the current organization, with its settings and `questionCount`.
+
+        **Access:** administrators only. Employees get `403`.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/QuestionnaireId'
+      responses:
+        '200':
+          description: The questionnaire.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Questionnaire'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateQuestionnaire
+      tags: [Questionnaires]
+      summary: Update a questionnaire
+      description: |
+        Changes the settings sent and leaves the others as they are. Send `status` to activate (`active`) or deactivate (`inactive`) the questionnaire; there are no separate endpoints for that.
+
+        - Changing the settings does not create a new version. Each attempt keeps the passing score it started with, so a new passing score never changes earlier results.
+        - A questionnaire cannot be moved into an inactive topic. Sending the topic it is already in is not a move.
+        - Activating needs at least one question in the current version. Otherwise the answer is `409` and nothing changes.
+        - An inactive questionnaire cannot be assigned. Deactivating does not change existing assignments; they can still be completed.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/QuestionnaireId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionnaireUpdate'
+      responses:
+        '200':
+          description: The updated questionnaire.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Questionnaire'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/NotReadyToActivate'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     sessionToken:
@@ -477,6 +646,13 @@ components:
       in: path
       required: true
       description: ID of the topic.
+      schema:
+        $ref: '#/components/schemas/Id'
+    QuestionnaireId:
+      name: questionnaireId
+      in: path
+      required: true
+      description: ID of the questionnaire.
       schema:
         $ref: '#/components/schemas/Id'
 
@@ -575,6 +751,18 @@ components:
                 field: name
                 code: not_unique
                 message: A department with this name already exists.
+    NotReadyToActivate:
+      description: |
+        The questionnaire cannot be activated yet, for example because its current version has no questions. Nothing was changed. `detail` says what is missing.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/conflict
+            title: Conflict
+            status: 409
+            detail: Add at least one question before activating this questionnaire.
     ValidationFailed:
       description: One or more request fields are invalid. Each problem is listed in `errors`.
       content:
@@ -1078,7 +1266,8 @@ components:
 
     Questionnaire:
       type: object
-      description: A set of questions on one topic, with its settings. The questions live in versions.
+      description: |
+        A set of questions on one topic, with its settings. The questions live in versions. A new questionnaire starts inactive, as a draft, with an empty version 1.
       required:
         [
           id,
@@ -1105,30 +1294,99 @@ components:
           type: string
           minLength: 1
           maxLength: 200
+          description: Not unique. Two questionnaires may have the same title, for example in different topics.
         description:
-          type: string
+          type: ['string', 'null']
           maxLength: 2000
+          description: Optional. `null` when there is none.
         passingScore:
           $ref: '#/components/schemas/PassingScore'
         timeLimitMinutes:
-          type: ['integer', 'null']
-          minimum: 1
-          description: Optional time limit. When it runs out, the attempt is submitted automatically. Null means no limit.
+          $ref: '#/components/schemas/TimeLimitMinutes'
         status:
           $ref: '#/components/schemas/ActivityStatus'
-          description: Inactive questionnaires cannot be assigned. Existing assignments can still be completed.
+          description: A new questionnaire is inactive. Inactive questionnaires cannot be assigned. Existing assignments can still be completed.
         currentVersionId:
           $ref: '#/components/schemas/Id'
-          description: The latest version. New attempts use it.
+          description: The latest version. New attempts use it. Set by the server; changing the settings does not create a new version.
         questionCount:
           type: integer
           minimum: 0
           readOnly: true
-          description: Number of questions in the current version.
+          description: Derived. Number of questions in the current version. Never sent in requests.
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    TimeLimitMinutes:
+      type: ['integer', 'null']
+      minimum: 1
+      maximum: 480
+      description: Optional time limit in whole minutes, from 1 to 480 (8 hours, the length of a session). When it runs out, the attempt is submitted automatically. `null` means no limit.
+
+    QuestionnairePage:
+      type: object
+      description: One page of questionnaires.
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Questionnaire'
+        page:
+          $ref: '#/components/schemas/PageInfo'
+
+    QuestionnaireCreate:
+      type: object
+      description: |
+        A new questionnaire. It starts inactive, with an empty version 1; activate it with `PATCH` once it has questions. Spaces around the title and description are removed, and an empty description is stored as `null`. Unknown fields are rejected.
+      required: [title, topicId]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          examples: [Spotting phishing emails]
+        description:
+          type: ['string', 'null']
+          maxLength: 2000
+        topicId:
+          $ref: '#/components/schemas/Id'
+          description: An active topic. An inactive or unknown topic is rejected with `422`.
+        passingScore:
+          $ref: '#/components/schemas/PassingScore'
+          description: Whole number from 1 to 100. Omit it for the default, 80.
+        timeLimitMinutes:
+          $ref: '#/components/schemas/TimeLimitMinutes'
+          description: Omit it or send `null` for no time limit.
+
+    QuestionnaireUpdate:
+      type: object
+      description: |
+        The fields to change. Fields left out stay as they are. Spaces around the title and description are removed, and an empty description is stored as `null`. Changing these settings does not create a new version. Unknown fields are rejected.
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: ['string', 'null']
+          maxLength: 2000
+        topicId:
+          $ref: '#/components/schemas/Id'
+          description: Moves the questionnaire to another topic. The new topic must be active; sending the current topic is always allowed.
+        passingScore:
+          $ref: '#/components/schemas/PassingScore'
+          description: Applies to attempts started from now on. Each attempt keeps the passing score it started with.
+        timeLimitMinutes:
+          $ref: '#/components/schemas/TimeLimitMinutes'
+          description: Send `null` to remove the time limit.
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+          description: '`active` activates the questionnaire and needs at least one question (`409` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed.'
 
     QuestionnaireVersion:
       type: object

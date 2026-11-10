@@ -696,3 +696,18 @@ export const questionnaireSeeds: QuestionnaireSeed[] = [
     ],
   },
 ];
+
+/**
+ * Questionnaires still being written: inactive, with an empty version 1 and no assignments, so
+ * the block on activating a questionnaire without questions shows in the demo.
+ */
+export const draftQuestionnaireSeeds: Omit<QuestionnaireSeed, 'status' | 'questions'>[] = [
+  {
+    topic: 'Phishing Awareness',
+    title: 'Reporting suspicious messages',
+    description:
+      'What to do after you spot a phishing attempt: how to report it, and what not to click while you wait.',
+    passingScore: 80,
+    timeLimitMinutes: null,
+  },
+];

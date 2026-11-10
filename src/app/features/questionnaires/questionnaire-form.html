@@ -1,0 +1,82 @@
+<sd-drawer
+  modal
+  size="md"
+  [heading]="heading()"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  <form id="questionnaire-form" class="form" novalidate (submit)="save($event)">
+    @if (formError(); as error) {
+      <sd-callout tone="danger" role="alert" heading="Could not save the questionnaire">
+        {{ error }}
+      </sd-callout>
+    }
+
+    @if (isNew()) {
+      <sd-callout tone="info">
+        A new questionnaire starts inactive, as a draft. You can activate it once it has
+        questions.
+      </sd-callout>
+    }
+
+    <sd-field label="Title" [error]="visibleError(f.title)" required>
+      <input sd-input autocomplete="off" [formField]="f.title" />
+    </sd-field>
+
+    <sd-field
+      label="Description"
+      hint="Optional. What employees learn from this questionnaire."
+      [error]="visibleError(f.description)"
+    >
+      <textarea sd-input rows="4" [formField]="f.description"></textarea>
+    </sd-field>
+
+    <sd-field
+      label="Topic"
+      hint="Only active topics can be chosen."
+      [error]="visibleError(f.topicId)"
+      required
+    >
+      <sd-select
+        placeholder="Choose a topic"
+        searchable
+        searchPlaceholder="Search topics"
+        [options]="topicOptions()"
+        [formField]="f.topicId"
+      />
+    </sd-field>
+
+    <sd-field
+      label="Passing score (%)"
+      hint="A whole number from 1 to 100. Each attempt keeps the passing score it started with, so changing it never changes earlier results."
+      [error]="visibleError(f.passingScore)"
+      required
+    >
+      <input sd-input type="number" min="1" max="100" step="1" [formField]="f.passingScore" />
+    </sd-field>
+
+    <sd-field
+      label="Time limit (minutes)"
+      hint="Optional, up to 480 minutes. Leave it empty for no time limit."
+      [error]="visibleError(f.timeLimitMinutes)"
+    >
+      <input sd-input type="number" min="1" max="480" step="1" [formField]="f.timeLimitMinutes" />
+    </sd-field>
+  </form>
+
+  <ng-container sdDrawerFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="questionnaire-form"
+      [loading]="saving()"
+      [disabled]="saving()"
+    >
+      {{ isNew() ? 'Create questionnaire' : 'Save changes' }}
+    </button>
+  </ng-container>
+</sd-drawer>

@@ -81,6 +81,40 @@ export class BodyReader {
     return value === '' ? null : value;
   }
 
+  /**
+   * A whole number within `min` and `max`. Returns `undefined` when the field is missing or
+   * invalid. With `required`, a missing value is an error. `null` is invalid; use
+   * `nullableInteger()` for fields that can be cleared.
+   */
+  integer(
+    name: string,
+    rules: { required?: boolean; min: number; max: number },
+  ): number | undefined {
+    if (!this.has(name)) {
+      if (rules.required) this.fail(name, 'required', 'Required.');
+      return undefined;
+    }
+    const raw = this.body[name];
+    if (typeof raw !== 'number' || !Number.isInteger(raw)) {
+      this.fail(name, 'invalid_type', 'Must be a whole number.');
+      return undefined;
+    }
+    if (raw < rules.min || raw > rules.max) {
+      this.fail(name, 'out_of_range', `Must be between ${rules.min} and ${rules.max}.`);
+      return undefined;
+    }
+    return raw;
+  }
+
+  /**
+   * A whole number within `min` and `max`, or `null`. Returns `undefined` when the field is
+   * missing or invalid, so the caller can tell "not sent" from "cleared".
+   */
+  nullableInteger(name: string, rules: { min: number; max: number }): number | null | undefined {
+    if (this.has(name) && this.body[name] === null) return null;
+    return this.integer(name, rules);
+  }
+
   /** One of a fixed set of values. Returns `undefined` when missing or invalid. */
   oneOf<T extends string>(name: string, allowed: readonly T[]): T | undefined {
     if (!this.has(name)) return undefined;

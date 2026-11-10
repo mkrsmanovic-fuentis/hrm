@@ -1,0 +1,82 @@
+<sd-status-bar
+  heading="Questionnaires"
+  description="Create questionnaires on your security topics and set how they are passed. Deactivate one to stop assigning it; its history and results are kept."
+>
+  @if (!error()?.isForbidden) {
+    <button
+      sdStatusBarActions
+      sd-button
+      variant="primary"
+      type="button"
+      [icon]="icons.create"
+      (click)="creating.set(true)"
+    >
+      New questionnaire
+    </button>
+  }
+</sd-status-bar>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading questionnaires">
+    <sd-skeleton height="2.5rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied
+    description="You don't have permission to manage questionnaires."
+    [headingLevel]="2"
+  />
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load questionnaires">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
+  </sd-callout>
+} @else {
+  <sd-list
+    class="list"
+    [items]="questionnaires()"
+    [columns]="columns"
+    [rowId]="byId"
+    [actions]="actions"
+    [filters]="filters()"
+    [labels]="listLabels"
+    searchable
+    interactive
+    [(search)]="search"
+    [(filterValues)]="filterValues"
+    [(sort)]="sort"
+    (rowClick)="open($event)"
+    (actionClick)="onAction($event)"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No questionnaires yet"
+      description="Create the first questionnaire on one of your topics."
+    >
+      <button
+        sd-button
+        variant="primary"
+        type="button"
+        [icon]="icons.create"
+        (click)="creating.set(true)"
+      >
+        New questionnaire
+      </button>
+    </sd-empty-state>
+  </sd-list>
+}
+
+@if (creating()) {
+  <app-questionnaire-form
+    [topics]="topics()"
+    (saved)="onCreated($event)"
+    (closed)="creating.set(false)"
+  />
+}
+
+<app-questionnaire-status-dialog
+  [questionnaire]="statusTarget()"
+  (changed)="data.reload()"
+  (closed)="statusTarget.set(null)"
+/>

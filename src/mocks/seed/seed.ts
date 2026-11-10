@@ -24,7 +24,12 @@ import {
   minimumCorrectToPass,
   scoreOf,
 } from '../rules/training-rules';
-import { questionnaireSeeds, topicSeeds, type QuestionnaireSeed } from './content.seed';
+import {
+  draftQuestionnaireSeeds,
+  questionnaireSeeds,
+  topicSeeds,
+  type QuestionnaireSeed,
+} from './content.seed';
 import { departmentSeeds, organizationSeed, userSeeds } from './people.seed';
 import { SeededRandom } from './random';
 
@@ -32,7 +37,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -74,7 +79,8 @@ const scenarios: [Scenario, number][] = [
 
 /**
  * Builds the seed dataset: one organization with departments, 42 users, the 7 FRD topics and a
- * retired one, questionnaires with versions, and assignments and attempts in every status.
+ * retired one, questionnaires with versions, a draft questionnaire without questions, and
+ * assignments and attempts in every status.
  * The same `now` always gives the same data. Dates are relative to `now`.
  */
 export function buildSeed(now: Date = new Date()): MockData {
@@ -500,6 +506,32 @@ export function buildSeed(now: Date = new Date()): MockData {
     }
   }
 
+  // ---------------------------------------------------------------- draft questionnaires
+
+  // Built after everything else, so the random values of the data above stay the same.
+  const drafts: QuestionnaireRecord[] = draftQuestionnaireSeeds.map((seed, index) => {
+    const topic = topics.find((t) => t.name === seed.topic);
+    if (!topic) throw new Error(`Seed draft "${seed.title}" has unknown topic "${seed.topic}"`);
+    const createdMs = nowMs - (3 + index) * DAY;
+    const id = random.uuid();
+    const version = addVersion(id, 1, createdMs, []);
+    const draft: QuestionnaireRecord = {
+      id,
+      organizationId,
+      topicId: topic.id,
+      title: seed.title,
+      description: seed.description,
+      passingScore: seed.passingScore,
+      timeLimitMinutes: seed.timeLimitMinutes,
+      status: 'inactive',
+      currentVersionId: version.id,
+      createdAt: iso(createdMs),
+      updatedAt: iso(createdMs),
+    };
+    questionnaires.push(draft);
+    return draft;
+  });
+
   // ---------------------------------------------------------------- audit log
 
   const auditLog: AuditLogEntry[] = [];
@@ -540,6 +572,8 @@ export function buildSeed(now: Date = new Date()): MockData {
     }
     if (q.status === 'inactive') audit('questionnaire', q, 'deactivated', Date.parse(q.updatedAt));
   });
+  // New questionnaires start inactive, so a draft has only its `created` entry.
+  drafts.forEach((q) => audit('questionnaire', q, 'created', Date.parse(q.createdAt), created(q)));
   employees.forEach((u) => {
     const createdMs = Date.parse(u.createdAt);
     const invited = {
