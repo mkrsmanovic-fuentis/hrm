@@ -1,6 +1,6 @@
 ---
 title: "API reference"
-description: "The API contract between the frontend and the future backend."
+description: "The API contract between the frontend and the future backend, and the conventions every endpoint follows."
 icon: "plug"
 ---
 
@@ -8,10 +8,137 @@ import SpecStatus from "/snippets/spec-status.mdx";
 
 <SpecStatus />
 
-The API is designed contract-first. One OpenAPI spec describes every endpoint. The frontend is built against it through a mocked API, and the real backend will implement it.
+The API is designed contract-first. One OpenAPI 3.1 spec, `docs/api-reference/openapi.yaml`, describes every endpoint. The frontend is built against it through a [mocked API](/developer-guide/mock-api), and the real backend will implement it.
 
-Endpoint pages are generated from the spec and will appear in this section once it is written.
+The endpoint pages in this section are generated from the spec. To change an endpoint, change the spec, not the pages. The playground needs a running backend, so it cannot send requests yet.
 
-{/* TODO: conventions for URLs, errors, paging and authentication will be documented with the spec. */}
+## Conventions
 
-See the [Developer overview](/developer-guide/overview) for how the contract, the mock API and the frontend fit together.
+Every endpoint follows these rules. New endpoints must too.
+
+### URLs
+
+- The base path is `/api/v1`. Paths in the spec are written without it, for example `/topics` means `/api/v1/topics`.
+- Resources are plural nouns in kebab-case: `/topics`, `/questionnaire-versions`. One record is addressed by its ID: `/topics/{topicId}`.
+- A resource that exists once per user is singular: `/organization`.
+- Path parameters are named after the resource, in camelCase: `{topicId}`, not `{id}`.
+- Query parameters and JSON fields use camelCase. Enum values use snake_case, for example `not_started`.
+
+### Organization
+
+Every record belongs to an organization. The MVP has one organization, and the API exposes it as the **current organization**: the organization of the signed-in user, derived from the session.
+
+- Organization IDs never appear in URLs or request bodies.
+- Each record still carries `organizationId`, so the model supports more organizations later.
+- Records of another organization behave as if they do not exist: the API answers `404`.
+
+Get the current organization with `GET /api/v1/organization`.
+
+### Shared fields
+
+| Field | Type | Notes |
+| - | - | - |
+| `id` | `Id` | A UUID. Every record has one. |
+| `organizationId` | `Id` | The owning organization. |
+| `createdAt` | `Timestamp` | Date and time in UTC, ISO 8601, for example `2026-11-10T09:30:00Z`. |
+| `updatedAt` | `Timestamp` | When the record last changed. |
+| `status` | `ActivityStatus` | `active` or `inactive`, on records that can be deactivated. Deactivating keeps the history. |
+
+References to other records use the record name plus `Id`, for example `topicId`. Optional values are `null`, not left out.
+
+### Authentication
+
+Every endpoint needs a session token, sent as a bearer token:
+
+```http
+Authorization: Bearer <session token>
+```
+
+- The authentication endpoints, under `/api/v1/auth`, are the only ones that do not need a token. They issue it. Email and password come first; SSO can be added there later without changing any other endpoint.
+- The rest of the API only checks the token. It never knows how the user signed in.
+- Invite links to set a password are valid for 7 days. Password reset links are valid for 1 hour. See [Business rules](/developer-guide/business-rules#accounts-and-access).
+
+{/* TODO: the authentication endpoints are specified in SPE-10. */}
+
+### Lists and pagination
+
+List endpoints return one page at a time.
+
+| Parameter | Default | Rules |
+| - | - | - |
+| `page` | `1` | Page number, starting at 1. |
+| `pageSize` | `25` | From 1 to 100. |
+| `sort` | Depends on the endpoint | A field name, with `-` in front for descending order, for example `-createdAt`. Each endpoint lists the allowed values. |
+
+Filters are plain query parameters named after the field, for example `?status=active`.
+
+The response is an envelope with the items and the page position:
+
+```json
+{
+  "items": [{ "id": "…", "name": "Data Protection" }],
+  "page": { "page": 1, "pageSize": 25, "totalItems": 7, "totalPages": 1 }
+}
+```
+
+A page past the end returns an empty `items` list, not an error.
+
+### Errors
+
+Errors use the problem format from [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457), with the content type `application/problem+json`:
+
+```json
+{
+  "type": "/problems/not-found",
+  "title": "Not found",
+  "status": 404,
+  "detail": "Topic 2f0c1a7e-3b6d-4c1e-9f7a-5d2e8b4c6a10 was not found.",
+  "instance": "/api/v1/topics/2f0c1a7e-3b6d-4c1e-9f7a-5d2e8b4c6a10"
+}
+```
+
+Clients branch on `type`. `title` and `detail` are for people.
+
+| Status | `type` | When |
+| - | - | - |
+| 400 | `/problems/bad-request` | The request cannot be read, for example invalid JSON. |
+| 401 | `/problems/unauthenticated` | No valid session token. The user must sign in. |
+| 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
+| 404 | `/problems/not-found` | The record does not exist in the current organization. |
+| 409 | `/problems/conflict` | The request conflicts with the current state, for example a second open assignment for the same questionnaire. |
+| 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
+| 500 | `/problems/internal-error` | Something went wrong on the server. |
+
+Validation errors list every invalid field in `errors`:
+
+```json
+{
+  "type": "/problems/validation-failed",
+  "title": "Validation failed",
+  "status": 422,
+  "detail": "1 field is invalid.",
+  "errors": [
+    {
+      "location": "query",
+      "field": "pageSize",
+      "code": "out_of_range",
+      "message": "Must be between 1 and 100."
+    }
+  ]
+}
+```
+
+- `location` is `body`, `query`, `path` or `header`.
+- `field` names the field. Nested body fields use dots and indexes, for example `questions[2].text`.
+- `code` is one of `required`, `invalid_type`, `invalid_format`, `invalid_value`, `out_of_range`, `too_short`, `too_long` or `not_unique`.
+- `message` can be shown next to the field.
+
+## Adding an endpoint
+
+Follow the steps in [Mock API](/developer-guide/mock-api#add-an-endpoint). In the spec:
+
+- Give the operation an `operationId` in camelCase, one tag, and `x-mint: *spec-status` so its page shows the "Specification, not yet implemented" banner.
+- Reuse the shared parameters (`Page`, `PageSize`), schemas (`Id`, `Timestamp`, `ActivityStatus`, `PageInfo`) and error responses under `components`.
+- Name list responses `<Entity>Page`.
+
+See the [Data model](/developer-guide/data-model) for the fields of every entity.

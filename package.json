@@ -12,7 +12,10 @@
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:ci && pnpm build"
+    "check": "pnpm api:types:check && pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:ci && pnpm build",
+    "api:types": "openapi-typescript docs/api-reference/openapi.yaml -o src/app/core/api/api-schema.gen.ts --root-types --root-types-no-schema-prefix",
+    "api:types:check": "pnpm api:types --check",
+    "mock:worker": "msw init public --no-save"
   },
   "private": true,
   "packageManager": "pnpm@10.17.0",
@@ -26,6 +29,7 @@
     "@angular/router": "^22.2.0",
     "@lucide/angular": "^1.71.0",
     "@specora-dev/ui-kit": "^1.10.0",
+    "msw": "^3.0.4",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -38,6 +42,7 @@
     "angular-eslint": "22.6.0",
     "eslint": "^10.12.0",
     "jsdom": "^30.0.0",
+    "openapi-typescript": "^7.13.0",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2",
     "typescript-eslint": "8.71.0",
@@ -45,5 +50,10 @@
   },
   "engines": {
     "node": ">=24.21.0"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }

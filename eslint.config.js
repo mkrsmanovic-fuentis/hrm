@@ -33,7 +33,23 @@ const forbiddenUiLibraries = [
   'bootstrap/*',
 ];
 
+const uiLibraryRule = {
+  group: forbiddenUiLibraries,
+  message:
+    'Use @specora-dev/ui-kit for all UI. If a component is missing, report the gap to the lead instead of adding another UI library.',
+};
+
+const httpClientRule = {
+  group: ['@angular/common/http'],
+  message:
+    'Call the API through ApiClient from core/api. Components never use HttpClient directly.',
+};
+
 module.exports = defineConfig([
+  {
+    // Generated from the OpenAPI spec by `pnpm api:types`. Never edit by hand.
+    ignores: ['src/**/*.gen.ts'],
+  },
   {
     files: ['**/*.ts'],
     extends: [
@@ -66,18 +82,15 @@ module.exports = defineConfig([
       '@angular-eslint/prefer-signals': 'error',
       '@angular-eslint/prefer-output-emitter-ref': 'error',
       '@angular-eslint/prefer-inject': 'error',
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: forbiddenUiLibraries,
-              message:
-                'Use @specora-dev/ui-kit for all UI. If a component is missing, report the gap to the lead instead of adding another UI library.',
-            },
-          ],
-        },
-      ],
+      'no-restricted-imports': ['error', { patterns: [uiLibraryRule] }],
+    },
+  },
+  {
+    // Features and shared code reach the API only through ApiClient (src/app/core/api).
+    files: ['src/app/features/**/*.ts', 'src/app/shared/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [uiLibraryRule, httpClientRule] }],
     },
   },
   {

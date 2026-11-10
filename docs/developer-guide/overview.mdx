@@ -20,7 +20,7 @@ The API is designed and documented before it is built.
     The frontend's TypeScript types come from the spec. If the frontend and the spec disagree, the build fails.
   </Step>
   <Step title="A mock API answers real calls">
-    The frontend makes real HTTP calls. A mock layer in the browser answers them with dummy data, and can simulate errors, denied access, slow responses and empty lists.
+    The frontend makes real HTTP calls. A mock layer in the browser answers them with dummy data, and can simulate errors, denied access, slow responses and empty lists. See [Mock API](/developer-guide/mock-api).
   </Step>
   <Step title="The real backend implements the same spec">
     When it exists, the mock is switched off. The frontend does not change.
