@@ -115,9 +115,53 @@ export class BodyReader {
     return this.integer(name, rules);
   }
 
-  /** One of a fixed set of values. Returns `undefined` when missing or invalid. */
-  oneOf<T extends string>(name: string, allowed: readonly T[]): T | undefined {
+  /**
+   * An email address, trimmed, checked like `text()` and then with `isValid`. Returns `undefined`
+   * when the field is missing or invalid.
+   */
+  email(
+    name: string,
+    rules: { required?: boolean; maxLength: number; isValid: (value: string) => boolean },
+  ): string | undefined {
+    const value = this.text(name, rules);
+    if (value === undefined) return undefined;
+    if (!rules.isValid(value)) {
+      this.fail(name, 'invalid_format', 'Must be an email address.');
+      return undefined;
+    }
+    return value;
+  }
+
+  /**
+   * A reference to another record: an ID, or `null` for none. Returns `undefined` when the field
+   * is missing or invalid. Whether the record exists is the handler's check.
+   */
+  nullableId(name: string): string | null | undefined {
     if (!this.has(name)) return undefined;
+    const raw = this.body[name];
+    if (raw === null) return null;
+    if (typeof raw !== 'string' || raw.trim() === '') {
+      this.fail(name, 'invalid_type', 'Must be an ID or null.');
+      return undefined;
+    }
+    return raw.trim();
+  }
+
+  /** Records a problem with a field the handler checked itself, for example a missing record. */
+  invalid(name: string, message: string): void {
+    this.fail(name, 'invalid_value', message);
+  }
+
+  /** One of a fixed set of values. Returns `undefined` when missing or invalid. */
+  oneOf<T extends string>(
+    name: string,
+    allowed: readonly T[],
+    rules: { required?: boolean } = {},
+  ): T | undefined {
+    if (!this.has(name)) {
+      if (rules.required) this.fail(name, 'required', 'Required.');
+      return undefined;
+    }
     const raw = this.body[name];
     if (typeof raw !== 'string' || !(allowed as readonly string[]).includes(raw)) {
       this.fail(name, 'invalid_value', `Must be one of: ${allowed.join(', ')}.`);

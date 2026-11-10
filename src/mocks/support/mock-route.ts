@@ -6,7 +6,8 @@ import type {
   ApiResponseBody,
   HttpMethod,
 } from '../../app/core/api/api-types';
-import type { FieldError, User } from '../../app/core/api/api-schema.gen';
+import type { FieldError } from '../../app/core/api/api-schema.gen';
+import type { UserRecord } from '../db/mock-data';
 import type { MockDb } from '../db/mock-db';
 import { authenticate } from './auth';
 import { MockProblem, problemResponse, validationProblem } from './problem';
@@ -47,7 +48,7 @@ export interface MockContext<O> {
    * The signed-in user, from the session token. Always set, except on public routes
    * (`{ public: true }`), which run without a session.
    */
-  currentUser: User | null;
+  currentUser: UserRecord | null;
   /** Success response. The body type comes from the spec, so the mock cannot drift from it. */
   ok(body: ApiResponseBody<O>, status?: 200 | 201): Response;
   noContent(): Response;
@@ -118,7 +119,7 @@ async function resolve(
   request: Request,
   url: URL,
   options: RouteOptions,
-  run: (currentUser: User | null) => Response | Promise<Response>,
+  run: (currentUser: UserRecord | null) => Response | Promise<Response>,
 ): Promise<Response> {
   await env.db.sync();
   try {
@@ -133,9 +134,9 @@ async function authenticateAndRun(
   request: Request,
   url: URL,
   options: RouteOptions,
-  run: (currentUser: User | null) => Response | Promise<Response>,
+  run: (currentUser: UserRecord | null) => Response | Promise<Response>,
 ): Promise<Response> {
-  let currentUser: User | null = null;
+  let currentUser: UserRecord | null = null;
   if (!options.public) {
     const auth = authenticate(env.db.data, request, env.now());
     if (!auth.ok) return problemResponse(401, auth.detail, { instance: url.pathname });
@@ -198,7 +199,7 @@ function createContext<O>(
   url: URL,
   params: Record<string, string | readonly string[] | undefined>,
   emptyLists: boolean,
-  currentUser: User | null,
+  currentUser: UserRecord | null,
 ): MockContext<O> {
   const instance = url.pathname;
   return {

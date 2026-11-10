@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
-import { LucidePencil, LucidePlus, LucidePower, LucideRotateCcw } from '@lucide/angular';
+import { LucideChevronRight, LucidePlus, LucidePower, LucideRotateCcw } from '@lucide/angular';
 import {
   SdButton,
   SdCallout,
@@ -175,7 +175,8 @@ export class QuestionnaireList {
   ]);
 
   protected readonly actions: SdListAction<Questionnaire>[] = [
-    { id: 'open', label: (q) => `Open ${q.title}`, icon: LucidePencil },
+    // Opens the detail page, so it is an arrow, not the pencil that opens an edit drawer.
+    { id: 'open', label: (q) => `Open ${q.title}`, icon: LucideChevronRight },
     {
       id: 'deactivate',
       label: (q) => `Deactivate ${q.title}`,

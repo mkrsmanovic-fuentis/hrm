@@ -2,6 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
+import { LucideChevronRight } from '@lucide/angular';
 import { SdList } from '@specora-dev/ui-kit';
 import { createTestMockApi, type TestMockApiOptions } from '../../../mocks/testing';
 import type { Questionnaire } from '../../core/api';
@@ -196,6 +197,7 @@ describe('Questionnaires page', () => {
     const activate = actions.find((a) => a.id === 'activate');
 
     expect(visible(row('Handling personal data'))).toEqual(['open', 'deactivate']);
+    expect(actions.find((a) => a.id === 'open')?.icon).toBe(LucideChevronRight);
     expect(visible(row('Password basics (2025)'))).toEqual(['open', 'activate']);
     expect(activate?.disabled?.(row('Password basics (2025)'))).toBe(false);
     expect(activate?.disabled?.(row('Reporting suspicious messages'))).toBe(true);
