@@ -1,0 +1,46 @@
+---
+title: "Developer overview"
+description: "How the project is built: a frontend on a mocked API, designed contract-first."
+icon: "compass"
+---
+
+## Current scope
+
+The project is **frontend only** for now. It runs on dummy data served by a mocked API, so the whole product can be demonstrated before a backend exists.
+
+## Contract-first design
+
+The API is designed and documented before it is built.
+
+<Steps>
+  <Step title="One API spec is the source of truth">
+    An OpenAPI file describes every endpoint: URL, request, response and errors. It lives at `docs/api-reference/` and is published in the [API reference](/api-reference/overview).
+  </Step>
+  <Step title="Types are generated from the spec">
+    The frontend's TypeScript types come from the spec. If the frontend and the spec disagree, the build fails.
+  </Step>
+  <Step title="A mock API answers real calls">
+    The frontend makes real HTTP calls. A mock layer in the browser answers them with dummy data, and can simulate errors, denied access, slow responses and empty lists.
+  </Step>
+  <Step title="The real backend implements the same spec">
+    When it exists, the mock is switched off. The frontend does not change.
+  </Step>
+</Steps>
+
+## Guidance for the backend
+
+These pages describe what the real backend must do:
+
+- [Business rules](/developer-guide/business-rules): scoring, statuses, retakes, access and data rules.
+- [Data model](/developer-guide/data-model): entities and relationships.
+- [API reference](/api-reference/overview): every endpoint.
+
+## UI components
+
+All UI is built with the company ui-kit library. Do not use other UI libraries or build custom versions of components that ui-kit provides.
+
+## Local setup
+
+{/* TODO: add install, run and test commands once the frontend project is set up. */}
+
+Setup instructions will be added when the frontend project is created.

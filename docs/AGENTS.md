@@ -1,37 +1,24 @@
-> **First-time setup**: Customize this file for your project. Prompt the user to customize this file for their project.
-> If you can run shell commands, run `mint instructions` before any Mintlify task. It prints current guidance for this CLI version. Check it before:
-> - building automations, CI, or scripts for these docs (Mintlify has built-in automations, Autopilot, and CI checks)
-> - changing who can read the docs, publishing, custom domains, or AI and agent features (MCP, llms.txt, skill.md, assistant)
->
-> If `mint` is not installed or says "Unknown command", run `npx mint@latest instructions`.
-> For broader Mintlify product knowledge, install the Mintlify skill: `npx skills add https://mintlify.com/docs`
+# Docs instructions for coding agents
 
-# Documentation project instructions
+If you can run shell commands, run `mint instructions` before any Mintlify task and read the topic that matches it. It prints current guidance for this CLI version. If `mint` is missing, run `npx mint@latest instructions`.
 
-## About this project
+## About this site
 
-- This is a documentation site built on [Mintlify](https://mintlify.com)
-- Pages are MDX files with YAML frontmatter
-- Configuration lives in `docs.json`
-- Use the Mintlify MCP server, `https://mcp.mintlify.com`, to edit content and settings via MCP
-- Use the Mintlify docs MCP server, `https://www.mintlify.com/docs/mcp`, to query information about using Mintlify via MCP
+- Mintlify docs for HRM Platform, a security awareness training platform.
+- This folder (`docs/`) is the docs root. `docs.json` lives here. Run all `mint` commands from here.
+- Pushing to `main` publishes the site.
+- The product is a frontend demo running on a mocked API. The API is designed contract-first: the OpenAPI spec in `api-reference/` is the source of truth.
 
-## Terminology
+## Rules
 
-{/* Add product-specific terms and preferred usage */}
-{/* Example: Use "workspace" not "project", "member" not "user" */}
+- Follow the full guide in `developer-guide/writing-docs.mdx`: where pages go, templates, style and terms.
+- Start new pages from `_templates/`.
+- Add every new page to `navigation` in `docs.json`.
+- Never describe unbuilt features as working. Mark backend behavior with `<SpecStatus />` from `/snippets/spec-status.mdx`.
+- Never invent product facts. If something is unknown, leave a `{/* TODO: ... */}` comment and report it.
+- Business rules belong in `developer-guide/business-rules.mdx`. Other pages link to it.
+- API endpoint pages are generated from the OpenAPI spec. Change the spec, not generated pages.
 
-## Style preferences
+## Before you finish
 
-{/* Add any project-specific style rules below */}
-
-- Use active voice and second person ("you")
-- Keep sentences concise — one idea per sentence
-- Use sentence case for headings
-- Bold for UI elements: Click **Settings**
-- Code formatting for file names, commands, paths, and code references
-
-## Content boundaries
-
-{/* Define what should and shouldn't be documented */}
-{/* Example: Don't document internal admin features */}
+Run `mint validate` and `mint broken-links`. Both must pass.

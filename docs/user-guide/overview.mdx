@@ -1,0 +1,37 @@
+---
+title: "How the platform works"
+description: "The two roles, and how training moves from assignment to completion."
+icon: "map"
+---
+
+## Roles
+
+The platform has two roles.
+
+<Columns cols={2}>
+  <Card title="Administrator" icon="user-gear">
+    Manages employees and departments, creates topics and questionnaires, assigns training and tracks results.
+  </Card>
+  <Card title="Employee" icon="user">
+    Completes assigned questionnaires, sees results and retakes failed ones.
+  </Card>
+</Columns>
+
+## How training works
+
+<Steps>
+  <Step title="An administrator creates a questionnaire">
+    Each questionnaire belongs to a security topic and has multiple-choice questions and a passing score.
+  </Step>
+  <Step title="The administrator assigns it">
+    To one employee, several employees or a whole department, with a deadline.
+  </Step>
+  <Step title="The employee completes it">
+    The employee answers every question and submits. The score is calculated automatically.
+  </Step>
+  <Step title="The employee passes or retakes">
+    A score at or above the passing score completes the training. A lower score can be retaken.
+  </Step>
+</Steps>
+
+{/* Workers: add a group per area (for example "For administrators", "For employees") as features ship. Use /_templates/user-guide-page.mdx. */}

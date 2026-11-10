@@ -1,0 +1,44 @@
+---
+title: "Data model"
+description: "The core entities and how they relate."
+icon: "database"
+---
+
+import SpecStatus from "/snippets/spec-status.mdx";
+
+<SpecStatus />
+
+## Entities
+
+| Entity | Purpose |
+| - | - |
+| User | Administrator and employee accounts. |
+| Role | Permissions for each kind of user. |
+| Department | Groups employees. |
+| Topic | A cybersecurity training subject, such as Phishing Awareness. |
+| Questionnaire | A set of questions on one topic, with its settings. |
+| Question | One question in a questionnaire. |
+| Answer Option | A possible answer, and whether it is correct. |
+| Assignment | Links a questionnaire to an employee, with a deadline. |
+| Attempt | One try at completing an assignment. |
+| Attempt Answer | The answer chosen for each question in an attempt. |
+| Notification | Messages to employees, such as new assignments. |
+| Audit Log | A record of important administrator actions. |
+
+## Relationships
+
+```mermaid
+erDiagram
+  Department ||--o{ User : contains
+  Topic ||--o{ Questionnaire : contains
+  Questionnaire ||--o{ Question : contains
+  Question ||--o{ AnswerOption : has
+  Questionnaire ||--o{ Assignment : "assigned through"
+  User ||--o{ Assignment : receives
+  Assignment ||--o{ Attempt : has
+  Attempt ||--o{ AttemptAnswer : contains
+```
+
+{/* TODO: fields for each entity, and how questionnaire versions are stored, will be added with the API spec. */}
+
+Fields for each entity are defined in the API spec and will be listed here when it is written.

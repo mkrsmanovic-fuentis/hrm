@@ -1,0 +1,74 @@
+---
+title: "Business rules"
+description: "Rules the backend must enforce: scoring, assignment status, retakes, access and data integrity."
+icon: "scale-balanced"
+---
+
+import SpecStatus from "/snippets/spec-status.mdx";
+
+<SpecStatus />
+
+The mock API follows these rules so the frontend behaves as it will with the real backend.
+
+## Scoring
+
+The score is the share of correct answers:
+
+```text
+Score (%) = (correct answers / total questions) × 100
+```
+
+- An attempt **passes** when its score is equal to or greater than the questionnaire's passing score. Otherwise it **fails**.
+- Each questionnaire has its own passing score. The default is **80%**.
+- A questionnaire counts as completed only after the employee submits it.
+- The employee must answer every question before submitting.
+- The same attempt cannot be submitted twice.
+
+{/* TODO: rounding rule (does 79.6% pass at 80%?) is an open decision. */}
+
+## Assignment status
+
+Each assignment has one status:
+
+| Status | Meaning |
+| - | - |
+| Not Started | Assigned, no attempt yet. |
+| In Progress | An attempt has been started but not submitted. |
+| Passed | An attempt reached the passing score. |
+| Failed | The latest attempt was below the passing score. |
+| Overdue | The deadline passed and the employee has not passed. |
+
+{/* TODO: which status wins when an assignment is both Failed and Overdue, and whether it can be taken after the deadline, are open decisions. */}
+
+## Retakes
+
+- Employees can retake a failed questionnaire. There is no limit on attempts.
+- Each retake creates a new attempt. Earlier attempts and scores are kept.
+- Failed attempts stay available for administrators to review.
+- Once an assignment is passed, it cannot be retaken unless an administrator assigns it again.
+
+## Assigning training
+
+- A questionnaire can be assigned to one employee, several employees or a whole department.
+- Assigning to a department creates an assignment for every **active** employee in it at that moment. Employees who join later are not included.
+- Inactive questionnaires cannot be assigned.
+
+## Access
+
+- Employees can only see their own assignments and results.
+- Employees cannot use administrator functions.
+- Passwords are stored securely hashed.
+- All communication uses HTTPS.
+
+## Data integrity
+
+- Submitted attempts are never changed or deleted.
+- Editing a questionnaire does not change earlier attempts or results. Each attempt stays linked to the questionnaire version that was used.
+- Deactivating an employee, topic or questionnaire keeps its history.
+
+## Audit log
+
+These administrator actions must be logged, with who did it, what changed and when:
+
+- Creating, editing and deactivating employees, departments, topics and questionnaires.
+- Creating assignments.

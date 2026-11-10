@@ -1,0 +1,60 @@
+---
+title: "Writing docs"
+description: "Where pages go, how to write them, and how to check them before a pull request."
+icon: "pen-to-square"
+---
+
+Every feature updates the docs in the **same pull request** as its code. A feature is not done until its docs are.
+
+## Where pages go
+
+| Section | Folder | Write about |
+| - | - | - |
+| User guide | `docs/user-guide/` | What administrators and employees see and do. |
+| Developer guide | `docs/developer-guide/` | How the system works, business rules, data model, setup. |
+| API reference | `docs/api-reference/` | Generated from the OpenAPI spec. Update the spec, not the pages. |
+
+Add every new page to `navigation` in `docs/docs.json`. Pages that are not listed there do not appear in the sidebar.
+
+## Templates
+
+Copy a template to start a page:
+
+- `docs/_templates/user-guide-page.mdx`
+- `docs/_templates/developer-guide-page.mdx`
+
+The `_templates` folder is not published.
+
+## Style
+
+- Write for the reader of that section. User guide pages use the words on screen, not code names.
+- Use active voice and "you".
+- Keep sentences short, one idea each.
+- Use sentence case for headings, for example "Assign a questionnaire".
+- Start task pages with a verb.
+- Do not add an H1 in the body. The `title` in the frontmatter is the H1.
+- Never describe features that do not exist yet as working. Mark backend behavior with the "Specification, not yet implemented" snippet.
+- Use the same term for the same thing everywhere. See the terms below.
+
+## Terms
+
+| Use | Not |
+| - | - |
+| questionnaire | quiz, test, survey |
+| assignment | task, training item |
+| attempt | try, submission |
+| passing score | pass mark, threshold |
+| administrator | admin (in user guide pages) |
+| employee | user, learner (in user guide pages) |
+| department | team, group |
+
+## Check before a pull request
+
+Run these from the `docs/` folder:
+
+```bash
+mint validate
+mint broken-links
+```
+
+Both must pass. To preview the site locally, run `mint dev` and open http://localhost:3000.
