@@ -8,15 +8,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import {
-  disabled,
-  form,
-  FormField,
-  maxLength,
-  required,
-  submit,
-  validate,
-} from '@angular/forms/signals';
+import { disabled, form, FormField, required, submit, validate } from '@angular/forms/signals';
 import {
   SdButton,
   SdCallout,
@@ -27,7 +19,13 @@ import {
   SdSelect,
 } from '@specora-dev/ui-kit';
 import { firstValueFrom } from 'rxjs';
-import { ApiClient, type Topic, type TopicIcon } from '../../core/api';
+import {
+  ApiClient,
+  type Topic,
+  type TopicCreate,
+  type TopicIcon,
+  type TopicUpdate,
+} from '../../core/api';
 import { saveFailedMessage, serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
 import { TOPIC_ICON_OPTIONS, TOPIC_ICONS, topicIcon } from './topic-icons';
 
@@ -77,24 +75,13 @@ export class TopicForm implements OnInit {
 
   protected readonly model = signal<TopicModel>({ name: '', description: '', icon: null });
   protected readonly f = form(this.model, (p) => {
+    // The API trims text before it checks it, so the form does too.
     required(p.name, { message: 'Enter a name.' });
-    validate(p.name, ({ value }) =>
-      value() !== '' && value().trim() === ''
-        ? { kind: 'blank', message: 'Enter a name.' }
-        : undefined,
-    );
-    maxLength(p.name, NAME_MAX_LENGTH, {
-      message: `Use ${NAME_MAX_LENGTH} characters or fewer.`,
-    });
+    validate(p.name, ({ value }) => checkText(value(), NAME_MAX_LENGTH, 'Enter a name.'));
     required(p.description, { message: 'Enter a description.' });
     validate(p.description, ({ value }) =>
-      value() !== '' && value().trim() === ''
-        ? { kind: 'blank', message: 'Enter a description.' }
-        : undefined,
+      checkText(value(), DESCRIPTION_MAX_LENGTH, 'Enter a description.'),
     );
-    maxLength(p.description, DESCRIPTION_MAX_LENGTH, {
-      message: `Use ${DESCRIPTION_MAX_LENGTH} characters or fewer.`,
-    });
     disabled(p.name, () => this.saving());
     disabled(p.description, () => this.saving());
     disabled(p.icon, () => this.saving());
@@ -122,8 +109,9 @@ export class TopicForm implements OnInit {
     await submit(this.f, async (form) => {
       this.saving.set(true);
       try {
-        const topic = await this.send();
-        this.saved.emit(topic);
+        const body = this.changes();
+        // Nothing changed in an edit: close without a request or a "saved" toast.
+        if (body !== null) this.saved.emit(await this.send(body));
         this.open.set(false);
         return undefined;
       } catch (error) {
@@ -141,14 +129,38 @@ export class TopicForm implements OnInit {
     });
   }
 
-  private send(): Promise<Topic> {
+  /**
+   * The request body: every field for a new topic, only the changed fields for an edit, or `null`
+   * when an edit changes nothing. Text is trimmed, as the API does.
+   */
+  private changes(): TopicUpdate | null {
     const { name, description, icon } = this.model();
-    const body = { name: name.trim(), description: description.trim(), icon };
+    const values = { name: name.trim(), description: description.trim(), icon };
+    const topic = this.topic();
+    if (!topic) return values;
+    const changed: TopicUpdate = {
+      ...(values.name !== topic.name && { name: values.name }),
+      ...(values.description !== topic.description && { description: values.description }),
+      ...(values.icon !== topic.icon && { icon: values.icon }),
+    };
+    return Object.keys(changed).length > 0 ? changed : null;
+  }
+
+  private send(body: TopicUpdate): Promise<Topic> {
     const topic = this.topic();
     return firstValueFrom(
       topic
         ? this.api.patch('/topics/{topicId}', { path: { topicId: topic.id }, body })
-        : this.api.post('/topics', { body }),
+        : this.api.post('/topics', { body: body as TopicCreate }),
     );
   }
+}
+
+/** A required text field, checked after trimming: blank, or longer than `max`. */
+function checkText(value: string, max: number, blankMessage: string) {
+  const trimmed = value.trim();
+  if (value !== '' && trimmed === '') return { kind: 'blank', message: blankMessage };
+  if (trimmed.length > max)
+    return { kind: 'maxLength', message: `Use ${max} characters or fewer.` };
+  return undefined;
 }

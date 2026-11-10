@@ -26,6 +26,20 @@ The mock API follows these rules so the frontend behaves as it will with the rea
 - The employee count of a department is the number of its **active** users, administrators included. Deactivated users are not counted.
 - An **inactive** department cannot be chosen for a new or edited user, and cannot be used to assign training by department. Its current members keep it as their department, and it still appears in lists, filters, reports and history.
 
+## Topics
+
+- Administrators create, edit, deactivate and reactivate topics. Employees read active topics only. See [Access by role](#access-by-role).
+- A topic has a name of 1 to 100 characters, a required description of 1 to 1,000 characters and an optional icon. Spaces around the name and description are removed.
+- The name is unique within the organization, among active and inactive topics, ignoring upper and lower case and spaces around it. "phishing awareness" cannot be added next to "Phishing Awareness".
+- The icon is a Lucide icon name from a curated list of security icons, `TopicIcon` in the [API spec](/api-reference/overview). Any other name is rejected. A topic without an icon has `null`.
+- A new topic is active.
+- Each questionnaire belongs to exactly one topic. A topic can have many questionnaires.
+- The questionnaire count of a topic is the number of **all** its questionnaires, active and inactive. Inactive questionnaires still belong to the topic and keep their results.
+- Topics are deactivated, never deleted. Deactivating keeps the topic's history, and the results of its questionnaires stay accessible (FR-014). Reactivating makes it active again, with nothing else changed.
+- Deactivating a topic does not change its questionnaires: their status, versions, assignments and attempts stay as they are. Employees no longer see the topic itself. What an inactive topic means for creating questionnaires and assigning training belongs to those features (Assignments is SPE-20).
+
+{/* TODO: confirm with the PO whether an inactive topic can be chosen for a new questionnaire, and whether questionnaires of an inactive topic can still be assigned. Nothing is blocked yet. */}
+
 ## Scoring
 
 The score is the share of correct answers:

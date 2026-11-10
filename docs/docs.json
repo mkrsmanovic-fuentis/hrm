@@ -29,7 +29,8 @@
           {
             "group": "For administrators",
             "pages": [
-              "user-guide/manage-departments"
+              "user-guide/manage-departments",
+              "user-guide/manage-topics"
             ]
           }
         ]

@@ -84,6 +84,45 @@ describe('Topic form', () => {
     expect(saved).toEqual([]);
   });
 
+  it('trims the fields before checking their length, like the API', async () => {
+    const { type, submit, saved, mock } = await render(null);
+
+    await type('input', ` ${'x'.repeat(100)} `);
+    await type('textarea', `${'y'.repeat(1000)}  `);
+    await submit();
+
+    expect(saved).toEqual([expect.objectContaining({ name: 'x'.repeat(100) })]);
+    expect(mock.db.data.topics.find((t) => t.name === 'x'.repeat(100))?.description).toBe(
+      'y'.repeat(1000),
+    );
+  });
+
+  it('closes without a request when an edit changes nothing', async () => {
+    const { type, submit, saved, closed, record, mock } = await render('Data Protection');
+    const logSize = mock.db.data.auditLog.length;
+    const { updatedAt } = record!;
+
+    await type('input', ' Data Protection ');
+    await submit();
+
+    expect(saved).toEqual([]);
+    await vi.waitFor(() => expect(closed()).toBe(1));
+    expect(mock.db.data.auditLog).toHaveLength(logSize);
+    expect(record?.updatedAt).toBe(updatedAt);
+  });
+
+  it('sends only the changed fields in an edit', async () => {
+    const { setIcon, submit, saved, mock, record } = await render('Data Protection');
+
+    await setIcon('lock');
+    await submit();
+
+    expect(saved).toEqual([expect.objectContaining({ id: record?.id, icon: 'lock' })]);
+    expect(mock.db.data.auditLog.at(-1)?.changes).toEqual([
+      { field: 'icon', oldValue: 'shield-check', newValue: 'lock' },
+    ]);
+  });
+
   it('shows a failure without a field in a callout, and stays open', async () => {
     const { type, submit, saved, closed } = await render(null, { flags: { errorStatus: 500 } });
 
