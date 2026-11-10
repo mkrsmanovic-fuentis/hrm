@@ -1,5 +1,51 @@
 <sd-topbar>
   <a sdTopbarStart class="brand" routerLink="/">HRM Platform</a>
+
+  @if (user(); as user) {
+    <div sdTopbarEnd class="account">
+      <sd-badge class="role">{{ roleLabel() }}</sd-badge>
+      <button
+        sd-button
+        variant="ghost"
+        type="button"
+        [icon]="icons.user"
+        [sdPopoverTrigger]="userMenu"
+        aria-haspopup="true"
+      >
+        {{ fullName() }}
+      </button>
+
+      <sd-popover #userMenu [heading]="fullName()">
+        <div class="menu">
+          <span class="email">{{ user.email }}</span>
+          @if (switchTarget()) {
+            <button
+              sd-button
+              variant="ghost"
+              type="button"
+              [icon]="icons.switchRole"
+              [loading]="busy() === 'switch'"
+              [disabled]="busy() !== null"
+              (click)="switchRole(userMenu)"
+            >
+              {{ switchLabel() }}
+            </button>
+          }
+          <button
+            sd-button
+            variant="ghost"
+            type="button"
+            [icon]="icons.signOut"
+            [loading]="busy() === 'signOut'"
+            [disabled]="busy() !== null"
+            (click)="signOut()"
+          >
+            Sign out
+          </button>
+        </div>
+      </sd-popover>
+    </div>
+  }
 </sd-topbar>
 
 <main class="content">

@@ -5,6 +5,10 @@ import type { FieldError, Problem } from './api-schema.gen';
 export const ProblemType = {
   badRequest: '/problems/bad-request',
   unauthenticated: '/problems/unauthenticated',
+  /** Sign-in only: the email and password do not match an account that can sign in. */
+  invalidCredentials: '/problems/invalid-credentials',
+  /** Sign-in only: the password is right, but the account is deactivated. */
+  accountInactive: '/problems/account-inactive',
   forbidden: '/problems/forbidden',
   notFound: '/problems/not-found',
   conflict: '/problems/conflict',

@@ -26,6 +26,7 @@ import SpecStatus from "/snippets/spec-status.mdx";
 | Attempt Answer | The answer chosen for each question in an attempt. |
 | Notification | Messages to employees, such as new assignments and deadline reminders. |
 | Audit Log | A record of important administrator actions. |
+| Session | A signed-in session of one user, with its token. Lasts 8 hours. |
 
 ## Relationships
 
@@ -212,3 +213,14 @@ Each entry is an `AuditLogEntry` in the spec. Entries are never changed. Which a
 | `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for deactivation and reactivation. |
 
 `createdAt` is when the action happened.
+
+### Session
+
+Returned by the [authentication endpoints](/api-reference/overview#authentication). A session belongs to a user, not directly to the organization, so it has no `id`, `organizationId` or `updatedAt`.
+
+| Field | Type | Notes |
+| - | - | - |
+| `token` | String | Opaque session token, sent as a bearer token. A secret. |
+| `createdAt` | Timestamp | When the user signed in. |
+| `expiresAt` | Timestamp | 8 hours after `createdAt`. |
+| `user` | User | The signed-in user. |

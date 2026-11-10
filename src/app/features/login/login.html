@@ -1,0 +1,61 @@
+<div class="page">
+  <div class="column">
+    <header class="header">
+      <span class="brand">HRM Platform</span>
+      <h1 class="title">Sign in</h1>
+    </header>
+
+    <sd-panel>
+      <sd-panel-section>
+        <form class="form" novalidate (submit)="signIn($event)">
+          @if (error(); as error) {
+            <sd-callout tone="danger" role="alert" [heading]="error.heading">
+              {{ error.message }}
+            </sd-callout>
+          }
+
+          <sd-field label="Email" [error]="visibleError(f.email)" required>
+            <input sd-input type="email" autocomplete="username" [formField]="f.email" />
+          </sd-field>
+
+          <sd-field label="Password" [error]="visibleError(f.password)" required>
+            <sd-password autocomplete="current-password" [formField]="f.password" />
+          </sd-field>
+
+          <button
+            sd-button
+            variant="primary"
+            type="submit"
+            [loading]="busy() === 'form'"
+            [disabled]="busy() !== null"
+          >
+            Sign in
+          </button>
+        </form>
+      </sd-panel-section>
+
+      @if (demoAccounts.length > 0) {
+        <sd-panel-section eyebrow="Demo accounts">
+          <div class="demo">
+            <p class="demo-text">
+              For demos only. Sign in with one click as a sample user with dummy data.
+            </p>
+            <div class="demo-actions">
+              @for (account of demoAccounts; track account.role) {
+                <button
+                  sd-button
+                  type="button"
+                  [loading]="busy() === account.role"
+                  [disabled]="busy() !== null"
+                  (click)="signInAsDemo(account.role)"
+                >
+                  {{ account.label }}
+                </button>
+              }
+            </div>
+          </div>
+        </sd-panel-section>
+      }
+    </sd-panel>
+  </div>
+</div>

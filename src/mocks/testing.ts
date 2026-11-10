@@ -12,6 +12,8 @@ import { Observable } from 'rxjs';
 import { environment } from '../environments/environment';
 import { MockDb } from './db/mock-db';
 import { createHandlers } from './handlers';
+import type { RoleKey } from '../app/core/api/api-schema.gen';
+import { SESSION_LIFETIME_MS } from './rules/auth-rules';
 import { buildSeed, SEED_VERSION } from './seed/seed';
 import type { SimulationFlags } from './support/simulation';
 
@@ -21,6 +23,12 @@ export const TEST_NOW = new Date('2026-11-10T12:00:00Z');
 export interface TestMockApiOptions {
   now?: Date;
   flags?: SimulationFlags;
+  /**
+   * Who the requests are sent as. By default a session is started for the first seeded
+   * administrator, and its token is added to every request that has no `Authorization` header.
+   * Pass `null` to send requests without a session, for example to test sign-in.
+   */
+  signedInAs?: RoleKey | null;
 }
 
 /**
@@ -35,6 +43,11 @@ export interface TestMockApiOptions {
 export function createTestMockApi(options: TestMockApiOptions = {}) {
   const now = options.now ?? TEST_NOW;
   const db = new MockDb({ seed: () => buildSeed(now), storage: null, version: SEED_VERSION });
+  const token = startTestSession(
+    db,
+    options.signedInAs === undefined ? 'administrator' : options.signedInAs,
+    now,
+  );
   const handlers = createHandlers({
     db,
     baseUrl: environment.apiBaseUrl,
@@ -42,25 +55,60 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
     latency: 0,
     now: () => now,
   });
-  const providers: Provider[] = [{ provide: HttpBackend, useValue: new MockHttpBackend(handlers) }];
+  const providers: Provider[] = [
+    { provide: HttpBackend, useValue: new MockHttpBackend(handlers, token) },
+  ];
 
   return {
     db,
     handlers,
+    /** The session token requests are sent with, or null when signed out. */
+    token,
     /** Add after `provideHttpClient()` so HttpClient sends requests to the mock handlers. */
     providers,
     /** Sends a request straight to the handlers, for handler tests without Angular. */
     fetch: (path: string, init?: RequestInit) =>
-      getResponse(handlers, new Request(new URL(path, 'http://localhost'), init)).then(
+      getResponse(
+        handlers,
+        withToken(new Request(new URL(path, 'http://localhost'), init), token),
+      ).then(
         (response) =>
           response ?? new Response(null, { status: 599, statusText: 'No mock handler' }),
       ),
   };
 }
 
+/** Starts a session for the first seeded user with the role, and returns its token. */
+function startTestSession(db: MockDb, role: RoleKey | null, now: Date): string | null {
+  if (!role) return null;
+  const user = db.data.users.find((u) => u.role === role && u.status === 'active');
+  if (!user) throw new Error(`The seed has no active ${role}.`);
+  const token = `test-session-${role}`;
+  db.update((data) =>
+    data.sessions.push({
+      token,
+      userId: user.id,
+      createdAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + SESSION_LIFETIME_MS).toISOString(),
+    }),
+  );
+  return token;
+}
+
+/** Adds the session token unless the request already has an `Authorization` header. */
+function withToken(request: Request, token: string | null): Request {
+  if (!token || request.headers.has('Authorization')) return request;
+  const headers = new Headers(request.headers);
+  headers.set('Authorization', `Bearer ${token}`);
+  return new Request(request, { headers });
+}
+
 /** An Angular HttpBackend that answers requests with MSW handlers, without a network or service worker. */
 export class MockHttpBackend implements HttpBackend {
-  constructor(private readonly handlers: HttpHandler[]) {}
+  constructor(
+    private readonly handlers: HttpHandler[],
+    private readonly token: string | null = null,
+  ) {}
 
   handle(req: HttpRequest<unknown>): Observable<HttpEvent<unknown>> {
     return new Observable<HttpEvent<unknown>>((observer) => {
@@ -78,7 +126,7 @@ export class MockHttpBackend implements HttpBackend {
         body: req.method === 'GET' || req.method === 'HEAD' ? undefined : (body as BodyInit | null),
       });
 
-      getResponse(this.handlers, request)
+      getResponse(this.handlers, withToken(request, this.token))
         .then(async (response) => {
           if (!response) {
             observer.error(
