@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 16:05" description="SPE-18 · Question editor" tags={["Frontend", "API", "Docs"]}>
+  Administrators can now add, edit, remove and reorder questions and answer options on a questionnaire's page, each question with exactly one correct answer and optional feedback. If employees have already taken the questionnaire, saving creates a new version after a warning, and earlier results never change. The editor warns before you leave with unsaved changes.
+
+  Commit: [697a5b6](https://github.com/mkrsmanovic-fuentis/hrm/commit/697a5b640440cdc6e6b8a18b7f87a413a7b1a90b)
+</Update>
+
 <Update label="2026-11-10 15:35" description="SPE-17 · Questionnaires" tags={["Frontend", "API", "Docs"]}>
   Administrators can now list, search and filter questionnaires, create them as inactive drafts, and edit their settings on a detail page: title, description, topic, passing score (80% by default) and optional time limit. A questionnaire can't be activated until it has questions. Deactivated questionnaires can't be assigned, but training already assigned can still be completed.
 
