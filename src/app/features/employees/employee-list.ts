@@ -47,11 +47,6 @@ const INVITE_LABELS: Record<InvitationStatus, string> = {
   expired: 'Expired',
   accepted: 'Accepted',
 };
-const INVITE_TONES = {
-  pending: 'info',
-  expired: 'warning',
-  accepted: 'success',
-} as const satisfies Record<InvitationStatus, string>;
 
 /** Demo only: the invite link to show on the page after creating a user or sending the invite again. */
 interface InviteLink {
@@ -92,7 +87,7 @@ const searchText = (user: User) => {
  * The signed-in administrator cannot deactivate themselves or change their own role, so their own
  * row has no Deactivate action and their role is locked in the form.
  *
- * The Invite column shows whether each user has set a password. Users who have not, and are
+ * Under each status, the invite status says whether the user has set a password. Users who have not, and are
  * active, have a "Send invite again" action. In the demo (`environment.demo`), the invite link of
  * a new user or a new invite is shown on the page, since no email is sent.
  */
@@ -174,14 +169,14 @@ export class EmployeeList {
       subValue: (u) => (this.isMe(u) ? 'You' : null),
       sortable: true,
       // Widths in rem, so all seven columns and the actions fit next to the side navigation.
-      minWidth: 11,
+      minWidth: 10,
     },
     {
       id: 'email',
       label: 'Email',
       value: (u) => u.email,
       sortable: true,
-      minWidth: 12,
+      minWidth: 11,
       maxWidth: 'grow',
     },
     {
@@ -193,7 +188,7 @@ export class EmployeeList {
       sortable: true,
       // Search matches names and emails only, like the API's `q`.
       searchable: false,
-      minWidth: 9,
+      minWidth: 8,
       maxWidth: 13,
     },
     {
@@ -202,31 +197,23 @@ export class EmployeeList {
       value: (u) => ROLE_LABELS[u.role],
       sortable: true,
       searchable: false,
-      minWidth: 7,
+      minWidth: 6,
       maxWidth: 9,
     },
     {
       id: 'status',
       label: 'Status',
-      type: 'badge',
+      headerTitle: 'Status, and whether they have set a password through their invite',
+      // The invite status goes under the status, rather than in a column of its own, so the
+      // columns and the row actions still fit next to the side navigation.
+      type: 'stacked',
       value: (u) => STATUS_LABELS[u.status],
       tone: (u) => (u.status === 'active' ? 'success' : 'muted'),
-      sortable: true,
-      searchable: false,
-      minWidth: 6,
-      maxWidth: 7,
-    },
-    {
-      id: 'invitation',
-      label: 'Invite',
-      headerTitle: 'Whether they have set a password through their invite',
-      type: 'badge',
-      value: (u) => INVITE_LABELS[u.invitationStatus],
-      tone: (u) => INVITE_TONES[u.invitationStatus],
+      subValue: (u) => `Invite ${INVITE_LABELS[u.invitationStatus].toLowerCase()}`,
       sortable: true,
       searchable: false,
       minWidth: 6.5,
-      maxWidth: 7.5,
+      maxWidth: 8,
     },
     {
       id: 'assignedTrainingCount',
@@ -245,7 +232,7 @@ export class EmployeeList {
       value: (u) => u.completedTrainingCount,
       sortable: true,
       searchable: false,
-      minWidth: 6.5,
+      minWidth: 6,
       maxWidth: 7,
     },
     {

@@ -115,7 +115,7 @@ describe('Employees page', () => {
         ?.columns()
         .filter((c) => !list()?.hiddenColumns().has(c.id))
         .map((c) => c.label),
-    ).toEqual(['Name', 'Email', 'Department', 'Role', 'Status', 'Invite', 'Assigned', 'Completed']);
+    ).toEqual(['Name', 'Email', 'Department', 'Role', 'Status', 'Assigned', 'Completed']);
 
     const oliver = row('Oliver');
     expect(column('email')?.value(oliver)).toBe('oliver.grant@brightwater.example');
@@ -265,10 +265,15 @@ describe('Employees page', () => {
       ?.items()
       .find((u) => u.invitationStatus === 'expired');
 
-    expect(column('invitation')?.value(row('Aisha'))).toBe('Pending');
-    expect(column('invitation')?.value(expired!)).toBe('Expired');
-    expect(column('invitation')?.value(row('Oliver'))).toBe('Accepted');
-    expect(column('invitation')?.tone?.(expired!)).toBe('warning');
+    const invite = (user: User) => column('status')?.subValue?.(user);
+    expect(invite(row('Aisha'))).toBe('Invite pending');
+    expect(invite(expired!)).toBe('Invite expired');
+    expect(invite(row('Oliver'))).toBe('Invite accepted');
+    const filter = list()
+      ?.filters()
+      .find((f) => f.id === 'invitation');
+    expect(filter?.options?.map((o) => o.label)).toEqual(['Pending', 'Expired', 'Accepted']);
+    expect(filter?.value(expired!)).toBe('expired');
   });
 
   it('sends the invite again: the old link stops working and the new one is shown', async () => {
