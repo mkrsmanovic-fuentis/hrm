@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 14:32" description="SPE-11 · Roles and access" tags={["Frontend", "API", "Docs"]}>
+  Administrators and employees now have separate areas, each with its own home page and side menu. Opening a page meant for the other role shows a "No access" page without signing you out. Sessions end automatically when they expire, even on an idle page, and signing in, out or switching roles carries over to other open tabs. The business rules now include an access matrix for the backend.
+
+  Commit: [b903e0a](https://github.com/mkrsmanovic-fuentis/hrm/commit/b903e0afb7b23471e85baed49dcf834ebc908dfe)
+</Update>
+
 <Update label="2026-11-10 13:27" description="SPE-10 · Sign in and sessions" tags={["Frontend", "API", "Docs"]}>
   Users can now sign in with email and password, stay signed in for up to 8 hours, and sign out. For demos, the sign-in page offers one-click sign-in as an administrator or an employee, and you can switch roles from the user menu. The user guide has a new page on signing in and out.
 
