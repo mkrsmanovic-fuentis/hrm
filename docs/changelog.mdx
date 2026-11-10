@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 16:31" description="SPE-19 · Checks before activation" tags={["Frontend", "API", "Docs"]}>
+  A questionnaire can now be activated only when it's complete: it has questions, each with text, at least two answer options and exactly one correct answer, and its topic is active. The questionnaire's page lists what needs fixing and jumps straight to each question. A questionnaire's first activation is now recorded as "activated" in the audit log. The question editor also stops a save if employees started the questionnaire while you were editing, and asks you to confirm the new version.
+
+  Commit: [a3e8477](https://github.com/mkrsmanovic-fuentis/hrm/commit/a3e84777e1b5c665dbdc24dab3a9f15e88d2954b)
+</Update>
+
 <Update label="2026-11-10 16:05" description="SPE-18 · Question editor" tags={["Frontend", "API", "Docs"]}>
   Administrators can now add, edit, remove and reorder questions and answer options on a questionnaire's page, each question with exactly one correct answer and optional feedback. If employees have already taken the questionnaire, saving creates a new version after a warning, and earlier results never change. The editor warns before you leave with unsaved changes.
 
