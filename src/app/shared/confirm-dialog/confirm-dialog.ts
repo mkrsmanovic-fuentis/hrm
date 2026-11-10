@@ -43,16 +43,18 @@ import { SdButton, SdCallout, SdDialog } from '@specora-dev/ui-kit';
         <button sd-button type="button" [disabled]="busy()" (click)="open.set(false)">
           {{ cancelLabel() }}
         </button>
-        <button
-          sd-button
-          type="button"
-          [variant]="tone()"
-          [loading]="busy()"
-          [disabled]="busy()"
-          (click)="confirmed.emit()"
-        >
-          {{ confirmLabel() }}
-        </button>
+        @if (confirmable()) {
+          <button
+            sd-button
+            type="button"
+            [variant]="tone()"
+            [loading]="busy()"
+            [disabled]="busy()"
+            (click)="confirmed.emit()"
+          >
+            {{ confirmLabel() }}
+          </button>
+        }
       </ng-container>
     </sd-dialog>
   `,
@@ -76,6 +78,12 @@ export class ConfirmDialog {
   readonly busy = input(false);
   /** Why the action failed, shown above the message. */
   readonly error = input<string | null>(null);
+  /**
+   * Whether the action can still be confirmed. Set it to false when the action can no longer
+   * work, for example after the API refused it for a reason the dialog shows: only the cancel
+   * button stays, so give it a label such as "Close".
+   */
+  readonly confirmable = input(true);
 
   /** The confirm button was clicked. */
   readonly confirmed = output();

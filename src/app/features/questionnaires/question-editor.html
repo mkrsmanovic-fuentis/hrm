@@ -65,7 +65,20 @@
       let qi = $index, qFirst = $first, qLast = $last
     ) {
       <sd-panel-section [eyebrow]="'Question ' + (qi + 1)">
-        <div class="question" role="group" [attr.aria-label]="'Question ' + (qi + 1)">
+        <div
+          class="question"
+          role="group"
+          data-question
+          [class.highlighted]="highlighted() === question.key"
+          [attr.aria-label]="'Question ' + (qi + 1)"
+        >
+          @if (question.id && problemsByQuestion().get(question.id); as problems) {
+            <sd-callout tone="warning" heading="Fix before activating">
+              @for (problem of problems; track $index) {
+                <p class="message">{{ problem }}</p>
+              }
+            </sd-callout>
+          }
           <div class="row">
             <sd-field
               class="grow"
@@ -201,6 +214,9 @@
                 Add answer option
               </button>
             </div>
+            @if (visibleError(f.questions[qi].answerOptions); as error) {
+              <p class="options-error" role="alert">{{ error }}</p>
+            }
           </div>
 
           <sd-field
@@ -309,6 +325,11 @@
 >
   @switch (confirmation()) {
     @case ('new-version') {
+      @if (versionNotice(); as notice) {
+        <div class="notice">
+          <sd-callout tone="warning" role="alert">{{ notice }}</sd-callout>
+        </div>
+      }
       <p class="message">
         Employees have already taken version {{ version()?.versionNumber }}. Your changes will be
         saved as version {{ nextVersionNumber() }}, and new attempts will use it.

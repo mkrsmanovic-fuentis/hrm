@@ -212,7 +212,17 @@ describe('Question editor', () => {
 
     expect(ui.text()).toContain('Enter the question.');
     expect(ui.text()).toContain('Enter the answer.');
-    expect(ui.text()).toContain('Add at least 2 answer options. Choose the correct answer.');
+    // Too few options shows under "Answer options"; the missing correct answer under its select.
+    const question = ui.element.querySelectorAll('.question')[count];
+    const options = question.querySelector('[aria-label^="Answer options of question"]');
+    const correct = [...question.querySelectorAll('sd-field')].find((f) =>
+      f.textContent?.includes('Correct answer'),
+    );
+    expect(options?.querySelector('.options-error')?.textContent?.trim()).toBe(
+      'Add at least 2 answer options.',
+    );
+    expect(correct?.textContent).toContain('Choose the correct answer.');
+    expect(correct?.textContent).not.toContain('Add at least 2 answer options.');
   });
 
   it('lets an inactive draft be saved incomplete', async () => {
@@ -252,6 +262,79 @@ describe('Question editor', () => {
     await vi.waitFor(() => expect(ui.text()).toContain('Version 3:'));
     expect(ui.text()).toContain('no attempts yet');
     expect(ui.text()).not.toContain('Saving creates version');
+  });
+
+  it('asks before creating a version when an attempt started after loading, and keeps the edits', async () => {
+    const ui = await render(DRAFT);
+    await addQuestion(ui, 'Where do you report phishing?', ['To IT security', 'Nowhere']);
+    const versionId = ui.record.currentVersionId;
+    // An employee starts an attempt on this version while the administrator edits.
+    const attempt = structuredClone(ui.mock.db.data.attempts[0]);
+    ui.mock.db.update((data) => {
+      data.attempts.push({
+        ...attempt,
+        id: crypto.randomUUID(),
+        questionnaireVersionId: versionId,
+      });
+    });
+
+    await ui.click('Save questions');
+
+    await vi.waitFor(() =>
+      expect(document.querySelector('sd-dialog')?.textContent).toContain('Save as version 2?'),
+    );
+    expect(document.querySelector('sd-dialog')?.textContent).toContain(
+      'Employees have started this version since you loaded it. Saving now creates a new version.',
+    );
+    expect(ui.record.currentVersionId).toBe(versionId);
+    expect(ui.questionTexts()).toEqual(['Where do you report phishing?']);
+    expect(ui.text()).toContain('Saving creates version 2');
+
+    await ui.dialogButton('Save as version 2');
+
+    await vi.waitFor(() => expect(ui.record.currentVersionId).not.toBe(versionId));
+    expect(ui.saved().map((q) => q.text)).toEqual(['Where do you report phishing?']);
+    expect(ui.toasts.toasts().map((t) => t.heading)).toEqual(['Version 2 created']);
+  });
+
+  it('keeps the edits and says so when the version changed elsewhere since loading', async () => {
+    const ui = await render(WITH_ATTEMPTS);
+    await ui.type(ui.questionText(0), 'An edited first question?');
+    // Another administrator saves meanwhile, which creates a version nobody has started yet.
+    ui.mock.db.update((data) => {
+      const at = new Date().toISOString();
+      const version = {
+        id: crypto.randomUUID(),
+        organizationId: data.organization.id,
+        questionnaireId: ui.record.id,
+        versionNumber: 3,
+        createdAt: at,
+        updatedAt: at,
+      };
+      data.questionnaireVersions.push(version);
+      ui.record.currentVersionId = version.id;
+    });
+    const newVersionId = ui.record.currentVersionId;
+
+    await ui.click('Save questions');
+    await ui.dialogButton('Save as version 3');
+
+    await vi.waitFor(() =>
+      expect(ui.text()).toContain(
+        'The questions were changed since you loaded them. Reload them, then save again. Your changes are kept.',
+      ),
+    );
+    expect(document.querySelector('sd-dialog')?.textContent?.trim() ?? '').not.toContain(
+      'Save as version',
+    );
+    expect(ui.questionTexts()[0]).toBe('An edited first question?');
+    expect(ui.text()).toContain('Version 3: No questions, no attempts yet.');
+    expect(ui.text()).not.toContain('Saving creates version');
+
+    // Saving again goes to the new version, in place.
+    await ui.click('Save questions');
+    await vi.waitFor(() => expect(ui.saved()[0]?.text).toBe('An edited first question?'));
+    expect(ui.record.currentVersionId).toBe(newVersionId);
   });
 
   it('asks before leaving with unsaved changes, through the route guard', async () => {

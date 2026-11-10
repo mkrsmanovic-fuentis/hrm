@@ -1,5 +1,6 @@
 import type { AssignmentStatus } from '../../app/core/api/api-schema.gen';
 import { DERIVED_FIELDS } from '../db/mock-data';
+import { activationProblems, hasBeenActive } from '../rules/questionnaire-rules';
 import { toAssignment } from '../rules/training-rules';
 import { TEST_NOW } from '../testing';
 import { buildSeed } from './seed';
@@ -105,8 +106,14 @@ describe('seed data', () => {
     }
   });
 
-  it('gives every question exactly one correct answer and at least two options', () => {
-    for (const question of data.questions) {
+  it('gives every question that was ever assigned exactly one correct answer and two options', () => {
+    const assigned = new Set(data.assignments.map((a) => a.questionnaireId));
+    const versions = new Set(
+      data.questionnaireVersions.filter((v) => assigned.has(v.questionnaireId)).map((v) => v.id),
+    );
+    const questions = data.questions.filter((q) => versions.has(q.questionnaireVersionId));
+    expect(questions.length).toBeGreaterThan(0);
+    for (const question of questions) {
       const options = data.answerOptions.filter((o) => o.questionId === question.id);
       expect(options.length).toBeGreaterThanOrEqual(2);
       expect(options.filter((o) => o.isCorrect)).toHaveLength(1);
@@ -143,22 +150,37 @@ describe('seed data', () => {
     }
   });
 
-  it('has one inactive draft questionnaire with an empty version 1 and no assignments', () => {
-    const drafts = data.questionnaires.filter(
-      (q) =>
-        !data.questions.some((question) => question.questionnaireVersionId === q.currentVersionId),
-    );
+  it('has three drafts that cannot be activated, one for each kind of check', () => {
+    // A draft has only its `created` entry: it has never been active.
+    const drafts = data.questionnaires.filter((q) => !hasBeenActive(q, data));
 
-    expect(drafts.map((q) => [q.title, q.status])).toEqual([
-      ['Reporting suspicious messages', 'inactive'],
+    expect(
+      drafts.map((q) => [q.title, q.status, activationProblems(q, data).map((p) => p.code)]),
+    ).toEqual([
+      ['Reporting suspicious messages', 'inactive', ['no_questions']],
+      [
+        'Phone scams and callback checks',
+        'inactive',
+        ['too_few_answer_options', 'no_correct_answer', 'no_correct_answer'],
+      ],
+      ['Clean desk checklist', 'inactive', ['topic_inactive']],
     ]);
-    const [draft] = drafts;
-    expect(data.questionnaireVersions.filter((v) => v.questionnaireId === draft.id)).toEqual([
-      expect.objectContaining({ id: draft.currentVersionId, versionNumber: 1 }),
-    ]);
-    expect(data.assignments.filter((a) => a.questionnaireId === draft.id)).toEqual([]);
-    expect(data.auditLog.filter((e) => e.entityId === draft.id).map((e) => e.action)).toEqual([
-      'created',
-    ]);
+    for (const draft of drafts) {
+      expect(data.questionnaireVersions.filter((v) => v.questionnaireId === draft.id)).toEqual([
+        expect.objectContaining({ id: draft.currentVersionId, versionNumber: 1 }),
+      ]);
+      expect(data.assignments.filter((a) => a.questionnaireId === draft.id)).toEqual([]);
+      expect(data.auditLog.filter((e) => e.entityId === draft.id).map((e) => e.action)).toEqual([
+        'created',
+      ]);
+    }
+  });
+
+  it('lets every other questionnaire be activated', () => {
+    const others = data.questionnaires.filter((q) => hasBeenActive(q, data));
+    expect(others).toHaveLength(10);
+    for (const questionnaire of others) {
+      expect(activationProblems(questionnaire, data), questionnaire.title).toEqual([]);
+    }
   });
 });

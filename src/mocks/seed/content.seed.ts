@@ -697,11 +697,24 @@ export const questionnaireSeeds: QuestionnaireSeed[] = [
   },
 ];
 
+/** A question of a draft, which may be incomplete: `correct` is `null` when none is chosen. */
+export interface DraftQuestionSeed extends Omit<QuestionSeed, 'correct'> {
+  correct: number | null;
+}
+
+/** A questionnaire still being written: inactive, with version 1 only and no assignments. */
+export interface DraftQuestionnaireSeed extends Omit<
+  QuestionnaireSeed,
+  'status' | 'questions' | 'addedInVersion2'
+> {
+  questions: DraftQuestionSeed[];
+}
+
 /**
- * Questionnaires still being written: inactive, with an empty version 1 and no assignments, so
- * the block on activating a questionnaire without questions shows in the demo.
+ * Drafts that cannot be activated yet, so each kind of check before activation shows in the
+ * demo: no questions, incomplete questions, and an inactive topic.
  */
-export const draftQuestionnaireSeeds: Omit<QuestionnaireSeed, 'status' | 'questions'>[] = [
+export const draftQuestionnaireSeeds: DraftQuestionnaireSeed[] = [
   {
     topic: 'Phishing Awareness',
     title: 'Reporting suspicious messages',
@@ -709,5 +722,63 @@ export const draftQuestionnaireSeeds: Omit<QuestionnaireSeed, 'status' | 'questi
       'What to do after you spot a phishing attempt: how to report it, and what not to click while you wait.',
     passingScore: 80,
     timeLimitMinutes: null,
+    questions: [],
+  },
+  {
+    topic: 'Social Engineering',
+    title: 'Phone scams and callback checks',
+    description:
+      'How to check who is really calling before you share anything or change a payment.',
+    passingScore: 80,
+    timeLimitMinutes: null,
+    questions: [
+      {
+        text: 'A caller says they are from IT and asks for your password to fix your account. What do you do?',
+        options: [
+          'Give it to them, IT needs it',
+          'Hang up and call the IT service desk on the number you know',
+          'Give them only the first half',
+        ],
+        correct: 1,
+        explanation: 'IT never asks for your password. Call back on a number you already know.',
+      },
+      {
+        text: 'Someone calls and asks you to change a supplier’s bank details today. What do you check first?',
+        options: ['Call the supplier back on the number in your records'],
+        correct: null,
+        explanation: null,
+      },
+      {
+        text: 'Which details can you confirm to a caller you do not know?',
+        options: [
+          'A colleague’s mobile number',
+          'Nothing, until you have checked who they are',
+          'Your manager’s travel plans',
+        ],
+        correct: null,
+        explanation: null,
+      },
+    ],
+  },
+  {
+    topic: 'Clean Desk Policy',
+    title: 'Clean desk checklist',
+    description: 'A short check of the clean desk rules, written before the topic was retired.',
+    passingScore: 80,
+    timeLimitMinutes: null,
+    questions: [
+      {
+        text: 'What do you do with printed documents when you leave your desk?',
+        options: ['Turn them face down', 'Lock them away', 'Take them home'],
+        correct: 1,
+        explanation: null,
+      },
+      {
+        text: 'What do you do with your screen when you step away?',
+        options: ['Lock it', 'Turn the brightness down', 'Nothing, it locks itself after an hour'],
+        correct: 0,
+        explanation: null,
+      },
+    ],
   },
 ];

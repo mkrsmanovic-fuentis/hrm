@@ -62,6 +62,7 @@ export function requireLink(
       404,
       'This link is not valid. It may have been replaced by a newer one.',
       undefined,
+      undefined,
       {
         type: ProblemType.linkNotFound,
         title: 'Link not valid',
@@ -69,13 +70,13 @@ export function requireLink(
     );
   }
   if (link.usedAt !== null || (purpose === 'invitation' && user.passwordSetAt !== null)) {
-    throw new MockProblem(410, 'This link was used already.', undefined, {
+    throw new MockProblem(410, 'This link was used already.', undefined, undefined, {
       type: ProblemType.linkUsed,
       title: 'Link used',
     });
   }
   if (!isLinkActive(link, now)) {
-    throw new MockProblem(410, 'This link has expired.', undefined, {
+    throw new MockProblem(410, 'This link has expired.', undefined, undefined, {
       type: ProblemType.linkExpired,
       title: 'Link expired',
     });

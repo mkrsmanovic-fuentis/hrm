@@ -16,6 +16,37 @@
   gap: var(--sd-space-sm);
 }
 
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-sm);
+}
+
+.problems-intro {
+  margin: 0;
+}
+
+.problem-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-xs);
+  margin: 0;
+  padding-left: var(--sd-space-lg);
+}
+
+.problem {
+  overflow-wrap: anywhere;
+}
+
+// Next to the message, wrapping under it on narrow screens. The list keeps its bullets.
+.problem-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  vertical-align: middle;
+  gap: var(--sd-space-xs);
+  margin-left: var(--sd-space-sm);
+}
+
 .settings {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));

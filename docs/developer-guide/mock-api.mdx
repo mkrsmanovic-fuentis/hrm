@@ -54,8 +54,8 @@ On first load, and after a reset, the mock database is filled from the seed in `
 | Organization | Brightwater Logistics, a fictional company. |
 | Departments | 9, one of them inactive. |
 | Users | 42: 2 administrators (Maja Novak and Daniel Brooks) and 40 employees. 3 are inactive, 2 have a pending invite and 1 has an expired invite. 2 have no department, and 1 (Patrick O’Neill) is still in the inactive Facilities department. Emails end in `@brightwater.example`. |
-| Topics | 8: the 7 topics from the FRD (Phishing Awareness, Password Security, Data Protection, Social Engineering, Safe Internet Usage, Device Security and Remote Work Security), and Clean Desk Policy, which is inactive and has no questionnaires, so employees see one topic fewer than administrators. |
-| Questionnaires | 11. 10 with 3 to 5 questions each, passing scores of 70, 80 and 90, some with a time limit; one of them is inactive. "Spotting phishing emails" has two versions, and attempts on both. "Reporting suspicious messages" is an inactive draft with an empty version 1 and no assignments, so it cannot be activated. |
+| Topics | 8: the 7 topics from the FRD (Phishing Awareness, Password Security, Data Protection, Social Engineering, Safe Internet Usage, Device Security and Remote Work Security), and Clean Desk Policy, which is inactive and has one draft questionnaire, so employees see one topic fewer than administrators. |
+| Questionnaires | 13. 10 with 3 to 5 questions each, passing scores of 70, 80 and 90, some with a time limit; one of them, "Password basics (2025)", is inactive and can be activated again. "Spotting phishing emails" has two versions, and attempts on both. Three inactive drafts with no assignments fail one kind of [check before activation](/developer-guide/business-rules#checks-before-activation) each: "Reporting suspicious messages" has no questions, "Phone scams and callback checks" has questions without enough answer options or a correct answer, and "Clean desk checklist" is complete but in the inactive Clean Desk Policy topic. |
 | Assignments | About 120, in every status: Not Started, In Progress, Passed, Failed and Overdue. Includes retakes, late passes and attempts submitted by the time limit. |
 | Notifications | New assignments and deadline reminders, some read. |
 | Audit log | Creation of every department, topic, questionnaire, employee and assignment, plus edits and deactivations. |
@@ -202,7 +202,8 @@ const updated = db.update((data) => {
 
 - `created` takes `after`, the new record, and logs one entry.
 - `updated` takes `before` and `after`. Pass every edit as `updated`, also one that changes `status`: changed fields other than `status` are logged as one `updated` entry, then a change of `status` as `deactivated` or `reactivated`. An edit that changes nothing logs nothing.
-- `deactivated` and `reactivated` take `after`, for handlers that only change the status.
+- `updated` with `firstActivation: true` logs a change of `status` to `active` as `activated` instead. The questionnaire handler sets it when `hasBeenActive()` in `src/mocks/rules/questionnaire-rules.ts` is false.
+- `activated`, `deactivated` and `reactivated` take `after`, for handlers that only change the status.
 - `recordAudit()` returns the entries it added, in order. An empty list means nothing changed, so leave `updatedAt` as it is.
 - Values are compared by content, regardless of the order of object keys.
 - Pass stored records, not API responses. Derived fields, such as `employeeCount`, are never listed in `changes`; `recordAudit()` throws when a record carries one. The derived fields of each record type are `DERIVED_FIELDS` in `src/mocks/db/mock-data.ts`, and the stored record types leave them out.

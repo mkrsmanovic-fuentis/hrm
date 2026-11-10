@@ -10,6 +10,7 @@ import {
   linkedSignal,
   output,
   signal,
+  untracked,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import {
@@ -51,7 +52,8 @@ import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
 import { saveFailedMessage, serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
 import { textRules } from '../../shared/forms/text-rules';
 import {
-  completenessProblem,
+  answerOptionsProblem,
+  correctAnswerProblem,
   type DraftQuestion,
   emptyOption,
   emptyQuestion,
@@ -75,6 +77,7 @@ interface EditorModel {
 }
 
 const FIX_FIELDS = 'Some questions need fixing. Check the highlighted fields, then save.';
+const VERSION_CHANGED = 'The questions changed since you loaded them.';
 
 /**
  * The question editor in the questionnaire page's "Questions" section.
@@ -88,6 +91,8 @@ const FIX_FIELDS = 'Some questions need fixing. Check the highlighted fields, th
  * - Once attempts use it, the save creates a new version. The editor says so before saving, in a
  *   confirmation.
  * - An active questionnaire must stay complete; an inactive draft may be saved incomplete.
+ * - A draft's questions that stop it from being activated show their `activationProblems` in a
+ *   callout, and the page jumps to one with `showQuestion()`, which highlights it.
  *
  * The page asks `confirmLeave()` before the router leaves it, and the editor warns before the
  * browser tab closes or reloads while there are unsaved changes.
@@ -178,8 +183,14 @@ export class QuestionEditor {
         maxLength: QUESTION_TEXT_MAX_LENGTH,
       });
       textRules(question.explanation, { maxLength: EXPLANATION_MAX_LENGTH });
+      // Each completeness problem sits on the field that fixes it: too few options on the
+      // answer options, the correct answer on the question (shown under "Correct answer").
+      validate(question.answerOptions, ({ valueOf }) => {
+        const problem = this.mustBeComplete() ? answerOptionsProblem(valueOf(question)) : null;
+        return problem ? { kind: 'too_few_options', message: problem } : undefined;
+      });
       validate(question, ({ value }) => {
-        const problem = this.mustBeComplete() ? completenessProblem(value()) : null;
+        const problem = this.mustBeComplete() ? correctAnswerProblem(value()) : null;
         return problem ? { kind: 'incomplete', message: problem } : undefined;
       });
       applyEach(question.answerOptions, (option) => {
@@ -212,6 +223,8 @@ export class QuestionEditor {
 
   protected readonly confirmation = signal<Confirmation | null>(null);
   protected readonly confirmError = signal<string | null>(null);
+  /** Why the new-version confirmation opened after a save was refused, if it was. */
+  protected readonly versionNotice = signal<string | null>(null);
   private leaveDecision: ((leave: boolean) => void) | null = null;
 
   protected readonly summary = computed(() => {
@@ -227,6 +240,41 @@ export class QuestionEditor {
           : `${attempts} attempts use it`;
     return `Version ${version.versionNumber}: ${count}, ${used}.`;
   });
+
+  /** The question the page jumped to with `showQuestion()`, by its working-copy key. */
+  protected readonly highlighted = signal<string | null>(null);
+
+  /**
+   * What stops an inactive questionnaire from being activated, by saved question ID. They
+   * describe the saved questions, so they show only while there are no unsaved changes.
+   */
+  protected readonly problemsByQuestion = computed(() => {
+    const byId = new Map<string, string[]>();
+    if (this.dirty()) return byId;
+    for (const problem of this.questionnaire().activationProblems) {
+      if (!problem.questionId) continue;
+      byId.set(problem.questionId, [...(byId.get(problem.questionId) ?? []), problem.message]);
+    }
+    return byId;
+  });
+
+  /**
+   * Scrolls to a saved question, focuses its text and highlights it, for "Go to question" on
+   * the page. Returns `false` when the working copy no longer has it, for example after it was
+   * removed without saving.
+   */
+  showQuestion(questionId: string): boolean {
+    const question = this.questions().find((candidate) => candidate.id === questionId);
+    if (!question) return false;
+    this.highlighted.set(question.key);
+    // The question is already on the page, so focus moves at once.
+    const text = this.host.nativeElement.querySelector<HTMLElement>(
+      `[data-question-text="${question.key}"]`,
+    );
+    text?.closest('[data-question]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    text?.focus({ preventScroll: true });
+    return true;
+  }
 
   /** The options of the "Correct answer" select, for each question. */
   protected correctOptions(question: DraftQuestion): SdSelectOption<string>[] {
@@ -349,11 +397,19 @@ export class QuestionEditor {
       const version = await firstValueFrom(
         this.api.put('/questionnaires/{questionnaireId}/questions', {
           path: { questionnaireId: this.questionnaireId() },
-          body: { questions: toInput(this.questions()) },
+          body: {
+            // The server refuses the save (409) when this is no longer what it would do, so the
+            // administrator is always told before a new version is created.
+            baseVersionId: before?.id ?? '',
+            createsVersion: this.createsVersion(),
+            questions: toInput(this.questions()),
+          },
         }),
       );
       this.version.set(version);
       this.confirmation.set(null);
+      this.versionNotice.set(null);
+      this.highlighted.set(null);
       if (before && version.id !== before.id) {
         this.toasts.success(
           `Version ${version.versionNumber} created`,
@@ -365,6 +421,10 @@ export class QuestionEditor {
       this.saved.emit(version);
       return undefined;
     } catch (error) {
+      if (error instanceof ApiError && error.isVersionConflict) {
+        await this.recoverFromVersionConflict(error);
+        return undefined;
+      }
       const fieldErrors = serverFieldErrors(error, this.fieldsByApiName());
       if (fieldErrors) {
         this.confirmation.set(null);
@@ -376,6 +436,40 @@ export class QuestionEditor {
       return undefined;
     } finally {
       this.saving.set(false);
+    }
+  }
+
+  /**
+   * The save was based on an outdated state: the version changed, or attempts started on it.
+   * Loads the current version, keeps the working copy, and says what happens now: the
+   * new-version confirmation when saving now creates one, otherwise a note above the questions.
+   */
+  private async recoverFromVersionConflict(error: ApiError): Promise<void> {
+    const edits = this.questions();
+    try {
+      const fresh = await firstValueFrom(
+        this.api.get('/questionnaires/{questionnaireId}/questions', {
+          path: { questionnaireId: this.questionnaireId() },
+        }),
+      );
+      this.version.set(fresh);
+      // The working copy follows the saved version: read it once so it updates, then put the
+      // administrator's edits back.
+      untracked(() => this.model());
+      this.model.set({ questions: edits });
+    } catch (reloadError) {
+      this.confirmation.set(null);
+      this.formError.set(saveFailedMessage(reloadError));
+      return;
+    }
+    const detail = error.problem.detail ?? VERSION_CHANGED;
+    if (this.createsVersion()) {
+      this.versionNotice.set(detail);
+      this.confirmError.set(null);
+      this.confirmation.set('new-version');
+    } else {
+      this.confirmation.set(null);
+      this.formError.set(`${detail} Your changes are kept.`);
     }
   }
 
@@ -443,6 +537,7 @@ export class QuestionEditor {
     this.decideLeave(false);
     this.confirmation.set(null);
     this.confirmError.set(null);
+    this.versionNotice.set(null);
   }
 
   private decideLeave(leave: boolean): void {

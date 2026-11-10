@@ -28,7 +28,7 @@ import {
   draftQuestionnaireSeeds,
   questionnaireSeeds,
   topicSeeds,
-  type QuestionnaireSeed,
+  type DraftQuestionSeed,
 } from './content.seed';
 import { departmentSeeds, organizationSeed, userSeeds } from './people.seed';
 import { SeededRandom } from './random';
@@ -37,7 +37,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 7;
+export const SEED_VERSION = 8;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -79,8 +79,9 @@ const scenarios: [Scenario, number][] = [
 
 /**
  * Builds the seed dataset: one organization with departments, 42 users, the 7 FRD topics and a
- * retired one, questionnaires with versions, a draft questionnaire without questions, and
- * assignments and attempts in every status.
+ * retired one, questionnaires with versions, three drafts that cannot be activated yet (no
+ * questions, incomplete questions, an inactive topic), and assignments and attempts in every
+ * status.
  * The same `now` always gives the same data. Dates are relative to `now`.
  */
 export function buildSeed(now: Date = new Date()): MockData {
@@ -208,7 +209,7 @@ export function buildSeed(now: Date = new Date()): MockData {
     questionnaireId: string,
     versionNumber: number,
     createdMs: number,
-    seeds: QuestionnaireSeed['questions'],
+    seeds: readonly DraftQuestionSeed[],
   ) => {
     const version = { ...record(createdMs), questionnaireId, versionNumber };
     questionnaireVersions.push(version);
@@ -232,7 +233,8 @@ export function buildSeed(now: Date = new Date()): MockData {
         answerOptions.push(option);
         return option.id;
       });
-      return { id: question.id, options, correct: options[seed.correct] };
+      // Only drafts have questions without a correct answer, and nobody answers them.
+      return { id: question.id, options, correct: options[seed.correct ?? -1] };
     });
     return { id: version.id, createdMs, questions: versionQuestions };
   };
@@ -514,7 +516,7 @@ export function buildSeed(now: Date = new Date()): MockData {
     if (!topic) throw new Error(`Seed draft "${seed.title}" has unknown topic "${seed.topic}"`);
     const createdMs = nowMs - (3 + index) * DAY;
     const id = random.uuid();
-    const version = addVersion(id, 1, createdMs, []);
+    const version = addVersion(id, 1, createdMs, seed.questions);
     const draft: QuestionnaireRecord = {
       id,
       organizationId,

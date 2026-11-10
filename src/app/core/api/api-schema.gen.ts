@@ -453,10 +453,11 @@ export interface paths {
          *
          *     - Changing the settings does not create a new version. Each attempt keeps the passing score it started with, so a new passing score never changes earlier results.
          *     - A questionnaire cannot be moved into an inactive topic. Sending the topic it is already in is not a move.
-         *     - Activating needs at least one question in the current version. Otherwise the answer is `409` and nothing changes.
+         *     - Activating runs the checks before activation: the current version has at least one question, every question has text, at least two answer options, no empty answer option and exactly one correct answer, and the questionnaire's topic is active. When any check fails, the answer is `409` with every problem in `activationProblems`, and nothing changes. The same list is the questionnaire's derived `activationProblems`, so a client can show it before trying.
+         *     - When the same request also moves the questionnaire to another topic, the checks use the new topic.
          *     - An inactive questionnaire cannot be assigned. Deactivating does not change existing assignments; they can still be completed.
          *
-         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated`, `activated` (the questionnaire's first activation) or `reactivated` (any later one). A request that changes nothing logs nothing.
          */
         patch: operations["updateQuestionnaire"];
         trace?: never;
@@ -483,6 +484,7 @@ export interface paths {
          *     - **Attempts on the current version** (in progress or submitted): a **new version** is created with the questions sent, its `versionNumber` one higher than the latest, and `currentVersionId` points to it. Earlier versions, their questions and their attempts never change. An attempt in progress finishes on the version it started with; new attempts use the new version.
          *     - **Nothing changed:** when the list sent equals the current questions, nothing is saved, no version is created and nothing is logged.
          *     - Question and answer option IDs are assigned by the server on every save. Do not rely on them staying the same.
+         *     - **The client says what it expects.** `baseVersionId` is the version the edits are based on, and `createsVersion` says whether the client expects the save to create a new version, because attempts use that version. When either no longer matches, because the current version changed, or because an attempt started on it after the client loaded it, the answer is `409` with type `/problems/version-conflict`, and nothing changes. The client reloads the version, keeps its edits, tells the administrator, and saves again. A save in place keeps the version's `id`, so two saves in place on the same version, while no attempts use it, are not detected: the later one replaces the earlier one.
          *
          *     Every question needs text, and every answer option needs text. An **active** questionnaire must also stay valid: at least one question, and for each question at least two answer options with exactly one correct. A save that breaks this answers `422`, with field names such as `questions[2].answerOptions`. An **inactive** questionnaire, a draft, may be saved incomplete.
          *
@@ -564,6 +566,10 @@ export interface components {
         /** @description A `409` problem. When the conflict is about a field, such as a duplicate name, `errors` names it. */
         ConflictProblem: components["schemas"]["Problem"] & {
             errors?: components["schemas"]["FieldError"][];
+        };
+        /** @description A `409` problem for a questionnaire that cannot be activated yet. `activationProblems` lists every reason. */
+        NotReadyToActivateProblem: components["schemas"]["Problem"] & {
+            activationProblems: components["schemas"]["ActivationProblem"][];
         };
         /** @description One invalid field in a request. */
         FieldError: {
@@ -826,9 +832,34 @@ export interface components {
             currentVersionId: components["schemas"]["Id"];
             /** @description Derived. Number of questions in the current version. Never sent in requests. */
             readonly questionCount: number;
+            /** @description Derived. Why activating this inactive questionnaire would be refused, in the order the checks run: the questions, in order, then the topic. Empty when it can be activated, and always empty for an active questionnaire. The same list as the `409` of an activation. Never sent in requests. */
+            readonly activationProblems: components["schemas"]["ActivationProblem"][];
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
         };
+        /** @description One reason a questionnaire cannot be activated yet. */
+        ActivationProblem: {
+            code: components["schemas"]["ActivationProblemCode"];
+            /** @description The question the problem is about, in the current version. `null` for a problem with the whole questionnaire. */
+            questionId: components["schemas"]["Id"] | null;
+            /** @description The question's position in the current version, from 1, as administrators see it. `null` when `questionId` is. */
+            questionNumber: number | null;
+            /** @description What is wrong and how to fix it, as a sentence that names the question. Safe to show. */
+            message: string;
+        };
+        /**
+         * @description Machine-readable reason a questionnaire cannot be activated:
+         *
+         *     - `no_questions`: the current version has no questions.
+         *     - `question_text_missing`: a question has no text.
+         *     - `too_few_answer_options`: a question has fewer than two answer options.
+         *     - `answer_option_text_missing`: an answer option of a question has no text. One problem per empty option.
+         *     - `no_correct_answer`: no answer option of a question is marked correct.
+         *     - `several_correct_answers`: more than one answer option of a question is marked correct.
+         *     - `topic_inactive`: the questionnaire's topic is inactive. Choose another topic, or reactivate the topic.
+         * @enum {string}
+         */
+        ActivationProblemCode: "no_questions" | "question_text_missing" | "too_few_answer_options" | "answer_option_text_missing" | "no_correct_answer" | "several_correct_answers" | "topic_inactive";
         /** @description Optional time limit in whole minutes, from 1 to 480 (8 hours, the length of a session). When it runs out, the attempt is submitted automatically. `null` means no limit. */
         TimeLimitMinutes: number | null;
         /** @description One page of questionnaires. */
@@ -858,7 +889,7 @@ export interface components {
             passingScore?: components["schemas"]["PassingScore"];
             /** @description Send `null` to remove the time limit. */
             timeLimitMinutes?: components["schemas"]["TimeLimitMinutes"];
-            /** @description `active` activates the questionnaire and needs at least one question (`409` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed. */
+            /** @description `active` activates the questionnaire and must pass the checks before activation (`409` with `activationProblems` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed. */
             status?: components["schemas"]["ActivityStatus"];
         };
         /**
@@ -880,6 +911,10 @@ export interface components {
         };
         /** @description The complete, ordered list of questions for the questionnaire. It replaces the current questions; see `PUT /questionnaires/{questionnaireId}/questions` for when that creates a new version. Spaces around text are removed, and an empty explanation is stored as `null`. Unknown fields are rejected. */
         QuestionnaireQuestionsUpdate: {
+            /** @description The version the edits are based on, the `id` of the `QuestionnaireVersion` the client loaded. When it is no longer the current version, the answer is `409`. */
+            baseVersionId: components["schemas"]["Id"];
+            /** @description Whether the client expects the save to create a new version, because attempts use `baseVersionId` (its `attemptCount` is above 0). When the server would decide otherwise, the answer is `409`, so the administrator is always told before a new version is created. */
+            createsVersion: boolean;
             /** @description Questions in display order. An active questionnaire needs at least one; an inactive draft may send none. */
             questions: components["schemas"]["QuestionInput"][];
         };
@@ -1024,8 +1059,11 @@ export interface components {
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
         };
-        /** @enum {string} */
-        AuditAction: "created" | "updated" | "deactivated" | "reactivated";
+        /**
+         * @description `activated` is only for a questionnaire's first activation, from draft to active. Every later activation of a questionnaire, and every reactivation of another record, is `reactivated`.
+         * @enum {string}
+         */
+        AuditAction: "created" | "updated" | "activated" | "deactivated" | "reactivated";
         /**
          * @description The kind of record. Employees are `user`. Assignments are only ever `created`.
          * @enum {string}
@@ -1053,7 +1091,7 @@ export interface components {
             action: components["schemas"]["AuditAction"];
             entityType: components["schemas"]["AuditEntityType"];
             entityId: components["schemas"]["Id"];
-            /** @description What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `deactivated` and `reactivated`. */
+            /** @description What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `activated`, `deactivated` and `reactivated`. */
             changes: components["schemas"]["AuditChange"][];
             /** @description When the action happened. */
             createdAt: components["schemas"]["Timestamp"];
@@ -1232,7 +1270,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["ConflictProblem"];
             };
         };
-        /** @description The questionnaire cannot be activated yet, for example because its current version has no questions. Nothing was changed. `detail` says what is missing. */
+        /** @description The questionnaire cannot be activated yet. Nothing was changed. `activationProblems` lists every problem, each with the question it is about, if any, so a client can link to it. `detail` sums them up. */
         NotReadyToActivate: {
             headers: {
                 [name: string]: unknown;
@@ -1243,7 +1281,38 @@ export interface components {
                  *       "type": "/problems/conflict",
                  *       "title": "Conflict",
                  *       "status": 409,
-                 *       "detail": "Add at least one question before activating this questionnaire."
+                 *       "detail": "This questionnaire can't be activated yet. Fix 2 problems first.",
+                 *       "activationProblems": [
+                 *         {
+                 *           "code": "no_correct_answer",
+                 *           "questionId": "7b1e2c4d-5a6f-4b8c-9d0e-1f2a3b4c5d6e",
+                 *           "questionNumber": 2,
+                 *           "message": "Question 2 has no correct answer. Choose one."
+                 *         },
+                 *         {
+                 *           "code": "topic_inactive",
+                 *           "questionId": null,
+                 *           "questionNumber": null,
+                 *           "message": "The topic Clean Desk Policy is inactive. Choose another topic, or reactivate the topic."
+                 *         }
+                 *       ]
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["NotReadyToActivateProblem"];
+            };
+        };
+        /** @description The questions were not saved, because the save was based on an older state of the questionnaire: the current version is no longer `baseVersionId`, or whether the save creates a new version is not what `createsVersion` said. Nothing was changed. Reload the current version, then save again. */
+        VersionConflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/version-conflict",
+                 *       "title": "Version conflict",
+                 *       "status": 409,
+                 *       "detail": "Employees have started this version since you loaded it. Saving now creates a new version."
                  *     }
                  */
                 "application/problem+json": components["schemas"]["Problem"];
@@ -1326,6 +1395,7 @@ export type PageInfo = components['schemas']['PageInfo'];
 export type Problem = components['schemas']['Problem'];
 export type ValidationProblem = components['schemas']['ValidationProblem'];
 export type ConflictProblem = components['schemas']['ConflictProblem'];
+export type NotReadyToActivateProblem = components['schemas']['NotReadyToActivateProblem'];
 export type FieldError = components['schemas']['FieldError'];
 export type SignInRequest = components['schemas']['SignInRequest'];
 export type Password = components['schemas']['Password'];
@@ -1351,6 +1421,8 @@ export type TopicPage = components['schemas']['TopicPage'];
 export type TopicCreate = components['schemas']['TopicCreate'];
 export type TopicUpdate = components['schemas']['TopicUpdate'];
 export type Questionnaire = components['schemas']['Questionnaire'];
+export type ActivationProblem = components['schemas']['ActivationProblem'];
+export type ActivationProblemCode = components['schemas']['ActivationProblemCode'];
 export type TimeLimitMinutes = components['schemas']['TimeLimitMinutes'];
 export type QuestionnairePage = components['schemas']['QuestionnairePage'];
 export type QuestionnaireCreate = components['schemas']['QuestionnaireCreate'];
@@ -1384,6 +1456,7 @@ export type ResponseNotFound = components['responses']['NotFound'];
 export type ResponseConflict = components['responses']['Conflict'];
 export type ResponseNotUnique = components['responses']['NotUnique'];
 export type ResponseNotReadyToActivate = components['responses']['NotReadyToActivate'];
+export type ResponseVersionConflict = components['responses']['VersionConflict'];
 export type ResponseValidationFailed = components['responses']['ValidationFailed'];
 export type ResponseInternalError = components['responses']['InternalError'];
 export type ParameterPage = components['parameters']['Page'];
@@ -2252,6 +2325,7 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            409: components["responses"]["VersionConflict"];
             422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };

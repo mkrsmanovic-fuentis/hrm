@@ -45,9 +45,16 @@ export interface ProblemKind {
 export function problemResponse(
   status: number,
   detail?: string,
-  extra: { instance?: string; errors?: FieldError[]; kind?: ProblemKind } = {},
+  extra: {
+    instance?: string;
+    errors?: FieldError[];
+    kind?: ProblemKind;
+    /** Extra members the spec defines for this problem, such as `activationProblems`. */
+    extensions?: Record<string, unknown>;
+  } = {},
 ): Response {
   const body = {
+    ...extra.extensions,
     ...problemBody(status, detail, extra.instance, extra.kind),
     ...(extra.errors ? { errors: extra.errors } : {}),
   };
@@ -66,14 +73,16 @@ export function validationProblem(errors: FieldError[], instance?: string): Resp
 
 /**
  * Throw from a resolver to answer with a problem, for example from a helper deep in a handler.
- * The route wrapper turns it into a problem response.
+ * The route wrapper turns it into a problem response. `extensions` adds members the spec
+ * defines for the problem, for example `{ activationProblems }` on a refused activation.
  */
 export class MockProblem extends Error {
   constructor(
     readonly status: number,
     readonly detail?: string,
     readonly errors?: FieldError[],
-    /** A problem `type` and `title` other than the status's default. */
+    readonly extensions?: Record<string, unknown>,
+    /** A `type` and `title` other than the status's default, e.g. a version conflict. */
     readonly kind?: ProblemKind,
   ) {
     super(detail ?? `HTTP ${status}`);

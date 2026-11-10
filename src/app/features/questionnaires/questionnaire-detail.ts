@@ -11,6 +11,7 @@ import {
 import { rxResource, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
+  LucideArrowDown,
   LucideArrowLeft,
   LucideClipboardList,
   LucidePencil,
@@ -26,6 +27,7 @@ import {
   SdPanelSection,
   SdSkeleton,
   SdStatusBar,
+  SdTooltip,
   type SdBreadcrumbItem,
   type SdStatusBarStat,
 } from '@specora-dev/ui-kit';
@@ -38,13 +40,23 @@ import { QuestionEditor } from './question-editor';
 import { QuestionnaireForm } from './questionnaire-form';
 import { QuestionnaireStatusDialog } from './questionnaire-status-dialog';
 import type { LeaveConfirmation } from './unsaved-changes.guard';
-import { canActivate, passingScoreText, STATUS_LABELS, timeLimitText } from './questionnaire-text';
+import {
+  canActivate,
+  passingScoreText,
+  problemCountText,
+  STATUS_LABELS,
+  timeLimitText,
+} from './questionnaire-text';
 
 const LIST_URL = '/admin/questionnaires';
 
 /**
  * One questionnaire at `/admin/questionnaires/{questionnaireId}`: its settings, with Edit
  * settings in a drawer, and Deactivate or Activate with a confirmation.
+ *
+ * While the checks before activation fail, Activate is disabled and a callout lists the
+ * questionnaire's `activationProblems`. "Go to question N" jumps to that question in the
+ * editor; an inactive topic offers the settings drawer and the Topics page.
  *
  * The "Questions" section is the question editor. Leaving the page with unsaved questions asks
  * first, through `unsavedChangesGuard`.
@@ -64,6 +76,7 @@ const LIST_URL = '/admin/questionnaires';
     SdPanelSection,
     SdSkeleton,
     SdStatusBar,
+    SdTooltip,
   ],
   templateUrl: './questionnaire-detail.html',
   styleUrl: './questionnaire-detail.scss',
@@ -80,6 +93,7 @@ export class QuestionnaireDetail implements LeaveConfirmation {
     edit: LucidePencil,
     deactivate: LucidePower,
     activate: LucideRotateCcw,
+    goTo: LucideArrowDown,
     notFound: LucideSearchX,
     questionnaire: LucideClipboardList,
   };
@@ -143,10 +157,16 @@ export class QuestionnaireDetail implements LeaveConfirmation {
     ];
   });
 
-  /** Inactive, and missing what activating needs. */
+  /** Inactive, and the checks before activation fail: `activationProblems` says why. */
   protected readonly activationBlocked = computed(() => {
     const q = this.questionnaire();
     return q !== null && q.status === 'inactive' && !canActivate(q);
+  });
+
+  /** Why Activate is disabled, in one sentence: on the button and above the problem list. */
+  protected readonly activateHint = computed(() => {
+    const count = this.questionnaire()?.activationProblems.length ?? 0;
+    return `Fix ${problemCountText(count)} to activate this questionnaire.`;
   });
 
   protected readonly text = { passingScoreText, timeLimitText };
@@ -169,6 +189,14 @@ export class QuestionnaireDetail implements LeaveConfirmation {
 
   protected back(): void {
     void this.router.navigateByUrl(LIST_URL);
+  }
+
+  /** "Go to question N": scrolls to the question in the editor, focuses and highlights it. */
+  protected goToQuestion(questionId: string): void {
+    if (this.editor()?.showQuestion(questionId)) return;
+    this.toasts.show(
+      'That question is not in your unsaved changes. Save or discard them to see the problems again.',
+    );
   }
 
   protected onSaved(questionnaire: Questionnaire): void {

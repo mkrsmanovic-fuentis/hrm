@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import type { FieldError, Problem } from './api-schema.gen';
+import type { ActivationProblem, FieldError, Problem } from './api-schema.gen';
 
 /** Problem `type` values the API uses. See the API reference overview. */
 export const ProblemType = {
@@ -18,6 +18,11 @@ export const ProblemType = {
   linkUsed: '/problems/link-used',
   notFound: '/problems/not-found',
   conflict: '/problems/conflict',
+  /**
+   * Saving questions only: the save was based on an older version, or attempts started on it
+   * since it was loaded. Reload the version and save again.
+   */
+  versionConflict: '/problems/version-conflict',
   validationFailed: '/problems/validation-failed',
   internalError: '/problems/internal-error',
   /** Client-side only: the request never reached the API. */
@@ -61,8 +66,23 @@ export class ApiError extends Error {
     return this.status === 409;
   }
 
+  /** A save of questions based on an older state: see `ProblemType.versionConflict`. */
+  get isVersionConflict(): boolean {
+    return this.isConflict && this.problem.type === ProblemType.versionConflict;
+  }
+
   get isValidation(): boolean {
     return this.status === 422;
+  }
+
+  /**
+   * Why a questionnaire could not be activated: the `activationProblems` of a `409` from
+   * `PATCH /questionnaires/{questionnaireId}`. Empty for every other error.
+   */
+  get activationProblems(): readonly ActivationProblem[] {
+    const problems = (this.problem as Problem & { activationProblems?: unknown })
+      .activationProblems;
+    return this.isConflict && Array.isArray(problems) ? (problems as ActivationProblem[]) : [];
   }
 
   static fromHttpError(error: HttpErrorResponse): ApiError {

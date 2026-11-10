@@ -78,5 +78,6 @@
 <app-questionnaire-status-dialog
   [questionnaire]="statusTarget()"
   (changed)="data.reload()"
+  (refused)="data.reload()"
   (closed)="statusTarget.set(null)"
 />

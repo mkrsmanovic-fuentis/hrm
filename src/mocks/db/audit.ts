@@ -23,7 +23,10 @@ const BOOKKEEPING_FIELDS: ReadonlySet<string> = new Set([
   'updatedAt',
 ]);
 
-/** A change of this field is logged as `deactivated` or `reactivated`, never as `updated`. */
+/**
+ * A change of this field is logged as `deactivated`, `reactivated` or `activated`, never as
+ * `updated`.
+ */
 const STATUS_FIELD = 'status';
 
 interface AuditBase {
@@ -37,8 +40,18 @@ interface AuditBase {
 export type AuditInput = AuditBase &
   (
     | { action: 'created'; after: AuditedRecord }
-    | { action: 'updated'; before: AuditedRecord; after: AuditedRecord }
-    | { action: 'deactivated' | 'reactivated'; after: AuditedRecord }
+    | {
+        action: 'updated';
+        before: AuditedRecord;
+        after: AuditedRecord;
+        /**
+         * A change of `status` to `active` is the record's first activation: log it as
+         * `activated`, not `reactivated`. Only questionnaires use it; see `hasBeenActive()` in
+         * `src/mocks/rules/questionnaire-rules.ts`.
+         */
+        firstActivation?: boolean;
+      }
+    | { action: 'activated' | 'deactivated' | 'reactivated'; after: AuditedRecord }
   );
 
 /**
@@ -48,9 +61,10 @@ export type AuditInput = AuditBase &
  * - `created`: one entry listing every field the new record has a value for.
  * - `updated`: pass any edit, including one that changes `status`. Changed fields other than
  *   `status` are logged as one `updated` entry. A change of `status` is logged after it, as
- *   `deactivated` (now `inactive`) or `reactivated` (now `active`), with no changes listed.
- *   An edit that changes nothing logs nothing and returns `[]`.
- * - `deactivated` and `reactivated`: one entry with no changes listed.
+ *   `deactivated` (now `inactive`) or `reactivated` (now `active`), with no changes listed; with
+ *   `firstActivation`, a change to `active` is `activated` instead. An edit that changes nothing
+ *   logs nothing and returns `[]`.
+ * - `activated`, `deactivated` and `reactivated`: one entry with no changes listed.
  *
  * Pass stored records, not API responses: a record with a derived field such as
  * `employeeCount` throws, because derived fields never appear in `changes`.
@@ -77,7 +91,12 @@ export function recordAudit(data: MockData, input: AuditInput): AuditLogEntry[] 
       const entries: AuditLogEntry[] = [];
       if (fieldChanges.length > 0) entries.push(addEntry(data, input, 'updated', fieldChanges));
       if (statusChange) {
-        const action = statusChange.newValue === 'inactive' ? 'deactivated' : 'reactivated';
+        const action =
+          statusChange.newValue === 'inactive'
+            ? 'deactivated'
+            : input.firstActivation
+              ? 'activated'
+              : 'reactivated';
         entries.push(addEntry(data, input, action, []));
       }
       return entries;

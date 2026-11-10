@@ -129,6 +129,7 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `status` | `active` or `inactive` | A new questionnaire is inactive. Inactive questionnaires cannot be assigned. |
 | `currentVersionId` | UUID | The latest version. New attempts use it. Set by the server: a new questionnaire gets an empty version 1. |
 | `questionCount` | Integer | *Derived.* Questions in the current version. |
+| `activationProblems` | List of `ActivationProblem` | *Derived.* Why an inactive questionnaire cannot be activated yet: each with a `code`, the `questionId` and `questionNumber` it is about (or null), and a `message`. Empty when it can be activated, and always empty for an active one. See [Checks before activation](/developer-guide/business-rules#checks-before-activation). |
 
 ### Questionnaire Version
 
@@ -214,10 +215,10 @@ Each entry is an `AuditLogEntry` in the spec. Entries are never changed. Which a
 | Field | Type | Notes |
 | - | - | - |
 | `actorId` | UUID | The signed-in administrator who did it. |
-| `action` | `created`, `updated`, `deactivated` or `reactivated` | |
+| `action` | `created`, `updated`, `activated`, `deactivated` or `reactivated` | `activated` is a questionnaire's first activation only. |
 | `entityType` | `user`, `department`, `topic`, `questionnaire` or `assignment` | The kind of record. Employees are `user`. |
 | `entityId` | UUID | The record the action was done to. |
-| `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for deactivation and reactivation. |
+| `changes` | List of `{ field, oldValue, newValue }` | What changed. Empty for activation, deactivation and reactivation. |
 
 `createdAt` is when the action happened.
 
