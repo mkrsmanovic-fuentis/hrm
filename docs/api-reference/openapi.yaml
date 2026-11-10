@@ -607,6 +607,77 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /questionnaires/{questionnaireId}/questions:
+    get:
+      operationId: getQuestionnaireQuestions
+      tags: [Questionnaires]
+      summary: Get the questions
+      description: |
+        Returns the questionnaire's **current version**, with its questions and their answer options in display order, including which answer is correct. `attemptCount` says how many attempts use this version, so an editor can tell whether saving will create a new version.
+
+        **Access:** administrators only. Employees get `403`: they never get correct answers from this endpoint.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/QuestionnaireId'
+      responses:
+        '200':
+          description: The current version with its questions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireVersion'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: replaceQuestionnaireQuestions
+      tags: [Questionnaires]
+      summary: Save the questions
+      description: |
+        Replaces the questions of the questionnaire with the ordered list sent: the whole list at once, in display order. Questions and answer options get their `position` from their place in the list.
+
+        - **No attempts on the current version:** the questions of the current version are replaced in place. `currentVersionId` stays the same.
+        - **Attempts on the current version** (in progress or submitted): a **new version** is created with the questions sent, its `versionNumber` one higher than the latest, and `currentVersionId` points to it. Earlier versions, their questions and their attempts never change. An attempt in progress finishes on the version it started with; new attempts use the new version.
+        - **Nothing changed:** when the list sent equals the current questions, nothing is saved, no version is created and nothing is logged.
+        - Question and answer option IDs are assigned by the server on every save. Do not rely on them staying the same.
+
+        Every question needs text, and every answer option needs text. An **active** questionnaire must also stay valid: at least one question, and for each question at least two answer options with exactly one correct. A save that breaks this answers `422`, with field names such as `questions[2].answerOptions`. An **inactive** questionnaire, a draft, may be saved incomplete.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log as `updated` on the questionnaire, listing `questions` with the questions before and after, and `currentVersionId` when a new version was created.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/QuestionnaireId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuestionnaireQuestionsUpdate'
+      responses:
+        '200':
+          description: The current version after the save, with its questions. A new version when one was created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuestionnaireVersion'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     sessionToken:
@@ -1393,7 +1464,8 @@ components:
       description: |
         A snapshot of a questionnaire's questions. A questionnaire with no attempts is edited in place.
         Editing one that has attempts creates a new version. Each attempt stays linked to the version it used.
-      required: [id, organizationId, questionnaireId, versionNumber, questions, createdAt, updatedAt]
+      required:
+        [id, organizationId, questionnaireId, versionNumber, questions, attemptCount, createdAt, updatedAt]
       properties:
         id:
           $ref: '#/components/schemas/Id'
@@ -1410,10 +1482,62 @@ components:
           description: Questions in display order.
           items:
             $ref: '#/components/schemas/Question'
+        attemptCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Derived. Attempts that use this version, in progress and submitted. When it is above 0, saving questions creates a new version. Never sent in requests.
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    QuestionnaireQuestionsUpdate:
+      type: object
+      description: |
+        The complete, ordered list of questions for the questionnaire. It replaces the current questions; see `PUT /questionnaires/{questionnaireId}/questions` for when that creates a new version. Spaces around text are removed, and an empty explanation is stored as `null`. Unknown fields are rejected.
+      required: [questions]
+      additionalProperties: false
+      properties:
+        questions:
+          type: array
+          description: Questions in display order. An active questionnaire needs at least one; an inactive draft may send none.
+          items:
+            $ref: '#/components/schemas/QuestionInput'
+
+    QuestionInput:
+      type: object
+      description: One question as the editor sends it. Its position is its place in the list.
+      required: [text, answerOptions]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        explanation:
+          type: ['string', 'null']
+          maxLength: 2000
+          description: Optional feedback shown when the question is answered wrong. Omit it or send `null` or empty text for none.
+        answerOptions:
+          type: array
+          description: Answer options in display order. An active questionnaire needs at least two, with exactly one correct. An inactive draft may send fewer, or none marked correct.
+          items:
+            $ref: '#/components/schemas/AnswerOptionInput'
+
+    AnswerOptionInput:
+      type: object
+      description: One answer option as the editor sends it. Its position is its place in the list.
+      required: [text, isCorrect]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 500
+        isCorrect:
+          type: boolean
+          description: Whether this is the correct answer.
 
     Question:
       type: object
@@ -1440,8 +1564,7 @@ components:
           description: Optional feedback shown when the question is answered wrong.
         answerOptions:
           type: array
-          minItems: 2
-          description: Possible answers in display order. Exactly one is correct.
+          description: Possible answers in display order. At least two, with exactly one correct, in an active questionnaire. A question in an inactive draft may still be incomplete.
           items:
             $ref: '#/components/schemas/AnswerOption'
         createdAt:

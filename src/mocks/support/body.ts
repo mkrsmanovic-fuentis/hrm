@@ -20,11 +20,20 @@ export class BodyReader {
   readonly errors: FieldError[] = [];
   private readonly body: Record<string, unknown>;
 
-  constructor(body: unknown, allowedFields: readonly string[]) {
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+  /**
+   * @param prefix Put in front of every field name in `errors`, for an object nested in the body,
+   *   for example `questions[2].`. Check that the nested value is an object with `isObject()`
+   *   first; only the body itself answers `400` when it is not.
+   */
+  constructor(
+    body: unknown,
+    allowedFields: readonly string[],
+    private readonly prefix = '',
+  ) {
+    if (!isObject(body)) {
       throw new MockProblem(400, 'The request body must be a JSON object.');
     }
-    this.body = body as Record<string, unknown>;
+    this.body = body;
     for (const field of Object.keys(this.body)) {
       if (!allowedFields.includes(field)) this.fail(field, 'invalid_value', 'Unknown field.');
     }
@@ -135,9 +144,46 @@ export class BodyReader {
     return this.oneOf(name, allowed);
   }
 
-  private fail(field: string, code: string, message: string): void {
-    this.errors.push({ location: 'body', field, code, message });
+  /** `true` or `false`. Returns `undefined` when missing or invalid. */
+  boolean(name: string, rules: { required?: boolean } = {}): boolean | undefined {
+    if (!this.has(name)) {
+      if (rules.required) this.fail(name, 'required', 'Required.');
+      return undefined;
+    }
+    const raw = this.body[name];
+    if (typeof raw !== 'boolean') {
+      this.fail(name, 'invalid_type', 'Must be true or false.');
+      return undefined;
+    }
+    return raw;
   }
+
+  /**
+   * A list, for nested items that the caller reads one by one. Returns `undefined` when missing
+   * or not a list. With `required`, a missing value is an error.
+   */
+  array(name: string, rules: { required?: boolean } = {}): unknown[] | undefined {
+    if (!this.has(name)) {
+      if (rules.required) this.fail(name, 'required', 'Required.');
+      return undefined;
+    }
+    const raw = this.body[name];
+    if (!Array.isArray(raw)) {
+      this.fail(name, 'invalid_type', 'Must be a list.');
+      return undefined;
+    }
+    return raw;
+  }
+
+  /** Adds an error for a field of this object, with the reader's prefix. */
+  fail(field: string, code: string, message: string): void {
+    this.errors.push({ location: 'body', field: `${this.prefix}${field}`, code, message });
+  }
+}
+
+/** Whether a value is a JSON object: not `null`, not a list. */
+export function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**

@@ -133,6 +133,7 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `questionnaireId` | UUID | |
 | `versionNumber` | Integer | Starts at 1 and goes up by one. |
 | `questions` | List of Question | Returned nested, in display order. |
+| `attemptCount` | Integer | *Derived.* Attempts that use this version, in progress and submitted. Above 0, saving questions creates a new version. |
 
 ### Question
 
@@ -141,8 +142,8 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `questionnaireVersionId` | UUID | The version it belongs to. |
 | `position` | Integer | Display order, starting at 1. |
 | `text` | String, 1–1,000 | |
-| `explanation` | String or null | Optional feedback for a wrong answer. |
-| `answerOptions` | List of Answer Option | At least two, exactly one correct. Returned nested, in display order. |
+| `explanation` | String or null | Optional feedback for a wrong answer, up to 2,000 characters. |
+| `answerOptions` | List of Answer Option | At least two, exactly one correct, in an active questionnaire. A draft may be incomplete. Returned nested, in display order. |
 
 ### Answer Option
 

@@ -152,7 +152,7 @@ Follow these steps, in this order, in the same pull request as the feature.
     ```
 
     - Check the role first. Administrator endpoints call `requireRole(ctx, 'administrator')`; records that belong to a user go through `ownRecords()` or `requireOwnRecord()`. See [How a handler requires a role](/developer-guide/access-control#how-a-handler-requires-a-role).
-    - Validate every parameter and body field the spec constrains, and answer `validationFailed()` with all problems at once. `ctx.query` reads query parameters; `BodyReader` from `src/mocks/support/body.ts` reads a JSON body the same way, trims text and rejects unknown fields.
+    - Validate every parameter and body field the spec constrains, and answer `validationFailed()` with all problems at once. `ctx.query` reads query parameters; `BodyReader` from `src/mocks/support/body.ts` reads a JSON body the same way, trims text and rejects unknown fields. For lists of nested objects, read the list with `array()`, check each item with `isObject()`, and give each item its own `BodyReader` with a prefix such as `questions[2].`, so errors name the nested field. The question handlers in `src/mocks/resources/questionnaires/questionnaire-questions.handlers.ts` do this.
     - Answer a value already used by a unique field with `throw notUnique(field, message, detail)` from the same file: a `409` that names the field.
     - Use `notFound()`, `problem(status, detail)` or throw `MockProblem` for other errors.
     - Change data only inside `db.update()`, so it is saved when the request ends.

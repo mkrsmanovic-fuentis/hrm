@@ -39,7 +39,8 @@ type Derived<E extends AuditEntityType> = (typeof DERIVED_FIELDS)[E][number];
 export type DepartmentRecord = Omit<Department, Derived<'department'>>;
 export type TopicRecord = Omit<Topic, Derived<'topic'>>;
 export type QuestionnaireRecord = Omit<Questionnaire, Derived<'questionnaire'>>;
-export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions'>;
+/** A version without its nested `questions` and its derived `attemptCount`. */
+export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions' | 'attemptCount'>;
 export type QuestionRecord = Omit<Question, 'answerOptions'>;
 export type AssignmentRecord = Omit<Assignment, Derived<'assignment'>>;
 

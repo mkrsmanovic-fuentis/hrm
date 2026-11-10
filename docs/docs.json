@@ -58,7 +58,8 @@
               "developer-guide/mock-api",
               "developer-guide/authentication",
               "developer-guide/access-control",
-              "developer-guide/admin-list-and-form-pattern"
+              "developer-guide/admin-list-and-form-pattern",
+              "developer-guide/question-editor"
             ]
           },
           {

@@ -1,0 +1,340 @@
+<sd-panel>
+  <sd-panel-section eyebrow="Questions">
+    @if (firstLoad()) {
+      <div class="loading" aria-busy="true" aria-label="Loading the questions">
+        <sd-skeleton height="2rem" />
+        <sd-skeleton height="8rem" />
+      </div>
+    } @else if (loadError()?.isForbidden) {
+      <app-access-denied description="You don't have permission to edit these questions." />
+    } @else if (loadError()) {
+      <sd-callout tone="danger" role="alert" heading="Could not load the questions">
+        Something went wrong. Try again in a moment.
+        <button sdCalloutActions sd-button type="button" (click)="loaded.reload()">
+          Try again
+        </button>
+      </sd-callout>
+    } @else if (version()) {
+      <div class="intro">
+        <div class="header">
+          <div class="summary">
+            <p class="summary-text">{{ summary() }}</p>
+            @if (dirty()) {
+              <sd-badge tone="warning" dot>Unsaved changes</sd-badge>
+            }
+          </div>
+          <div class="actions">
+            @if (dirty()) {
+              <button sd-button type="button" [disabled]="saving()" (click)="requestDiscard()">
+                Discard changes
+              </button>
+            }
+            <button
+              sd-button
+              variant="primary"
+              type="button"
+              [icon]="icons.save"
+              [loading]="saving()"
+              [disabled]="!dirty() || saving()"
+              (click)="requestSave()"
+            >
+              Save questions
+            </button>
+          </div>
+        </div>
+
+        @if (createsVersion()) {
+          <sd-callout tone="info" [heading]="'Saving creates version ' + nextVersionNumber()">
+            Employees have already taken this version. Your changes are saved as a new version, and
+            new attempts use it. Earlier attempts and results stay as they are, and attempts in
+            progress finish on the version they started with.
+          </sd-callout>
+        }
+
+        @if (formError(); as error) {
+          <sd-callout tone="danger" role="alert">{{ error }}</sd-callout>
+        }
+      </div>
+    }
+  </sd-panel-section>
+
+  @if (version()) {
+    @for (
+      question of questions();
+      track question.key;
+      let qi = $index, qFirst = $first, qLast = $last
+    ) {
+      <sd-panel-section [eyebrow]="'Question ' + (qi + 1)">
+        <div class="question" role="group" [attr.aria-label]="'Question ' + (qi + 1)">
+          <div class="row">
+            <sd-field
+              class="grow"
+              label="Question"
+              required
+              [error]="errorFor('questions[' + qi + '].text')"
+            >
+              <textarea
+                sd-input
+                rows="2"
+                [attr.data-question-text]="question.key"
+                [value]="question.text"
+                [disabled]="saving()"
+                (input)="setQuestionText(qi, $event)"
+              ></textarea>
+            </sd-field>
+            <div class="tools">
+              <button
+                sd-button
+                variant="ghost"
+                type="button"
+                iconOnly
+                [icon]="icons.up"
+                [attr.aria-label]="'Move question ' + (qi + 1) + ' up'"
+                [attr.data-move]="'question-' + question.key + '-up'"
+                [disabled]="qFirst || saving()"
+                (click)="moveQuestion(qi, -1)"
+              ></button>
+              <button
+                sd-button
+                variant="ghost"
+                type="button"
+                iconOnly
+                [icon]="icons.down"
+                [attr.aria-label]="'Move question ' + (qi + 1) + ' down'"
+                [attr.data-move]="'question-' + question.key + '-down'"
+                [disabled]="qLast || saving()"
+                (click)="moveQuestion(qi, 1)"
+              ></button>
+              <button
+                sd-button
+                variant="ghost"
+                type="button"
+                iconOnly
+                [icon]="icons.remove"
+                [attr.aria-label]="'Remove question ' + (qi + 1)"
+                [disabled]="saving()"
+                (click)="removeQuestion(qi)"
+              ></button>
+            </div>
+          </div>
+
+          <div
+            class="options"
+            role="group"
+            [attr.aria-label]="'Answer options of question ' + (qi + 1)"
+          >
+            <p class="label">Answer options</p>
+            @for (
+              option of question.answerOptions;
+              track option.key;
+              let oi = $index, oFirst = $first, oLast = $last
+            ) {
+              <div class="row option">
+                <sd-field
+                  class="grow"
+                  [label]="'Answer ' + letter(oi)"
+                  required
+                  [error]="errorFor('questions[' + qi + '].answerOptions[' + oi + '].text')"
+                >
+                  <input
+                    sd-input
+                    type="text"
+                    [attr.data-option-text]="option.key"
+                    [value]="option.text"
+                    [disabled]="saving()"
+                    (input)="setOptionText(qi, oi, $event)"
+                  />
+                </sd-field>
+                <div class="tools">
+                  @if (option.isCorrect) {
+                    <sd-badge tone="success">Correct</sd-badge>
+                  }
+                  <button
+                    sd-button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    iconOnly
+                    [icon]="icons.up"
+                    [attr.aria-label]="
+                      'Move answer ' + letter(oi) + ' of question ' + (qi + 1) + ' up'
+                    "
+                    [attr.data-move]="'option-' + option.key + '-up'"
+                    [disabled]="oFirst || saving()"
+                    (click)="moveOption(qi, oi, -1)"
+                  ></button>
+                  <button
+                    sd-button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    iconOnly
+                    [icon]="icons.down"
+                    [attr.aria-label]="
+                      'Move answer ' + letter(oi) + ' of question ' + (qi + 1) + ' down'
+                    "
+                    [attr.data-move]="'option-' + option.key + '-down'"
+                    [disabled]="oLast || saving()"
+                    (click)="moveOption(qi, oi, 1)"
+                  ></button>
+                  <button
+                    sd-button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    iconOnly
+                    [icon]="icons.remove"
+                    [attr.aria-label]="'Remove answer ' + letter(oi) + ' of question ' + (qi + 1)"
+                    [disabled]="saving()"
+                    (click)="removeOption(qi, oi)"
+                  ></button>
+                </div>
+              </div>
+            }
+            <div>
+              <button
+                sd-button
+                variant="ghost"
+                size="sm"
+                type="button"
+                [icon]="icons.add"
+                [attr.data-add-option]="question.key"
+                [disabled]="saving()"
+                (click)="addOption(qi)"
+              >
+                Add answer option
+              </button>
+            </div>
+          </div>
+
+          <sd-field
+            label="Correct answer"
+            hint="Exactly one answer is correct."
+            required
+            [error]="errorFor('questions[' + qi + '].answerOptions')"
+          >
+            <sd-select
+              placeholder="Choose the correct answer"
+              [options]="correctOptions(question)"
+              [value]="correctKey(question)"
+              [disabled]="saving() || question.answerOptions.length === 0"
+              (valueChange)="setCorrect(qi, $event)"
+            />
+          </sd-field>
+
+          <sd-field
+            label="Feedback for a wrong answer"
+            hint="Optional. Employees see it when they answer this question wrong."
+            [error]="errorFor('questions[' + qi + '].explanation')"
+          >
+            <textarea
+              sd-input
+              rows="2"
+              [value]="question.explanation"
+              [disabled]="saving()"
+              (input)="setExplanation(qi, $event)"
+            ></textarea>
+          </sd-field>
+        </div>
+      </sd-panel-section>
+    } @empty {
+      <sd-panel-section>
+        <sd-empty-state
+          [icon]="icons.empty"
+          title="No questions yet"
+          description="Add the first question. Each question needs at least two answer options, with one correct."
+        >
+          <button
+            sd-button
+            variant="primary"
+            type="button"
+            data-add-question
+            [icon]="icons.add"
+            [disabled]="saving()"
+            (click)="addQuestion()"
+          >
+            Add question
+          </button>
+        </sd-empty-state>
+        @if (errorFor('questions'); as error) {
+          <p class="error" role="alert">{{ error }}</p>
+        }
+      </sd-panel-section>
+    }
+
+    @if (questions().length > 0) {
+      <sd-panel-section>
+        <div class="footer">
+          <button
+            sd-button
+            type="button"
+            data-add-question
+            [icon]="icons.add"
+            [disabled]="saving()"
+            (click)="addQuestion()"
+          >
+            Add question
+          </button>
+          <button
+            sd-button
+            variant="primary"
+            type="button"
+            [icon]="icons.save"
+            [loading]="saving()"
+            [disabled]="!dirty() || saving()"
+            (click)="requestSave()"
+          >
+            Save questions
+          </button>
+        </div>
+      </sd-panel-section>
+    }
+  }
+</sd-panel>
+
+<p class="visually-hidden" aria-live="polite">{{ announcement() }}</p>
+
+<app-confirm-dialog
+  [open]="confirmation() !== null"
+  [heading]="
+    confirmation() === 'new-version'
+      ? 'Save as version ' + nextVersionNumber() + '?'
+      : confirmation() === 'discard'
+        ? 'Discard changes?'
+        : 'Leave without saving?'
+  "
+  [confirmLabel]="
+    confirmation() === 'new-version'
+      ? 'Save as version ' + nextVersionNumber()
+      : confirmation() === 'discard'
+        ? 'Discard changes'
+        : 'Leave without saving'
+  "
+  [cancelLabel]="confirmation() === 'new-version' ? 'Cancel' : 'Keep editing'"
+  [tone]="confirmation() === 'new-version' ? 'primary' : 'danger'"
+  [busy]="saving()"
+  [error]="confirmError()"
+  (confirmed)="onConfirmed()"
+  (closed)="onConfirmClosed()"
+>
+  @switch (confirmation()) {
+    @case ('new-version') {
+      <p class="message">
+        Employees have already taken version {{ version()?.versionNumber }}. Your changes will be
+        saved as version {{ nextVersionNumber() }}, and new attempts will use it.
+      </p>
+      <p class="message">
+        Past attempts and results are kept and do not change. Attempts in progress finish on version
+        {{ version()?.versionNumber }}.
+      </p>
+    }
+    @case ('discard') {
+      <p class="message">Your changes to the questions are not saved. They will be lost.</p>
+    }
+    @case ('leave') {
+      <p class="message">
+        Your changes to the questions are not saved. If you leave this page, they will be lost.
+      </p>
+    }
+  }
+</app-confirm-dialog>

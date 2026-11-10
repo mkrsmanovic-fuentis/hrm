@@ -9,6 +9,7 @@ import {
   signedOutGuard,
 } from './core/auth';
 import { Shell } from './core/shell/shell';
+import { unsavedChangesGuard } from './features/questionnaires/unsaved-changes.guard';
 
 /*
  * Pages behind sign-in live in one of two areas:
@@ -72,6 +73,7 @@ export const routes: Routes = [
           {
             path: 'questionnaires/:questionnaireId',
             title: 'Questionnaire · HRM Platform',
+            canDeactivate: [unsavedChangesGuard],
             loadComponent: () =>
               import('./features/questionnaires/questionnaire-detail').then(
                 (m) => m.QuestionnaireDetail,

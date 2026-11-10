@@ -239,6 +239,41 @@ export interface paths {
         patch: operations["updateQuestionnaire"];
         trace?: never;
     };
+    "/questionnaires/{questionnaireId}/questions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the questions
+         * @description Returns the questionnaire's **current version**, with its questions and their answer options in display order, including which answer is correct. `attemptCount` says how many attempts use this version, so an editor can tell whether saving will create a new version.
+         *
+         *     **Access:** administrators only. Employees get `403`: they never get correct answers from this endpoint.
+         */
+        get: operations["getQuestionnaireQuestions"];
+        /**
+         * Save the questions
+         * @description Replaces the questions of the questionnaire with the ordered list sent: the whole list at once, in display order. Questions and answer options get their `position` from their place in the list.
+         *
+         *     - **No attempts on the current version:** the questions of the current version are replaced in place. `currentVersionId` stays the same.
+         *     - **Attempts on the current version** (in progress or submitted): a **new version** is created with the questions sent, its `versionNumber` one higher than the latest, and `currentVersionId` points to it. Earlier versions, their questions and their attempts never change. An attempt in progress finishes on the version it started with; new attempts use the new version.
+         *     - **Nothing changed:** when the list sent equals the current questions, nothing is saved, no version is created and nothing is logged.
+         *     - Question and answer option IDs are assigned by the server on every save. Do not rely on them staying the same.
+         *
+         *     Every question needs text, and every answer option needs text. An **active** questionnaire must also stay valid: at least one question, and for each question at least two answer options with exactly one correct. A save that breaks this answers `422`, with field names such as `questions[2].answerOptions`. An **inactive** questionnaire, a draft, may be saved incomplete.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `updated` on the questionnaire, listing `questions` with the questions before and after, and `currentVersionId` when a new version was created.
+         */
+        put: operations["replaceQuestionnaireQuestions"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -543,8 +578,29 @@ export interface components {
             versionNumber: number;
             /** @description Questions in display order. */
             questions: components["schemas"]["Question"][];
+            /** @description Derived. Attempts that use this version, in progress and submitted. When it is above 0, saving questions creates a new version. Never sent in requests. */
+            readonly attemptCount: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
+        };
+        /** @description The complete, ordered list of questions for the questionnaire. It replaces the current questions; see `PUT /questionnaires/{questionnaireId}/questions` for when that creates a new version. Spaces around text are removed, and an empty explanation is stored as `null`. Unknown fields are rejected. */
+        QuestionnaireQuestionsUpdate: {
+            /** @description Questions in display order. An active questionnaire needs at least one; an inactive draft may send none. */
+            questions: components["schemas"]["QuestionInput"][];
+        };
+        /** @description One question as the editor sends it. Its position is its place in the list. */
+        QuestionInput: {
+            text: string;
+            /** @description Optional feedback shown when the question is answered wrong. Omit it or send `null` or empty text for none. */
+            explanation?: string | null;
+            /** @description Answer options in display order. An active questionnaire needs at least two, with exactly one correct. An inactive draft may send fewer, or none marked correct. */
+            answerOptions: components["schemas"]["AnswerOptionInput"][];
+        };
+        /** @description One answer option as the editor sends it. Its position is its place in the list. */
+        AnswerOptionInput: {
+            text: string;
+            /** @description Whether this is the correct answer. */
+            isCorrect: boolean;
         };
         /** @description One multiple-choice question with exactly one correct answer. Every question is required. */
         Question: {
@@ -556,7 +612,7 @@ export interface components {
             text: string;
             /** @description Optional feedback shown when the question is answered wrong. */
             explanation: string | null;
-            /** @description Possible answers in display order. Exactly one is correct. */
+            /** @description Possible answers in display order. At least two, with exactly one correct, in an active questionnaire. A question in an inactive draft may still be incomplete. */
             answerOptions: components["schemas"]["AnswerOption"][];
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
@@ -962,6 +1018,9 @@ export type QuestionnairePage = components['schemas']['QuestionnairePage'];
 export type QuestionnaireCreate = components['schemas']['QuestionnaireCreate'];
 export type QuestionnaireUpdate = components['schemas']['QuestionnaireUpdate'];
 export type QuestionnaireVersion = components['schemas']['QuestionnaireVersion'];
+export type QuestionnaireQuestionsUpdate = components['schemas']['QuestionnaireQuestionsUpdate'];
+export type QuestionInput = components['schemas']['QuestionInput'];
+export type AnswerOptionInput = components['schemas']['AnswerOptionInput'];
 export type Question = components['schemas']['Question'];
 export type AnswerOption = components['schemas']['AnswerOption'];
 export type AssignmentStatus = components['schemas']['AssignmentStatus'];
@@ -1462,6 +1521,66 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["NotReadyToActivate"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getQuestionnaireQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the questionnaire. */
+                questionnaireId: components["parameters"]["QuestionnaireId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The current version with its questions. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionnaireVersion"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    replaceQuestionnaireQuestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the questionnaire. */
+                questionnaireId: components["parameters"]["QuestionnaireId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionnaireQuestionsUpdate"];
+            };
+        };
+        responses: {
+            /** @description The current version after the save, with its questions. A new version when one was created. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionnaireVersion"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
             422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
