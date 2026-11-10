@@ -23,7 +23,7 @@ describe('seed data', () => {
     }
   });
 
-  it('has 30 to 50 users with unique emails and the 7 FRD topics', () => {
+  it('has 30 to 50 users with unique emails, the 7 FRD topics and one inactive topic', () => {
     expect(data.users.length).toBeGreaterThanOrEqual(30);
     expect(data.users.length).toBeLessThanOrEqual(50);
     expect(new Set(data.users.map((user) => user.email)).size).toBe(data.users.length);
@@ -35,6 +35,10 @@ describe('seed data', () => {
       'Safe Internet Usage',
       'Device Security',
       'Remote Work Security',
+      'Clean Desk Policy',
+    ]);
+    expect(data.topics.filter((topic) => topic.status === 'inactive').map((t) => t.name)).toEqual([
+      'Clean Desk Policy',
     ]);
   });
 

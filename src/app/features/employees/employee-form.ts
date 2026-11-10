@@ -101,7 +101,8 @@ export class EmployeeForm implements OnInit {
       { value: NO_DEPARTMENT, label: 'No department' },
       ...choosable.map((d) => ({
         value: d.id,
-        label: d.name,
+        // The label also shows in the closed select, so it says when the department is inactive.
+        label: d.status === 'active' ? d.name : `${d.name} (inactive)`,
         description:
           d.status === 'active' ? undefined : 'Inactive. Kept because they are already in it.',
       })),

@@ -123,6 +123,15 @@ describe('users mock handlers', () => {
       expect(byEmail.items.map((u) => u.firstName)).toEqual(['Chloé']);
     });
 
+    it('treats a plain and a typographic apostrophe in the search the same', async () => {
+      const { api } = setup();
+
+      for (const q of ["o'neill", 'O’Neill', 'o‘neill']) {
+        const result = await firstValueFrom(api.get('/users', { query: { q } }));
+        expect(result.items.map((u) => u.lastName)).toEqual(['O’Neill']);
+      }
+    });
+
     it('sorts by completed training count', async () => {
       const { api } = setup();
 

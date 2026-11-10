@@ -1,9 +1,15 @@
-/** Training content for the seed: the 7 topics from the FRD and their questionnaires. */
+import type { ActivityStatus, TopicIcon } from '../../app/core/api/api-schema.gen';
+
+/**
+ * Training content for the seed: the 7 topics from the FRD, one retired topic, and their
+ * questionnaires.
+ */
 
 export interface TopicSeed {
   name: string;
   description: string;
-  icon: string;
+  icon: TopicIcon;
+  status: ActivityStatus;
 }
 
 export interface QuestionSeed {
@@ -32,38 +38,53 @@ export const topicSeeds: TopicSeed[] = [
     description:
       'Recognize fraudulent emails, messages and calls that try to steal credentials or money.',
     icon: 'fish',
+    status: 'active',
   },
   {
     name: 'Password Security',
     description:
       'Create strong passwords, use a password manager and protect accounts with multi-factor authentication.',
     icon: 'key-round',
+    status: 'active',
   },
   {
     name: 'Data Protection',
     description: 'Handle personal and confidential data correctly, from collection to deletion.',
     icon: 'shield-check',
+    status: 'active',
   },
   {
     name: 'Social Engineering',
     description: 'Spot manipulation techniques such as pretexting, baiting and tailgating.',
     icon: 'users',
+    status: 'active',
   },
   {
     name: 'Safe Internet Usage',
     description:
       'Browse, download and use public networks without exposing yourself or the company.',
     icon: 'globe',
+    status: 'active',
   },
   {
     name: 'Device Security',
     description: 'Keep laptops, phones and removable media updated, locked and encrypted.',
     icon: 'laptop',
+    status: 'active',
   },
   {
     name: 'Remote Work Security',
     description: 'Work safely from home, while traveling and on shared networks.',
     icon: 'house',
+    status: 'active',
+  },
+  // Retired, so the demo shows that employees see only active topics.
+  {
+    name: 'Clean Desk Policy',
+    description:
+      'Keep printed documents and unlocked screens out of sight when you leave your desk.',
+    icon: 'file-lock',
+    status: 'inactive',
   },
 ];
 

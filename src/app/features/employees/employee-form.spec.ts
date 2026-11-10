@@ -63,7 +63,7 @@ describe('Employee form', () => {
     const options = component.departmentOptions();
 
     expect(options[0]).toEqual({ value: '', label: 'No department' });
-    expect(options.map((o) => o.label)).not.toContain('Facilities');
+    expect(options.map((o) => o.label).join()).not.toContain('Facilities');
     expect(options).toHaveLength(
       1 + mock.db.data.departments.filter((d) => d.status === 'active').length,
     );
@@ -72,8 +72,13 @@ describe('Employee form', () => {
   it('keeps an inactive department the user is already in, marked inactive', async () => {
     const { component, submit, type, saved, record } = await render('Patrick');
 
-    const facilities = component.departmentOptions().find((o) => o.label === 'Facilities');
+    const facilities = component.departmentOptions().find((o) => o.value === record?.departmentId);
+    // The label shows in the closed select too, so it says the department is inactive.
+    expect(facilities?.label).toBe('Facilities (inactive)');
     expect(facilities?.description).toContain('Inactive');
+    expect(document.querySelector('sd-drawer sd-select')?.textContent).toContain(
+      'Facilities (inactive)',
+    );
 
     await type('Last name', 'O’Neil');
     await submit();

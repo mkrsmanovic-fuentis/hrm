@@ -1,0 +1,68 @@
+<sd-drawer
+  modal
+  size="md"
+  [heading]="heading()"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  <form id="topic-form" class="form" novalidate (submit)="save($event)">
+    @if (formError(); as error) {
+      <sd-callout tone="danger" role="alert" heading="Could not save the topic">
+        {{ error }}
+      </sd-callout>
+    }
+
+    <sd-field label="Name" [error]="visibleError(f.name)" required>
+      <input sd-input autocomplete="off" [formField]="f.name" />
+    </sd-field>
+
+    <sd-field
+      label="Description"
+      hint="What employees learn in this topic."
+      [error]="visibleError(f.description)"
+      required
+    >
+      <textarea sd-input rows="5" [formField]="f.description"></textarea>
+    </sd-field>
+
+    <div class="icon">
+      <sd-field
+        label="Icon"
+        hint="Optional. Shown next to the topic name."
+        [error]="visibleError(f.icon)"
+      >
+        <sd-select
+          placeholder="No icon"
+          clearable
+          clearLabel="Remove icon"
+          searchable
+          searchPlaceholder="Search icons"
+          [options]="iconOptions"
+          [formField]="f.icon"
+        />
+      </sd-field>
+      @if (preview(); as chosen) {
+        <p class="preview" aria-live="polite">
+          <sd-icon size="lg" [icon]="chosen.icon" />
+          <span>Preview: {{ chosen.label }}</span>
+        </p>
+      }
+    </div>
+  </form>
+
+  <ng-container sdDrawerFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="topic-form"
+      [loading]="saving()"
+      [disabled]="saving()"
+    >
+      {{ isNew() ? 'Create topic' : 'Save changes' }}
+    </button>
+  </ng-container>
+</sd-drawer>

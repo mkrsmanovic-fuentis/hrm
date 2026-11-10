@@ -190,13 +190,19 @@ export interface paths {
         };
         /**
          * List topics
-         * @description Returns the organization's topics, one page at a time.
+         * @description Returns the organization's topics, one page at a time, each with its `questionnaireCount`.
          *
          *     **Access:** administrators and employees. Administrators get every topic. Employees get only active topics, so `status=inactive` returns an empty list for them.
          */
         get: operations["listTopics"];
         put?: never;
-        post?: never;
+        /**
+         * Create a topic
+         * @description Creates an active topic. The name must be unique within the organization, among active and inactive topics, ignoring upper and lower case.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+         */
+        post: operations["createTopic"];
         delete?: never;
         options?: never;
         head?: never;
@@ -212,7 +218,7 @@ export interface paths {
         };
         /**
          * Get a topic
-         * @description Returns one topic of the current organization.
+         * @description Returns one topic of the current organization, with its `questionnaireCount`.
          *
          *     **Access:** administrators and employees. An inactive topic answers `404` to employees, as if it did not exist.
          */
@@ -222,7 +228,15 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update a topic
+         * @description Changes the fields sent and leaves the others as they are. Send `status` to deactivate (`inactive`) or reactivate (`active`) the topic; there are no separate endpoints for that.
+         *
+         *     Deactivating keeps the topic's history and its questionnaires' results. Its questionnaires are not changed.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+         */
+        patch: operations["updateTopic"];
         trace?: never;
     };
 }
@@ -457,16 +471,24 @@ export interface components {
             /** @description `inactive` deactivates the department, `active` reactivates it. */
             status?: components["schemas"]["ActivityStatus"];
         };
+        /**
+         * @description A Lucide icon name from the curated list of security icons the app can show. Administrators pick one; other names are rejected.
+         * @enum {string}
+         */
+        TopicIcon: "fish" | "key-round" | "lock" | "shield-check" | "database" | "file-lock" | "eye-off" | "users" | "globe" | "wifi" | "network" | "cloud" | "laptop" | "smartphone" | "usb" | "house" | "bug";
         /** @description A cybersecurity training subject, such as Phishing Awareness. A topic contains questionnaires. */
         Topic: {
             id: components["schemas"]["Id"];
             organizationId: components["schemas"]["Id"];
-            /** @description Unique within the organization. */
+            /** @description Unique within the organization, among active and inactive topics, ignoring upper and lower case. */
             name: string;
             description: string;
-            /** @description Optional icon name from the ui-kit icon set (Lucide), for example `fish`. */
-            icon: string | null;
+            /** @description Optional icon, a Lucide icon name from the curated list. `null` when the topic has none. */
+            icon: components["schemas"]["TopicIcon"] | null;
+            /** @description Inactive topics keep their history and their questionnaires' results. Employees do not see them. */
             status: components["schemas"]["ActivityStatus"];
+            /** @description Derived. The number of questionnaires in the topic, active and inactive. Never sent in requests. */
+            readonly questionnaireCount: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
         };
@@ -474,6 +496,27 @@ export interface components {
         TopicPage: {
             items: components["schemas"]["Topic"][];
             page: components["schemas"]["PageInfo"];
+        };
+        /** @description A new topic. It starts active. Spaces around the name and description are removed. Unknown fields are rejected. */
+        TopicCreate: {
+            /**
+             * @description Unique within the organization, among active and inactive topics, ignoring upper and lower case.
+             * @example Phishing Awareness
+             */
+            name: string;
+            description: string;
+            /** @description Optional. Omit it or send `null` for no icon. */
+            icon?: components["schemas"]["TopicIcon"] | null;
+        };
+        /** @description The fields to change. Fields left out stay as they are. Spaces around the name and description are removed. Unknown fields are rejected. */
+        TopicUpdate: {
+            /** @description Unique within the organization, among active and inactive topics, ignoring upper and lower case. */
+            name?: string;
+            description?: string;
+            /** @description Send `null` to remove the icon. */
+            icon?: components["schemas"]["TopicIcon"] | null;
+            /** @description `inactive` deactivates the topic, `active` reactivates it. Its questionnaires are not changed. */
+            status?: components["schemas"]["ActivityStatus"];
         };
         /** @description A set of questions on one topic, with its settings. The questions live in versions. */
         Questionnaire: {
@@ -870,6 +913,8 @@ export interface components {
         DepartmentId: components["schemas"]["Id"];
         /** @description ID of the user. */
         UserId: components["schemas"]["Id"];
+        /** @description ID of the topic. */
+        TopicId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: never;
@@ -898,8 +943,11 @@ export type Department = components['schemas']['Department'];
 export type DepartmentPage = components['schemas']['DepartmentPage'];
 export type DepartmentCreate = components['schemas']['DepartmentCreate'];
 export type DepartmentUpdate = components['schemas']['DepartmentUpdate'];
+export type TopicIcon = components['schemas']['TopicIcon'];
 export type Topic = components['schemas']['Topic'];
 export type TopicPage = components['schemas']['TopicPage'];
+export type TopicCreate = components['schemas']['TopicCreate'];
+export type TopicUpdate = components['schemas']['TopicUpdate'];
 export type Questionnaire = components['schemas']['Questionnaire'];
 export type QuestionnaireVersion = components['schemas']['QuestionnaireVersion'];
 export type Question = components['schemas']['Question'];
@@ -930,6 +978,7 @@ export type ParameterPage = components['parameters']['Page'];
 export type ParameterPageSize = components['parameters']['PageSize'];
 export type ParameterDepartmentId = components['parameters']['DepartmentId'];
 export type ParameterUserId = components['parameters']['UserId'];
+export type ParameterTopicId = components['parameters']['TopicId'];
 export type $defs = Record<string, never>;
 export interface operations {
     getCurrentSession: {
@@ -1164,7 +1213,7 @@ export interface operations {
                 role?: components["schemas"]["RoleKey"];
                 /** @description Only return users in this department, active or inactive. */
                 departmentId?: components["schemas"]["Id"];
-                /** @description Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored. */
+                /** @description Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored, and a typographic apostrophe (’) matches a plain one ('), so "o'neill" finds "O’Neill". */
                 q?: string;
                 /** @description Sort order. Prefix a field with `-` for descending order. `name` sorts by the full name, first name first. */
                 sort?: "name" | "-name" | "email" | "-email" | "assignedTrainingCount" | "-assignedTrainingCount" | "completedTrainingCount" | "-completedTrainingCount" | "createdAt" | "-createdAt";
@@ -1296,10 +1345,12 @@ export interface operations {
                 page?: components["parameters"]["Page"];
                 /** @description Number of items per page. */
                 pageSize?: components["parameters"]["PageSize"];
-                /** @description Only return topics with this status. Omit to return all topics. */
+                /** @description Only return topics with this status. Omit to return all topics, active and inactive. Employees only ever get active topics. */
                 status?: components["schemas"]["ActivityStatus"];
+                /** @description Only return topics whose name contains this text, ignoring upper and lower case. Spaces around the text are ignored. */
+                q?: string;
                 /** @description Sort order. Prefix a field with `-` for descending order. */
-                sort?: "name" | "-name" | "createdAt" | "-createdAt";
+                sort?: "name" | "-name" | "questionnaireCount" | "-questionnaireCount" | "createdAt" | "-createdAt";
             };
             header?: never;
             path?: never;
@@ -1322,13 +1373,43 @@ export interface operations {
             500: components["responses"]["InternalError"];
         };
     };
+    createTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicCreate"];
+            };
+        };
+        responses: {
+            /** @description Created. The new topic. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Topic"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     getTopic: {
         parameters: {
             query?: never;
             header?: never;
             path: {
                 /** @description ID of the topic. */
-                topicId: components["schemas"]["Id"];
+                topicId: components["parameters"]["TopicId"];
             };
             cookie?: never;
         };
@@ -1346,6 +1427,40 @@ export interface operations {
             401: components["responses"]["Unauthenticated"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the topic. */
+                topicId: components["parameters"]["TopicId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated topic. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Topic"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
     };

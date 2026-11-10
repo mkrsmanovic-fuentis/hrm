@@ -39,6 +39,20 @@ interface Editing {
 const fullName = (user: Pick<User, 'firstName' | 'lastName'>) =>
   `${user.firstName} ${user.lastName}`;
 
+/** The hidden column that `sd-list`'s search matches, besides name and email. */
+const SEARCH_COLUMN = 'search';
+const TYPOGRAPHIC_APOSTROPHES = /[‘’ʼ]/g;
+
+/**
+ * The name and email with every apostrophe written both ways, so typing "o'neill" finds
+ * "O’Neill" and the other way round, like the API's `q`.
+ */
+const searchText = (user: User) => {
+  const text = `${fullName(user)} ${user.email}`;
+  const plain = text.replace(TYPOGRAPHIC_APOSTROPHES, "'");
+  return `${plain} ${plain.replace(/'/g, '’')}`;
+};
+
 /**
  * The Employees page at `/admin/employees`: every user, administrators and employees, with search,
  * filters and sorting, and actions to create, edit, deactivate and reactivate them. Built on the
@@ -184,7 +198,15 @@ export class EmployeeList {
       minWidth: 6.5,
       maxWidth: 7,
     },
+    {
+      // Never shown: `sd-list` searches every column, hidden ones too, and has no custom matcher.
+      // This one lets the search ignore the kind of apostrophe.
+      id: SEARCH_COLUMN,
+      label: 'Search',
+      value: searchText,
+    },
   ];
+  protected readonly hiddenColumns: ReadonlySet<string> = new Set([SEARCH_COLUMN]);
 
   protected readonly filters = computed<SdListFilter<User>[]>(() => [
     {

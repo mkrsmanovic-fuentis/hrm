@@ -24,6 +24,23 @@ export function isValidEmail(value: string): boolean {
  */
 export const isSameEmail = sameEmail;
 
+/**
+ * Text as `q` compares it: lower case, with typographic apostrophes (’ ‘ ʼ) as a plain `'`, so
+ * "o'neill" finds "O’Neill".
+ */
+export function searchKey(text: string): string {
+  return text.toLowerCase().replace(/[‘’ʼ]/g, "'");
+}
+
+/** `q` matches the full name or the email. */
+export function matchesUserSearch(
+  user: Pick<User, 'firstName' | 'lastName' | 'email'>,
+  query: string,
+): boolean {
+  const key = searchKey(query);
+  return searchKey(fullName(user)).includes(key) || searchKey(user.email).includes(key);
+}
+
 /** The user's full name, as the app shows it and `sort=name` orders it: first name first. */
 export function fullName(user: Pick<User, 'firstName' | 'lastName'>): string {
   return `${user.firstName} ${user.lastName}`;

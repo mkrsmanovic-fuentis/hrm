@@ -5,7 +5,6 @@ import type {
   AuditLogEntry,
   Notification,
   Role,
-  Topic,
 } from '../../app/core/api/api-schema.gen';
 import { auditChanges } from '../db/audit';
 import type {
@@ -15,6 +14,7 @@ import type {
   QuestionnaireRecord,
   QuestionnaireVersionRecord,
   QuestionRecord,
+  TopicRecord,
   UserRecord,
 } from '../db/mock-data';
 import {
@@ -32,7 +32,7 @@ import { SeededRandom } from './random';
  * Bump when the seed or the shape of stored records changes. Browsers holding data from an
  * older version start again from the new seed on their next load.
  */
-export const SEED_VERSION = 4;
+export const SEED_VERSION = 5;
 
 const RANDOM_SEED = 20261110;
 const MINUTE = 60_000;
@@ -73,8 +73,8 @@ const scenarios: [Scenario, number][] = [
 ];
 
 /**
- * Builds the seed dataset: one organization with departments, 42 users, the 7 FRD topics,
- * questionnaires with versions, and assignments and attempts in every status.
+ * Builds the seed dataset: one organization with departments, 42 users, the 7 FRD topics and a
+ * retired one, questionnaires with versions, and assignments and attempts in every status.
  * The same `now` always gives the same data. Dates are relative to `now`.
  */
 export function buildSeed(now: Date = new Date()): MockData {
@@ -171,13 +171,16 @@ export function buildSeed(now: Date = new Date()): MockData {
 
   // ---------------------------------------------------------------- topics and questionnaires
 
-  const topics: Topic[] = topicSeeds.map((seed, index) => ({
-    ...record(orgCreated + 10 * DAY + index * HOUR),
-    name: seed.name,
-    description: seed.description,
-    icon: seed.icon,
-    status: 'active',
-  }));
+  const topics: TopicRecord[] = topicSeeds.map((seed, index) => {
+    const created = orgCreated + 10 * DAY + index * HOUR;
+    return {
+      ...record(created, seed.status === 'inactive' ? nowMs - 90 * DAY : created),
+      name: seed.name,
+      description: seed.description,
+      icon: seed.icon,
+      status: seed.status,
+    };
+  });
 
   const questionnaires: QuestionnaireRecord[] = [];
   const questionnaireVersions: QuestionnaireVersionRecord[] = [];
@@ -519,7 +522,12 @@ export function buildSeed(now: Date = new Date()): MockData {
   departments
     .filter((d) => d.status === 'inactive')
     .forEach((d) => audit('department', d, 'deactivated', Date.parse(d.updatedAt)));
-  topics.forEach((t) => audit('topic', t, 'created', Date.parse(t.createdAt), created(t)));
+  topics.forEach((t) =>
+    audit('topic', t, 'created', Date.parse(t.createdAt), created(t, { status: 'active' })),
+  );
+  topics
+    .filter((t) => t.status === 'inactive')
+    .forEach((t) => audit('topic', t, 'deactivated', Date.parse(t.updatedAt)));
   built.forEach(({ record: q, versions }) => {
     const first = { status: 'active' as const, currentVersionId: versions[0].id };
     audit('questionnaire', q, 'created', Date.parse(q.createdAt), created(q, first));

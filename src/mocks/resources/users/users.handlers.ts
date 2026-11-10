@@ -7,6 +7,7 @@ import {
   fullName,
   isSameEmail,
   isValidEmail,
+  matchesUserSearch,
   toUser,
   USER_EMAIL_MAX_LENGTH,
   USER_NAME_MAX_LENGTH,
@@ -60,7 +61,7 @@ export const userRoutes = [
     const status = query.oneOf('status', STATUSES);
     const role = query.oneOf('role', ROLES);
     const departmentId = query.text('departmentId', { maxLength: ID_MAX_LENGTH });
-    const search = query.text('q', { maxLength: USER_EMAIL_MAX_LENGTH })?.toLowerCase();
+    const search = query.text('q', { maxLength: USER_EMAIL_MAX_LENGTH });
     const sort = query.oneOf('sort', SORTS, 'name');
     if (query.errors.length > 0) return validationFailed(query.errors);
 
@@ -68,7 +69,7 @@ export const userRoutes = [
       .filter((user) => !status || user.status === status)
       .filter((user) => !role || user.role === role)
       .filter((user) => !departmentId || user.departmentId === departmentId)
-      .filter((user) => !search || matchesSearch(user, search))
+      .filter((user) => !search || matchesUserSearch(user, search))
       .map((user) => toUser(user, db.data, now));
     return ok(page(sortBy(users, sort, sortFields), pagination));
   }),
@@ -205,11 +206,6 @@ export const userRoutes = [
     return ok(toUser(updated, db.data, now));
   }),
 ];
-
-/** `q` matches the full name or the email, ignoring case. `search` is lower case already. */
-function matchesSearch(user: UserRecord, search: string): boolean {
-  return fullName(user).toLowerCase().includes(search) || user.email.toLowerCase().includes(search);
-}
 
 /**
  * Only an active department can be chosen. `currentId` is the user's department before the

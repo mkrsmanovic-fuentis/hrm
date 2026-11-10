@@ -29,7 +29,7 @@ import type {
 export const DERIVED_FIELDS = {
   user: ['assignedTrainingCount', 'completedTrainingCount'],
   department: ['employeeCount'],
-  topic: [],
+  topic: ['questionnaireCount'],
   questionnaire: ['questionCount'],
   assignment: ['status', 'attemptCount', 'latestScore', 'completedAt'],
 } as const satisfies Record<AuditEntityType, readonly string[]>;
@@ -38,6 +38,7 @@ type Derived<E extends AuditEntityType> = (typeof DERIVED_FIELDS)[E][number];
 
 export type UserRecord = Omit<User, Derived<'user'>>;
 export type DepartmentRecord = Omit<Department, Derived<'department'>>;
+export type TopicRecord = Omit<Topic, Derived<'topic'>>;
 export type QuestionnaireRecord = Omit<Questionnaire, Derived<'questionnaire'>>;
 export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions'>;
 export type QuestionRecord = Omit<Question, 'answerOptions'>;
@@ -61,7 +62,7 @@ export interface MockData {
   roles: Role[];
   users: UserRecord[];
   departments: DepartmentRecord[];
-  topics: Topic[];
+  topics: TopicRecord[];
   questionnaires: QuestionnaireRecord[];
   questionnaireVersions: QuestionnaireVersionRecord[];
   questions: QuestionRecord[];

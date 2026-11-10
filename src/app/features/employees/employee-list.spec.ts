@@ -104,6 +104,7 @@ describe('Employees page', () => {
     expect(
       list()
         ?.columns()
+        .filter((c) => !list()?.hiddenColumns().has(c.id))
         .map((c) => c.label),
     ).toEqual(['Name', 'Email', 'Department', 'Role', 'Status', 'Assigned', 'Completed']);
 
@@ -137,13 +138,37 @@ describe('Employees page', () => {
         ?.columns()
         .filter((c) => c.searchable !== false)
         .map((c) => c.id),
-    ).toEqual(['name', 'email']);
+    ).toEqual(['name', 'email', 'search']);
+    // The search-only column is never shown, and not offered in the Columns menu.
+    expect([...(list()?.hiddenColumns() ?? [])]).toEqual(['search']);
+    expect(column('search')?.hideable).toBeFalsy();
     const filters = list()?.filters() ?? [];
     expect(filters.map((f) => f.label)).toEqual(['Status', 'Role', 'Department']);
     const departments = filters.find((f) => f.id === 'department')?.options ?? [];
     expect(departments[0]).toEqual({ value: 'none', label: 'No department' });
     expect(departments.map((o) => o.label)).toContain('Facilities (inactive)');
     expect(column('name')).toBeDefined();
+  });
+
+  it('finds a name whatever kind of apostrophe is typed', async () => {
+    const { list } = await render();
+    // How sd-list searches: the lower-case query is contained in a searchable column's value.
+    const matches = (query: string) =>
+      (list()?.items() ?? [])
+        .filter((u) =>
+          (list()?.columns() ?? [])
+            .filter((c) => c.searchable !== false)
+            .some((c) =>
+              String(c.value(u) ?? '')
+                .toLowerCase()
+                .includes(query.toLowerCase()),
+            ),
+        )
+        .map((u) => `${u.firstName} ${u.lastName}`);
+
+    expect(matches("o'neill")).toEqual(['Patrick O’Neill']);
+    expect(matches('O’NEILL')).toEqual(['Patrick O’Neill']);
+    expect(matches('oliver.grant@')).toEqual(['Oliver Grant']);
   });
 
   it('shows the no-access state on 403, without the New employee button', async () => {

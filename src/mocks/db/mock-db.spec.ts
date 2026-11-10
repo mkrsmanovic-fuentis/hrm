@@ -30,7 +30,7 @@ describe('MockDb', () => {
   it('starts from the seed and saves it', async () => {
     const db = await openTab();
 
-    expect(db.data.topics).toHaveLength(7);
+    expect(db.data.topics).toHaveLength(8);
     expect(await store.read()).toMatchObject({ version: 1, data: { topics: seedData.topics } });
   });
 
@@ -114,7 +114,7 @@ describe('MockDb', () => {
 
     const count = db.update((data) => data.topics.length);
 
-    expect(count).toBe(7);
+    expect(count).toBe(8);
   });
 
   it('resets to the seed', async () => {
@@ -124,8 +124,8 @@ describe('MockDb', () => {
     db.reset();
     await db.flush();
 
-    expect(db.data.topics).toHaveLength(7);
-    expect((await openTab()).data.topics).toHaveLength(7);
+    expect(db.data.topics).toHaveLength(8);
+    expect((await openTab()).data.topics).toHaveLength(8);
   });
 
   it('starts again from the seed when the stored version is older', async () => {
@@ -133,7 +133,7 @@ describe('MockDb', () => {
       data.topics = [];
     });
 
-    expect((await openTab(2)).data.topics).toHaveLength(7);
+    expect((await openTab(2)).data.topics).toHaveLength(8);
     expect(await store.read()).toMatchObject({ version: 2 });
   });
 

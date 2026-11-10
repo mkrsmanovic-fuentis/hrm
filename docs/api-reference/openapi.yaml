@@ -44,7 +44,7 @@ tags:
   - name: Users
     description: Administrator and employee accounts. Administrators manage them on the Employees page.
   - name: Topics
-    description: Cybersecurity training subjects, such as Phishing Awareness.
+    description: Cybersecurity training subjects, such as Phishing Awareness. Both roles read them; administrators manage them.
 
 paths:
   /auth/session:
@@ -321,7 +321,7 @@ paths:
             $ref: '#/components/schemas/Id'
         - name: q
           in: query
-          description: Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored.
+          description: Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored, and a typographic apostrophe (’) matches a plain one ('), so "o'neill" finds "O’Neill".
           schema:
             type: string
             maxLength: 254
@@ -498,7 +498,7 @@ paths:
       tags: [Topics]
       summary: List topics
       description: |
-        Returns the organization's topics, one page at a time.
+        Returns the organization's topics, one page at a time, each with its `questionnaireCount`.
 
         **Access:** administrators and employees. Administrators get every topic. Employees get only active topics, so `status=inactive` returns an empty list for them.
       x-mint: *spec-status
@@ -507,15 +507,21 @@ paths:
         - $ref: '#/components/parameters/PageSize'
         - name: status
           in: query
-          description: Only return topics with this status. Omit to return all topics.
+          description: Only return topics with this status. Omit to return all topics, active and inactive. Employees only ever get active topics.
           schema:
             $ref: '#/components/schemas/ActivityStatus'
+        - name: q
+          in: query
+          description: Only return topics whose name contains this text, ignoring upper and lower case. Spaces around the text are ignored.
+          schema:
+            type: string
+            maxLength: 100
         - name: sort
           in: query
           description: Sort order. Prefix a field with `-` for descending order.
           schema:
             type: string
-            enum: [name, -name, createdAt, -createdAt]
+            enum: [name, -name, questionnaireCount, -questionnaireCount, createdAt, -createdAt]
             default: name
       responses:
         '200':
@@ -532,6 +538,40 @@ paths:
           $ref: '#/components/responses/ValidationFailed'
         '500':
           $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createTopic
+      tags: [Topics]
+      summary: Create a topic
+      description: |
+        Creates an active topic. The name must be unique within the organization, among active and inactive topics, ignoring upper and lower case.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+      x-mint: *spec-status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopicCreate'
+      responses:
+        '201':
+          description: Created. The new topic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/NotUnique'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /topics/{topicId}:
     get:
@@ -539,17 +579,12 @@ paths:
       tags: [Topics]
       summary: Get a topic
       description: |
-        Returns one topic of the current organization.
+        Returns one topic of the current organization, with its `questionnaireCount`.
 
         **Access:** administrators and employees. An inactive topic answers `404` to employees, as if it did not exist.
       x-mint: *spec-status
       parameters:
-        - name: topicId
-          in: path
-          required: true
-          description: ID of the topic.
-          schema:
-            $ref: '#/components/schemas/Id'
+        - $ref: '#/components/parameters/TopicId'
       responses:
         '200':
           description: The topic.
@@ -563,6 +598,46 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateTopic
+      tags: [Topics]
+      summary: Update a topic
+      description: |
+        Changes the fields sent and leaves the others as they are. Send `status` to deactivate (`inactive`) or reactivate (`active`) the topic; there are no separate endpoints for that.
+
+        Deactivating keeps the topic's history and its questionnaires' results. Its questionnaires are not changed.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/TopicId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TopicUpdate'
+      responses:
+        '200':
+          description: The updated topic.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Topic'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/NotUnique'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -605,6 +680,13 @@ components:
       in: path
       required: true
       description: ID of the user.
+      schema:
+        $ref: '#/components/schemas/Id'
+    TopicId:
+      name: topicId
+      in: path
+      required: true
+      description: ID of the topic.
       schema:
         $ref: '#/components/schemas/Id'
 
@@ -1173,10 +1255,32 @@ components:
 
     # ---------------------------------------------------------------- training content
 
+    TopicIcon:
+      type: string
+      description: A Lucide icon name from the curated list of security icons the app can show. Administrators pick one; other names are rejected.
+      enum:
+        - fish
+        - key-round
+        - lock
+        - shield-check
+        - database
+        - file-lock
+        - eye-off
+        - users
+        - globe
+        - wifi
+        - network
+        - cloud
+        - laptop
+        - smartphone
+        - usb
+        - house
+        - bug
+
     Topic:
       type: object
       description: A cybersecurity training subject, such as Phishing Awareness. A topic contains questionnaires.
-      required: [id, organizationId, name, description, icon, status, createdAt, updatedAt]
+      required: [id, organizationId, name, description, icon, status, questionnaireCount, createdAt, updatedAt]
       properties:
         id:
           $ref: '#/components/schemas/Id'
@@ -1186,16 +1290,24 @@ components:
           type: string
           minLength: 1
           maxLength: 100
-          description: Unique within the organization.
+          description: Unique within the organization, among active and inactive topics, ignoring upper and lower case.
         description:
           type: string
+          minLength: 1
           maxLength: 1000
         icon:
-          type: ['string', 'null']
-          maxLength: 64
-          description: Optional icon name from the ui-kit icon set (Lucide), for example `fish`.
+          description: Optional icon, a Lucide icon name from the curated list. `null` when the topic has none.
+          oneOf:
+            - $ref: '#/components/schemas/TopicIcon'
+            - type: 'null'
         status:
           $ref: '#/components/schemas/ActivityStatus'
+          description: Inactive topics keep their history and their questionnaires' results. Employees do not see them.
+        questionnaireCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: Derived. The number of questionnaires in the topic, active and inactive. Never sent in requests.
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
@@ -1212,6 +1324,51 @@ components:
             $ref: '#/components/schemas/Topic'
         page:
           $ref: '#/components/schemas/PageInfo'
+
+    TopicCreate:
+      type: object
+      description: A new topic. It starts active. Spaces around the name and description are removed. Unknown fields are rejected.
+      required: [name, description]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Unique within the organization, among active and inactive topics, ignoring upper and lower case.
+          examples: [Phishing Awareness]
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        icon:
+          description: Optional. Omit it or send `null` for no icon.
+          oneOf:
+            - $ref: '#/components/schemas/TopicIcon'
+            - type: 'null'
+
+    TopicUpdate:
+      type: object
+      description: The fields to change. Fields left out stay as they are. Spaces around the name and description are removed. Unknown fields are rejected.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Unique within the organization, among active and inactive topics, ignoring upper and lower case.
+        description:
+          type: string
+          minLength: 1
+          maxLength: 1000
+        icon:
+          description: Send `null` to remove the icon.
+          oneOf:
+            - $ref: '#/components/schemas/TopicIcon'
+            - type: 'null'
+        status:
+          $ref: '#/components/schemas/ActivityStatus'
+          description: '`inactive` deactivates the topic, `active` reactivates it. Its questionnaires are not changed.'
 
     Questionnaire:
       type: object

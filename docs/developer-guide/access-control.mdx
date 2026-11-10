@@ -186,6 +186,7 @@ Some content is readable by both roles, but not all of it by employees. Filter i
 | A record with `requireOwnRecord()` that belongs to another user, as an employee | `404`, type `/problems/not-found`. |
 | `GET /topics` as an employee | Active topics only. `status=inactive` returns an empty list. |
 | `GET /topics/{topicId}` for an inactive topic, as an employee | `404`. |
+| `POST /topics` or `PATCH /topics/{topicId}` as an employee | `403`, even for a topic the employee cannot see. |
 | `GET /organization` | `200` for both roles. |
 | `?mock-error=forbidden` | `403` on every endpoint, to see the no-access state. Add `mock-scope` to limit it. |
 
