@@ -1,6 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, of } from 'rxjs';
 import { ApiClient } from '../../../app/core/api/api-client';
 import { ApiError, ProblemType } from '../../../app/core/api/api-error';
 import type { QuestionInput } from '../../../app/core/api/api-schema.gen';
@@ -46,11 +46,29 @@ describe('questionnaire questions mock handlers', () => {
     answerOptions: options.map((option, index) => ({ text: option, isCorrect: index === correct })),
   });
 
-  const save = (api: ApiClient, questionnaireId: string, questions: unknown[]) =>
+  /** Saves like the editor: based on the current version, expecting what its attempts mean. */
+  const save = async (api: ApiClient, questionnaireId: string, questions: unknown[]) => {
+    const path = { questionnaireId };
+    const loaded = await firstValueFrom(
+      api
+        .get('/questionnaires/{questionnaireId}/questions', { path })
+        .pipe(catchError(() => of({ id: crypto.randomUUID(), attemptCount: 0 }))),
+    );
+    return putQuestions(api, questionnaireId, questions, loaded.id, loaded.attemptCount > 0);
+  };
+
+  /** Saves with an explicit base version and expectation, as a client with stale data would. */
+  const putQuestions = (
+    api: ApiClient,
+    questionnaireId: string,
+    questions: unknown[],
+    baseVersionId: string,
+    createsVersion: boolean,
+  ) =>
     firstValueFrom(
       api.put('/questionnaires/{questionnaireId}/questions', {
         path: { questionnaireId },
-        body: { questions: questions as QuestionInput[] },
+        body: { baseVersionId, createsVersion, questions: questions as QuestionInput[] },
       }),
     );
 
@@ -321,8 +339,84 @@ describe('questionnaire questions mock handlers', () => {
       expect(missing.status).toBe(422);
       expect((await missing.json()).errors.map((e: { field: string }) => e.field)).toEqual([
         'extra',
+        'baseVersionId',
+        'createsVersion',
         'questions',
       ]);
+    });
+
+    it('answers 409 when the save is based on a version that is no longer current', async () => {
+      const { api, mock } = setup();
+      const record = questionnaire(mock, WITH_ATTEMPTS);
+      const old = mock.db.data.questionnaireVersions.find(
+        (v) => v.questionnaireId === record.id && v.id !== record.currentVersionId,
+      )!;
+      const before = structuredClone(mock.db.data.questions);
+      const logSize = mock.db.data.auditLog.length;
+
+      const error = await failure(
+        putQuestions(api, record.id, [question('Changed')], old.id, true),
+      );
+
+      expect(error.status).toBe(409);
+      expect(error.isVersionConflict).toBe(true);
+      expect(error.problem).toMatchObject({
+        type: ProblemType.versionConflict,
+        title: 'Version conflict',
+        detail: 'The questions were changed since you loaded them. Reload them, then save again.',
+      });
+      expect(mock.db.data.questions).toEqual(before);
+      expect(mock.db.data.auditLog).toHaveLength(logSize);
+    });
+
+    it('answers 409 when an attempt started after the client loaded the version, then saves a new version once told', async () => {
+      const { api, mock } = setup();
+      const draft = await createDraft(api, mock);
+      await save(api, draft.id, [question('First')]);
+      const loaded = await firstValueFrom(
+        api.get('/questionnaires/{questionnaireId}/questions', {
+          path: { questionnaireId: draft.id },
+        }),
+      );
+      expect(loaded.attemptCount).toBe(0);
+      // An employee starts an attempt on this version after the editor loaded it.
+      const attempt = structuredClone(mock.db.data.attempts[0]);
+      mock.db.update((data) => {
+        data.attempts.push({
+          ...attempt,
+          id: crypto.randomUUID(),
+          questionnaireVersionId: loaded.id,
+        });
+      });
+      const versions = () =>
+        mock.db.data.questionnaireVersions.filter((v) => v.questionnaireId === draft.id).length;
+
+      const error = await failure(
+        putQuestions(api, draft.id, [question('Second')], loaded.id, false),
+      );
+      expect(error.isVersionConflict).toBe(true);
+      expect(error.problem.detail).toBe(
+        'Employees have started this version since you loaded it. Saving now creates a new version.',
+      );
+      expect(versions()).toBe(1);
+
+      const saved = await putQuestions(api, draft.id, [question('Second')], loaded.id, true);
+      expect(saved).toMatchObject({ versionNumber: 2, attemptCount: 0 });
+      expect(versions()).toBe(2);
+    });
+
+    it('answers 409 when the client expects a new version but none would be created', async () => {
+      const { api, mock } = setup();
+      const draft = await createDraft(api, mock);
+
+      const error = await failure(
+        putQuestions(api, draft.id, [question('Q')], draft.currentVersionId, true),
+      );
+
+      expect(error.isVersionConflict).toBe(true);
+      expect(
+        mock.db.data.questions.filter((q) => q.questionnaireVersionId === draft.currentVersionId),
+      ).toEqual([]);
     });
 
     it('answers 404 for an unknown questionnaire', async () => {

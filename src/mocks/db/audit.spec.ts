@@ -172,6 +172,34 @@ describe('recordAudit', () => {
       expect(entries.map((entry) => [entry.action, entry.changes])).toEqual([['reactivated', []]]);
     });
 
+    it('is logged as activated when it is the first activation', () => {
+      const entries = recordAudit(data, {
+        action: 'updated',
+        entityType: 'topic',
+        actorId,
+        now: TEST_NOW,
+        before: topic({ status: 'inactive', name: 'Draft' }),
+        after: topic(),
+        firstActivation: true,
+      });
+
+      expect(entries.map((entry) => entry.action)).toEqual(['updated', 'activated']);
+    });
+
+    it('ignores firstActivation when the status changes to inactive', () => {
+      const entries = recordAudit(data, {
+        action: 'updated',
+        entityType: 'topic',
+        actorId,
+        now: TEST_NOW,
+        before: topic(),
+        after: topic({ status: 'inactive' }),
+        firstActivation: true,
+      });
+
+      expect(entries.map((entry) => entry.action)).toEqual(['deactivated']);
+    });
+
     it('logs the other fields as updated first, then the status change', () => {
       const entries = update(topic(), topic({ name: 'Phishing Basics', status: 'inactive' }));
 

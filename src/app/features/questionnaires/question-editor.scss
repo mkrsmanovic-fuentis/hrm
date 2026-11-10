@@ -71,6 +71,13 @@
   padding-top: 1.5rem;
 }
 
+// The question the page jumped to from "Go to question".
+.highlighted {
+  outline: var(--sd-focus-ring-width) solid var(--sd-color-warning);
+  outline-offset: var(--sd-space-xs);
+  border-radius: var(--sd-radius-md);
+}
+
 .option {
   padding-left: var(--sd-space-md);
 }
@@ -80,6 +87,17 @@
   color: var(--sd-color-danger);
   font-size: var(--sd-font-size-sm);
   text-align: center;
+}
+
+.notice {
+  margin-bottom: var(--sd-space-md);
+}
+
+// Matches the error text of an sd-field, for an error about the whole list of answer options.
+.options-error {
+  margin: 0;
+  color: var(--sd-color-danger);
+  font-size: var(--sd-font-size-xs);
 }
 
 .message + .message {

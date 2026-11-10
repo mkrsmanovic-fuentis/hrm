@@ -18,6 +18,11 @@ import {
 import { requireRole } from '../../support/access';
 import { BodyReader, isObject } from '../../support/body';
 import { route } from '../../support/mock-route';
+import { MockProblem } from '../../support/problem';
+import { ProblemType } from '../../../app/core/api/api-error';
+
+/** Longest value accepted for an ID in the body; a UUID has 36 characters. */
+const ID_MAX_LENGTH = 100;
 
 /** A question as it is saved, compared and logged: the `QuestionInput` shape, explanation set. */
 interface QuestionContent {
@@ -59,12 +64,30 @@ export const questionnaireQuestionRoutes = [
       return notFound(`Questionnaire ${params.questionnaireId} was not found.`);
     }
 
-    const { questions, errors } = readQuestions(await ctx.json());
-    // An active questionnaire must stay valid; an inactive draft may be saved incomplete.
-    if (errors.length === 0 && questionnaire.status === 'active') {
-      errors.push(...questionSetProblems(questions));
-    }
+    const { baseVersionId, createsVersion, questions, errors } = readQuestions(await ctx.json());
     if (errors.length > 0) return validationFailed(errors);
+
+    // The administrator must be told before a save creates a new version, so the save must be
+    // based on the current version, and expect what the server would do with it.
+    const attempted = versionAttemptCount(current.id, db.data) > 0;
+    if (baseVersionId !== current.id) {
+      throw versionConflict(
+        'The questions were changed since you loaded them. Reload them, then save again.',
+      );
+    }
+    if (createsVersion !== attempted) {
+      throw versionConflict(
+        attempted
+          ? 'Employees have started this version since you loaded it. Saving now creates a new version.'
+          : 'No attempts use this version, so saving does not create a new version. Reload it, then save again.',
+      );
+    }
+
+    // An active questionnaire must stay valid; an inactive draft may be saved incomplete.
+    if (questionnaire.status === 'active') {
+      const incomplete = questionSetProblems(questions);
+      if (incomplete.length > 0) return validationFailed(incomplete);
+    }
 
     const before = contentOf(questionsOfVersion(current.id, db.data));
     // Nothing changed: no new version, no log entry, nothing saved.
@@ -74,7 +97,7 @@ export const questionnaireQuestionRoutes = [
       const at = now.toISOString();
       const previous = structuredClone(questionnaire);
       let version = current;
-      if (versionAttemptCount(current.id, data) > 0) {
+      if (attempted) {
         // Attempts use the current version: it stays as it is, and the edit becomes a new one.
         version = {
           id: crypto.randomUUID(),
@@ -112,13 +135,29 @@ export const questionnaireQuestionRoutes = [
   }),
 ];
 
+/** The `409` for a save based on an older state of the questionnaire. Nothing is saved. */
+function versionConflict(detail: string): MockProblem {
+  return new MockProblem(409, detail, undefined, undefined, {
+    type: ProblemType.versionConflict,
+    title: 'Version conflict',
+  });
+}
+
 /**
- * Reads `QuestionnaireQuestionsUpdate`: every question and answer option, trimmed, with every
- * invalid field in `errors`. Completeness (enough options, one correct answer) is checked
- * separately, by `questionSetProblems()`.
+ * Reads `QuestionnaireQuestionsUpdate`: the version the save is based on, whether the client
+ * expects a new version, and every question and answer option, trimmed, with every invalid field
+ * in `errors`. Completeness (enough options, one correct answer) is checked separately, by
+ * `questionSetProblems()`.
  */
-function readQuestions(raw: unknown): { questions: QuestionContent[]; errors: FieldError[] } {
-  const body = new BodyReader(raw, ['questions']);
+function readQuestions(raw: unknown): {
+  baseVersionId: string | undefined;
+  createsVersion: boolean | undefined;
+  questions: QuestionContent[];
+  errors: FieldError[];
+} {
+  const body = new BodyReader(raw, ['baseVersionId', 'createsVersion', 'questions']);
+  const baseVersionId = body.text('baseVersionId', { required: true, maxLength: ID_MAX_LENGTH });
+  const createsVersion = body.boolean('createsVersion', { required: true });
   const items = body.array('questions', { required: true }) ?? [];
   const errors: FieldError[] = body.errors;
   const questions = items.map((item, index): QuestionContent => {
@@ -152,7 +191,7 @@ function readQuestions(raw: unknown): { questions: QuestionContent[]; errors: Fi
     errors.push(...question.errors);
     return { text: text ?? '', explanation: explanation ?? null, answerOptions };
   });
-  return { questions, errors };
+  return { baseVersionId, createsVersion, questions, errors };
 }
 
 function objectExpected(field: string): FieldError {

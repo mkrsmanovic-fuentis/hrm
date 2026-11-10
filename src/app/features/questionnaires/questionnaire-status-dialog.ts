@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ApiClient, type Questionnaire } from '../../core/api';
+import { type ActivationProblem, ApiClient, ApiError, type Questionnaire } from '../../core/api';
 import { ToastService } from '../../core/toast';
 import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
 import { saveFailedMessage } from '../../shared/forms/form-errors';
@@ -19,8 +19,12 @@ import { STATUS_LABELS } from './questionnaire-text';
  * `status` and confirms it with a toast. The list and the detail page share it.
  *
  * Open it by setting `questionnaire`; it closes itself after a change and emits `changed`.
- * When the API refuses, for example `409` because the questionnaire has no questions yet, the
- * reason stays in the dialog.
+ * When the API refuses, the reason stays in the dialog. A `409` from the checks before activation
+ * turns it into a notice: it says the questionnaire can't be activated yet, lists every problem,
+ * and offers only **Close**, because activating again would fail the same way. It also emits
+ * `refused`, so the page can reload and show the problems with links to the questions. The pages
+ * only offer Activate when the checks pass, so this happens only when the questionnaire changed
+ * since the page loaded it.
  *
  * @example
  * <app-questionnaire-status-dialog
@@ -35,11 +39,13 @@ import { STATUS_LABELS } from './questionnaire-text';
   template: `
     <app-confirm-dialog
       [open]="questionnaire() !== null"
-      [heading]="deactivating() ? 'Deactivate questionnaire?' : 'Activate questionnaire?'"
+      [heading]="heading()"
       [confirmLabel]="deactivating() ? 'Deactivate' : 'Activate'"
+      [cancelLabel]="wasRefused() ? 'Close' : 'Cancel'"
+      [confirmable]="!wasRefused()"
       [tone]="deactivating() ? 'danger' : 'primary'"
       [busy]="saving()"
-      [error]="error()"
+      [error]="wasRefused() ? null : error()"
       (confirmed)="changeStatus()"
       (closed)="onClosed()"
     >
@@ -50,6 +56,16 @@ import { STATUS_LABELS } from './questionnaire-text';
             assigned. Employees who already have it assigned can still complete it, and all results
             are kept. You can activate it again at any time.
           </p>
+        } @else if (wasRefused()) {
+          <p class="message">
+            <strong>{{ target.title }}</strong> changed since this page was loaded, and it can't be
+            activated yet. It stays inactive. Fix these problems on its page, then activate it:
+          </p>
+          <ul class="problems">
+            @for (problem of problems(); track $index) {
+              <li>{{ problem.message }}</li>
+            }
+          </ul>
         } @else {
           <p class="message">
             <strong>{{ target.title }}</strong> will be active, and it can be assigned to employees.
@@ -63,6 +79,14 @@ import { STATUS_LABELS } from './questionnaire-text';
     .message {
       margin: 0;
     }
+
+    .problems {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sd-space-xs);
+      margin: 0;
+      padding-left: var(--sd-space-lg);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -74,12 +98,22 @@ export class QuestionnaireStatusDialog {
   readonly questionnaire = input<Questionnaire | null>(null);
   /** Fires after a successful change, with the updated questionnaire. */
   readonly changed = output<Questionnaire>();
+  /** Fires when activating was refused with `409`: the questionnaire changed since it loaded. */
+  readonly refused = output<readonly ActivationProblem[]>();
   /** Fires when the dialog has closed, after a change or a cancel. */
   readonly closed = output();
 
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
+  /** Why activating was refused, from the `409`. */
+  protected readonly problems = signal<readonly ActivationProblem[]>([]);
   protected readonly deactivating = computed(() => this.questionnaire()?.status === 'active');
+  /** Activating was refused by the checks before activation: nothing left to confirm. */
+  protected readonly wasRefused = computed(() => this.problems().length > 0);
+  protected readonly heading = computed(() => {
+    if (this.deactivating()) return 'Deactivate questionnaire?';
+    return this.wasRefused() ? "Questionnaire can't be activated yet" : 'Activate questionnaire?';
+  });
 
   protected async changeStatus(): Promise<void> {
     const questionnaire = this.questionnaire();
@@ -87,6 +121,7 @@ export class QuestionnaireStatusDialog {
     const status = questionnaire.status === 'active' ? 'inactive' : 'active';
     this.saving.set(true);
     this.error.set(null);
+    this.problems.set([]);
     try {
       const updated = await firstValueFrom(
         this.api.patch('/questionnaires/{questionnaireId}', {
@@ -102,6 +137,10 @@ export class QuestionnaireStatusDialog {
       this.onClosed();
     } catch (error) {
       this.error.set(saveFailedMessage(error));
+      if (error instanceof ApiError && error.activationProblems.length > 0) {
+        this.problems.set(error.activationProblems);
+        this.refused.emit(error.activationProblems);
+      }
     } finally {
       this.saving.set(false);
     }
@@ -109,6 +148,7 @@ export class QuestionnaireStatusDialog {
 
   protected onClosed(): void {
     this.error.set(null);
+    this.problems.set([]);
     this.closed.emit();
   }
 }

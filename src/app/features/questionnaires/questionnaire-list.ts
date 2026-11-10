@@ -36,7 +36,8 @@ import { canActivate, passingScoreText, STATUS_LABELS } from './questionnaire-te
  * The Questionnaires page at `/admin/questionnaires`: every questionnaire in a list, with
  * search, filters for topic and status, and sorting. New questionnaires are created in a drawer,
  * then open on their detail page. Rows open the detail page, and row actions deactivate and
- * activate.
+ * activate. Activating one that fails the checks before activation opens its detail page, where
+ * the problems are listed.
  *
  * Follows the Departments page; see "Admin list and form pattern" in the developer guide.
  */
@@ -185,12 +186,15 @@ export class QuestionnaireList {
       hidden: (q) => q.status !== 'active',
     },
     {
+      // When the checks before activation fail, it opens the detail page, which lists the
+      // problems and links to each question.
       id: 'activate',
       label: (q) =>
-        canActivate(q) ? `Activate ${q.title}` : `Add questions to ${q.title} before activating it`,
+        canActivate(q)
+          ? `Activate ${q.title}`
+          : `${q.title} can't be activated yet: open it to see what needs fixing`,
       icon: LucideRotateCcw,
       hidden: (q) => q.status !== 'inactive',
-      disabled: (q) => !canActivate(q),
     },
   ];
 
@@ -216,7 +220,7 @@ export class QuestionnaireList {
   }
 
   protected onAction({ action, row }: SdListActionEvent<Questionnaire>): void {
-    if (action === 'open') this.open(row);
+    if (action === 'open' || (action === 'activate' && !canActivate(row))) this.open(row);
     else this.statusTarget.set(row);
   }
 

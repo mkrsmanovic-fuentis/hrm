@@ -190,16 +190,47 @@ describe('Questionnaires page', () => {
     expect(toasts.toasts().map((t) => t.heading)).toEqual(['Questionnaire deactivated']);
   });
 
-  it('offers deactivate for active questionnaires, and activate only once one has questions', async () => {
+  it('offers deactivate for active questionnaires, and activate for inactive ones', async () => {
     const { list, row } = await render();
     const actions = list()?.actions() ?? [];
     const visible = (q: Questionnaire) => actions.filter((a) => !a.hidden?.(q)).map((a) => a.id);
-    const activate = actions.find((a) => a.id === 'activate');
+    const label = (q: Questionnaire) => {
+      const activate = actions.find((a) => a.id === 'activate')?.label;
+      return typeof activate === 'function' ? activate(q) : activate;
+    };
 
     expect(visible(row('Handling personal data'))).toEqual(['open', 'deactivate']);
     expect(actions.find((a) => a.id === 'open')?.icon).toBe(LucideChevronRight);
     expect(visible(row('Password basics (2025)'))).toEqual(['open', 'activate']);
-    expect(activate?.disabled?.(row('Password basics (2025)'))).toBe(false);
-    expect(activate?.disabled?.(row('Reporting suspicious messages'))).toBe(true);
+    expect(label(row('Password basics (2025)'))).toBe('Activate Password basics (2025)');
+    expect(label(row('Phone scams and callback checks'))).toBe(
+      "Phone scams and callback checks can't be activated yet: open it to see what needs fixing",
+    );
+  });
+
+  it('activates from the list after a confirmation when the checks pass', async () => {
+    const { fixture, click, list, row, mock, navigate } = await render();
+    const questionnaire = row('Password basics (2025)');
+
+    list()?.actionClick.emit({ action: 'activate', row: questionnaire });
+    await fixture.whenStable();
+    expect(document.querySelector('sd-dialog')?.textContent).toContain('Activate questionnaire?');
+    await click('Activate');
+
+    await vi.waitFor(() => expect(row('Password basics (2025)').status).toBe('active'));
+    expect(mock.db.data.auditLog.at(-1)?.action).toBe('reactivated');
+    expect(navigate).not.toHaveBeenCalled();
+  });
+
+  it('opens the detail page instead of activating when the checks fail', async () => {
+    const { fixture, list, row, navigate } = await render();
+    const questionnaire = row('Phone scams and callback checks');
+
+    list()?.actionClick.emit({ action: 'activate', row: questionnaire });
+    await fixture.whenStable();
+
+    expect(navigate).toHaveBeenCalledWith(['/admin/questionnaires', questionnaire.id]);
+    expect(document.querySelector('sd-dialog[open]')).toBeNull();
+    expect(questionnaire.status).toBe('inactive');
   });
 });

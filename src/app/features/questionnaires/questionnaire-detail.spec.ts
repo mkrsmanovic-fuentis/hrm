@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
-import { SdStatusBar } from '@specora-dev/ui-kit';
+import { SdSelect, SdStatusBar } from '@specora-dev/ui-kit';
 import { of } from 'rxjs';
 import { createTestMockApi, type TestMockApiOptions } from '../../../mocks/testing';
 import { ToastService } from '../../core/toast';
@@ -118,13 +118,148 @@ describe('Questionnaire page', () => {
   });
 
   it('blocks activating a draft without questions, and says why', async () => {
-    const { text, button } = await render('Reporting suspicious messages');
+    const { text, button, element } = await render('Reporting suspicious messages');
 
-    expect(text()).toContain('This questionnaire is a draft');
-    expect(text()).toContain("It has no questions yet, so it can't be activated.");
+    expect(text()).toContain("This questionnaire can't be activated yet");
+    expect(text()).toContain('Fix 1 problem to activate this questionnaire.');
+    expect(text()).toContain('The questionnaire has no questions. Add at least one question.');
     expect(button('Activate')?.disabled).toBe(true);
+    expect(button('Activate')?.getAttribute('aria-describedby')).toBe('activation-problems');
+    expect(element.querySelector('#activation-problems')).not.toBeNull();
     expect(button('Deactivate')).toBeUndefined();
     await vi.waitFor(() => expect(text()).toContain('Version 1: No questions, no attempts yet.'));
+  });
+
+  it('lists every incomplete question, jumps to one, and activates once it is fixed', async () => {
+    const { fixture, element, text, button, click, mock, id, dialogText } = await render(
+      'Phone scams and callback checks',
+    );
+    await vi.waitFor(() => expect(element.querySelectorAll('[data-question]')).toHaveLength(3));
+    const problems = () =>
+      [...element.querySelectorAll('#activation-problems li')].map((li) =>
+        li.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+
+    expect(text()).toContain('Fix 3 problems to activate this questionnaire.');
+    expect(problems()).toEqual([
+      'Question 2 has fewer than 2 answer options. Add at least 2. Go to question 2',
+      'Question 2 has no correct answer. Choose one. Go to question 2',
+      'Question 3 has no correct answer. Choose one. Go to question 3',
+    ]);
+    expect(button('Activate')?.disabled).toBe(true);
+    // The editor shows the same problems on each question.
+    const questions = () => [...element.querySelectorAll<HTMLElement>('[data-question]')];
+    expect(questions()[0].querySelector('sd-callout')).toBeNull();
+    expect(questions()[1].querySelector('sd-callout')?.textContent).toContain(
+      'Question 2 has no correct answer. Choose one.',
+    );
+
+    // Jump to question 3: its text gets focus, and the question is highlighted.
+    const goTo = [...element.querySelectorAll<HTMLButtonElement>('#activation-problems button')];
+    goTo[2].click();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(questions()[2].querySelector('[data-question-text]'));
+    expect(questions()[2].classList).toContain('highlighted');
+    expect(questions()[1].classList).not.toContain('highlighted');
+
+    // Fix question 2 (a second answer, and a correct one) and question 3, then save.
+    const selects = () =>
+      fixture.debugElement
+        .queryAll(By.directive(SdSelect))
+        .map((d) => d.componentInstance as SdSelect<string>);
+    const addOption = [...questions()[1].querySelectorAll<HTMLButtonElement>('button')].find(
+      (b) => b.textContent?.trim() === 'Add answer option',
+    )!;
+    addOption.click();
+    await fixture.whenStable();
+    const newOption = [
+      ...questions()[1].querySelectorAll<HTMLInputElement>('[data-option-text]'),
+    ][1];
+    newOption.value = 'Change the details at once';
+    newOption.dispatchEvent(new Event('input'));
+    for (const [index, option] of [
+      [1, 0],
+      [2, 1],
+    ]) {
+      const select = selects()[index];
+      select.value.set(select.options()[option].value);
+    }
+    await fixture.whenStable();
+    expect(questions()[1].querySelector('sd-callout')).toBeNull();
+    await click('Save questions');
+
+    await vi.waitFor(() => expect(button('Activate')?.disabled).toBe(false));
+    expect(element.querySelector('#activation-problems')).toBeNull();
+    await click('Activate');
+    expect(dialogText()).toContain('Activate questionnaire?');
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')].find(
+      (b) => b.textContent?.trim() === 'Activate' && b.closest('sd-dialog')?.textContent,
+    )!;
+    confirm.click();
+
+    await vi.waitFor(() =>
+      expect(mock.db.data.questionnaires.find((q) => q.id === id)?.status).toBe('active'),
+    );
+    expect(mock.db.data.auditLog.at(-1)).toMatchObject({ action: 'activated', entityId: id });
+  });
+
+  it('says to choose another topic when the topic is inactive', async () => {
+    const { fixture, text, button, click, element } = await render('Clean desk checklist');
+
+    expect(text()).toContain(
+      'The topic Clean Desk Policy is inactive. Choose another topic, or reactivate the topic.',
+    );
+    expect(button('Activate')?.disabled).toBe(true);
+    expect(
+      element.querySelector('#activation-problems a[href="/admin/topics"]')?.textContent?.trim(),
+    ).toBe('Go to Topics');
+    await click('Choose another topic');
+    await fixture.whenStable();
+    expect(document.querySelector('sd-drawer')?.textContent).toContain('Edit settings');
+  });
+
+  it('shows the problems in the dialog when activating is refused, and reloads the page', async () => {
+    const { fixture, click, mock, id, dialogText, text } = await render('Password basics (2025)');
+    // Someone else removes the correct answer after the page loaded.
+    const record = mock.db.data.questionnaires.find((q) => q.id === id)!;
+    const first = mock.db.data.questions.find(
+      (q) => q.questionnaireVersionId === record.currentVersionId && q.position === 1,
+    )!;
+    for (const option of mock.db.data.answerOptions.filter((o) => o.questionId === first.id)) {
+      option.isCorrect = false;
+    }
+
+    await click('Activate');
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')].find(
+      (b) => b.textContent?.trim() === 'Activate',
+    )!;
+    confirm.click();
+    await fixture.whenStable();
+
+    await vi.waitFor(() =>
+      expect(dialogText()).toContain('Question 1 has no correct answer. Choose one.'),
+    );
+    // The dialog becomes a notice: no promise that it will be active, and only Close.
+    const dialog = () => dialogText().replace(/\s+/g, ' ');
+    expect(dialog()).toContain("Questionnaire can't be activated yet");
+    expect(dialog()).toContain('changed since this page was loaded');
+    expect(dialog()).not.toContain('will be active');
+    const dialogButtons = () =>
+      [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')]
+        .filter((b) => b.closest('sd-dialog')?.textContent?.includes('Password basics'))
+        .map((b) => b.textContent?.trim() || b.getAttribute('aria-label'));
+    expect(dialogButtons()).not.toContain('Activate');
+    expect(dialogButtons()).toContain('Close');
+    await vi.waitFor(() =>
+      expect(text()).toContain('Fix 1 problem to activate this questionnaire.'),
+    );
+    expect(record.status).toBe('inactive');
+
+    [...document.querySelectorAll<HTMLButtonElement>('sd-dialog button')]
+      .find((b) => b.textContent?.trim() === 'Close')!
+      .click();
+    await fixture.whenStable();
+    await vi.waitFor(() => expect(dialog()).not.toContain('Question 1 has no correct answer'));
   });
 
   it('edits the settings in the drawer, and confirms with a toast', async () => {

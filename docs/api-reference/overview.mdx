@@ -186,7 +186,8 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 403 | `/problems/account-inactive` | Sign-in only: the password is right, but the account is deactivated. |
 | 403 | `/problems/forbidden` | Signed in, but not allowed. For example an employee calling an administrator endpoint. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
-| 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use or a second open assignment for the same questionnaire. A conflict about a field names it in `errors`, with code `not_unique`. |
+| 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use, a second open assignment for the same questionnaire, or a questionnaire that cannot be activated yet. A conflict about a field names it in `errors`, with code `not_unique`. A refused activation lists its reasons in `activationProblems`. |
+| 409 | `/problems/version-conflict` | Saving questions only: the questionnaire got a new version, or attempts started on it, since the client loaded it. See [Saving questions that changed meanwhile](#saving-questions-that-changed-meanwhile). |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
 | 500 | `/problems/internal-error` | Something went wrong on the server. |
 
@@ -213,6 +214,68 @@ Validation errors list every invalid field in `errors`:
 - `field` names the field. Nested body fields use dots and indexes, for example `questions[2].text`.
 - `code` is one of `required`, `invalid_type`, `invalid_format`, `invalid_value`, `out_of_range`, `too_short`, `too_long` or `not_unique`. `not_unique` comes with a `409`, not a `422`.
 - `message` can be shown next to the field.
+
+#### A questionnaire that cannot be activated yet
+
+Activating a questionnaire (`PATCH /questionnaires/{questionnaireId}` with `{ "status": "active" }`) runs the [checks before activation](/developer-guide/business-rules#checks-before-activation). When any fails, the answer is `409` and nothing changes. `activationProblems` lists **every** problem, so a client can show them all and link to each question:
+
+```json
+{
+  "type": "/problems/conflict",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "This questionnaire can't be activated yet. Fix 3 problems first.",
+  "activationProblems": [
+    {
+      "code": "too_few_answer_options",
+      "questionId": "7b1e2c4d-5a6f-4b8c-9d0e-1f2a3b4c5d6e",
+      "questionNumber": 2,
+      "message": "Question 2 has fewer than 2 answer options. Add at least 2."
+    },
+    {
+      "code": "no_correct_answer",
+      "questionId": "7b1e2c4d-5a6f-4b8c-9d0e-1f2a3b4c5d6e",
+      "questionNumber": 2,
+      "message": "Question 2 has no correct answer. Choose one."
+    },
+    {
+      "code": "topic_inactive",
+      "questionId": null,
+      "questionNumber": null,
+      "message": "The topic Clean Desk Policy is inactive. Choose another topic, or reactivate the topic."
+    }
+  ]
+}
+```
+
+- `code` is one of `no_questions`, `question_text_missing`, `too_few_answer_options`, `answer_option_text_missing`, `no_correct_answer`, `several_correct_answers` or `topic_inactive`. Clients branch on it.
+- `questionId` and `questionNumber` name the question in the current version: its ID, and its position from 1, as administrators see it. Both are `null` for a problem with the whole questionnaire: `no_questions` and `topic_inactive`.
+- A question can have several problems. An empty answer option gives one problem for each empty option.
+- `message` names the question and says how to fix it. It can be shown as it is.
+- Problems come question by question, in order, then the topic.
+- Each questionnaire also has the same list as its derived `activationProblems`, so a client can show it before trying. It is always empty for an active questionnaire.
+
+#### Saving questions that changed meanwhile
+
+`PUT /questionnaires/{questionnaireId}/questions` sends what the client based the save on:
+
+- `baseVersionId`: the `id` of the `QuestionnaireVersion` it loaded;
+- `createsVersion`: whether it expects a new version, because that version's `attemptCount` was above 0, and it told the administrator so.
+
+When the current version is no longer `baseVersionId`, or attempts now use it when `createsVersion` is `false` (or none do when it is `true`), the answer is `409` and nothing changes:
+
+```json
+{
+  "type": "/problems/version-conflict",
+  "title": "Version conflict",
+  "status": 409,
+  "detail": "Employees have started this version since you loaded it. Saving now creates a new version."
+}
+```
+
+The client reloads the version with `GET /questionnaires/{questionnaireId}/questions`, keeps the administrator's edits, tells them what changed (and asks before a new version), then saves again with the new `baseVersionId` and `createsVersion`. The rule is in [Questionnaire versions](/developer-guide/business-rules#questionnaire-versions).
+
+A save in place keeps the version's `id`, so two saves in place on the same version, while no attempts use it, are not detected: the later one replaces the earlier one.
 
 ## Adding an endpoint
 

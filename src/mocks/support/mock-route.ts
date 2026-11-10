@@ -150,6 +150,8 @@ async function authenticateAndRun(
       return problemResponse(error.status, error.detail, {
         instance: url.pathname,
         errors: error.errors,
+        extensions: error.extensions,
+        kind: error.kind,
       });
     }
     console.error(`[mock api] ${request.method} ${url.pathname} failed`, error);
