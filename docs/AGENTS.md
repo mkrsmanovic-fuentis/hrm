@@ -18,6 +18,17 @@ If you can run shell commands, run `mint instructions` before any Mintlify task 
 - Never invent product facts. If something is unknown, leave a `{/* TODO: ... */}` comment and report it.
 - Business rules belong in `developer-guide/business-rules.mdx`. Other pages link to it.
 - API endpoint pages are generated from the OpenAPI spec. Change the spec, not generated pages.
+- Do not edit `changelog.mdx` in feature work. The lead adds a release entry after each merge to `main`.
+
+## Release entries (lead only)
+
+After each merge to `main`, add one `<Update>` at the top of `changelog.mdx`:
+
+- `label`: merge time as `YYYY-MM-DD HH:MM` in Central European Time. Must be unique.
+- `description`: `SPE-<n> · <short title>`.
+- `tags`: one or more of `Frontend`, `API`, `Docs`.
+- Body: one or two plain sentences on what changed for readers, then `Commit: [<short hash>](https://github.com/mkrsmanovic-fuentis/hrm/commit/<full hash>)`. Plain Markdown only, so the RSS feed works.
+- Commits that only add release entries are not listed.
 
 ## Before you finish
 

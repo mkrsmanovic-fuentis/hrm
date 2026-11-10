@@ -56,6 +56,12 @@
             ]
           }
         ]
+      },
+      {
+        "tab": "Releases",
+        "pages": [
+          "changelog"
+        ]
       }
     ]
   },
