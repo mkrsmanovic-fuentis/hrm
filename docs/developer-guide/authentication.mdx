@@ -1,6 +1,6 @@
 ---
 title: "Authentication"
-description: "How sign-in, sessions, session expiry, cross-tab sync and the demo role switch work in the frontend and the mock API, and which demo accounts to use."
+description: "How sign-in, sessions, session expiry, cross-tab sync, invite links, password resets and the demo role switch work in the frontend and the mock API, and which demo accounts to use."
 icon: "key"
 ---
 
@@ -8,7 +8,9 @@ import SpecStatus from "/snippets/spec-status.mdx";
 
 <SpecStatus />
 
-Users sign in with email and password and get a session token. The frontend sends the token with every API call. The mock API checks it on every endpoint except sign-in and sign-out, as the real backend must.
+Users sign in with email and password and get a session token. The frontend sends the token with every API call. The mock API checks it on every endpoint except sign-in, sign-out and the invite and password reset links, as the real backend must.
+
+New users set their first password through an invite link, and anyone can reset a forgotten password through a reset link. Both sign the user in. See [Invite links and password resets](#invite-links-and-password-resets).
 
 ## Demo accounts
 
@@ -29,6 +31,8 @@ Other seeded users sign in with the same password, for example `daniel.brooks@br
 
 - Users with a pending or expired invite, such as `aisha.khan@brightwater.example`. They have no password yet, so they get **Wrong email or password**.
 - Deactivated users, such as `sofia.lindqvist@brightwater.example`. With the right password they get **Account deactivated**.
+
+A user who sets a password through an invite or reset link signs in with that password from then on, not the demo password. If you reset a demo account's password, open the app with `?mock-reset` to bring the demo password back.
 
 The demo password and the two accounts are set in `environment.demo` in `src/environments/environment.ts`. The mock's password is `DEMO_PASSWORD` in `src/mocks/seed/people.seed.ts`. A test checks that both demo accounts can sign in. Set `environment.demo` to `null` to hide the demo section and the role switch, for example with a real backend.
 
@@ -86,30 +90,109 @@ readonly user = this.auth.user;   // Signal<User | null>
 readonly role = this.auth.role;   // Signal<'administrator' | 'employee' | null>
 ```
 
+After changing the signed-in user's own record, pass the API's answer to `updateUser()`, so the top bar shows the new name and email at once. The Employees page does this after an administrator edits themselves. It ignores any other user, and other tabs pick up the change too.
+
+```ts
+const saved = await firstValueFrom(this.api.patch('/users/{userId}', { path, body }));
+this.auth.updateUser(saved);
+```
+
 Pages behind sign-in need no extra code for sign-in: add them to a role's area and the guards cover them. See [How a feature adds a page and a nav entry](/developer-guide/access-control#how-a-feature-adds-a-page-and-a-nav-entry).
 
 ### Role switch for demos
 
 **Switch to employee** and **Switch to administrator** in the user menu sign out, then sign in as the demo account of the other role, and open that role's home page. They appear only when `environment.demo` has an account for the other role.
 
+## Invite links and password resets
+
+The pages are public: they live outside the shell in `src/app/features/password/`, next to the login page, and use the same layout (`src/app/shared/auth-page/`).
+
+| Page | Component | Guard |
+| - | - | - |
+| `/set-password?token=…` | `ChoosePassword`, with route `data.purpose` set to `invitation` | None. Someone who is signed in can still open a link. |
+| `/reset-password?token=…` | `ChoosePassword`, with `data.purpose` set to `password_reset` | None. |
+| `/forgot-password` | `ForgotPassword` | `signedOutGuard`. The login page links to it with **Forgot password?**. |
+
+<Steps>
+  <Step title="The link is checked when the page opens">
+    `ChoosePassword` reads `token` from the URL and calls [`GET /auth/invitations/{invitationToken}`](/api-reference/overview#authentication) or `GET /auth/password-resets/{passwordResetToken}`. A valid link returns the user's email and first name for the form. A link that has expired (`410 /problems/link-expired`), was used (`410 /problems/link-used`) or is unknown (`404 /problems/link-not-found`) shows an `sd-callout` with what to do next. A URL without a token counts as unknown.
+  </Step>
+  <Step title="The user types the password twice">
+    The form checks the [password rules](/developer-guide/business-rules#passwords) that the API checks, and that both entries match. Only the password is sent.
+  </Step>
+  <Step title="Setting the password signs the user in">
+    `AuthService.acceptInvitation()` or `AuthService.resetPassword()` sends the password. The API answers with a new `Session`, which `AuthService` keeps as after signing in. The page shows a toast and opens `/`, the user's home page. If someone else was signed in in this browser, the new session replaces theirs in every tab.
+
+    A reset ends all the user's other sessions in the API. Their other tabs and devices get `401` on their next call and open the login page.
+  </Step>
+  <Step title="Forgot password always answers the same">
+    `ForgotPassword` sends `POST /auth/password-resets` and always shows **Check your email**, with the same text for every email.
+
+    The login page's `returnUrl` goes along to **Forgot password?** and back with **Back to sign in**. The emailed reset link does not carry it. A set or reset page opened with a `returnUrl` keeps it on its links and opens it after success, through `safeReturnUrl()`.
+  </Step>
+</Steps>
+
+### Demo links instead of email
+
+The demo sends no email. The mock API returns the link it would have emailed in the `X-Demo-Link` response header, documented in the spec as demo only:
+
+| Request | Header |
+| - | - |
+| `POST /users` | The new user's invite link. |
+| `POST /users/{userId}/invitation` | The new invite link. |
+| `PATCH /users/{userId}` | The new invite link, when a new email of a user without a password sent one. `ApiClient.patchWithHeaders()` reads it. |
+| `POST /auth/password-resets` | The reset link, only when one was created. |
+
+**The mock sends the header only while `environment.demo` is set.** `src/mocks/browser.ts` passes `demoLinks: environment.demo !== null` to the mock, and handlers add the header through `demoLinkHeader(ctx, link)`, which adds nothing while `ctx.demoLinks` is off. With `environment.demo` set to `null`, the links never leave the mock, as with the real backend: otherwise anyone could read a working reset link for any email from the response headers. In unit tests, `createTestMockApi({ demoLinks: false })` turns the header off; it is on by default.
+
+`ApiClient.postWithHeaders()` returns the body and the headers, and `demoLinkOf()` from `core/api` reads the link. Pages show it with `<app-demo-link>` from `src/app/shared/demo-link/`, an `sd-callout` labelled **Demo only** with a read-only field and a copy button, and only while `environment.demo` is set, like the demo accounts. Set `environment.demo` to `null` and the mock sends no links and the pages show none.
+
+The demo data lives in the browser's IndexedDB, so a link works only in the browser that created it. Open it in a new tab of the same browser. Setting the password there signs that browser in as the link's user, in every tab, replacing the administrator's session.
+
+- The Employees page shows the invite link above the list after creating a user, sending the invite again, or changing the email of a user without a password.
+- The **Check your email** page shows the reset link under the confirmation, when the mock created one.
+
+### See a link expire
+
+Move the mock's clock with the `mock-clock` flag, scoped to the link endpoints so your own session stays valid. Add it to the link's URL:
+
+```text
+/reset-password?token=…&mock-clock=2h&mock-scope=/auth/password-resets
+/set-password?token=…&mock-clock=8d&mock-scope=/auth/invitations
+```
+
+The page shows **This reset link has expired** or **This invite link has expired**. Open the app with `?mock-clear` to stop.
+
+The clock also moves sessions, so to see **Invite expired** on the Employees page, look at the seeded Samuel Adeyemi instead: his invite expired in the seed. He has no link; send the invite again to get one. See [Simulate slow responses, errors and empty lists](/developer-guide/mock-api#simulate-slow-responses-errors-and-empty-lists).
+
 ## Rules
 
 - A session lasts 8 hours from sign-in. Activity does not extend it.
 - Only active users who have set a password can sign in.
+- Invite links last 7 days, reset links 1 hour and work once, and a password has at least 12 characters. See [Invite links and password resets](/developer-guide/business-rules#invite-links-and-password-resets) and [Passwords](/developer-guide/business-rules#passwords).
 - See [Business rules](/developer-guide/business-rules#sign-in-and-sessions) for the full list, including what the real backend must do.
 
 ## Mock behavior
 
 | Request | Answer |
 | - | - |
-| `POST /auth/session`, right email and password | `201` with the session. Updates the user's `lastSignedInAt`. |
+| `POST /auth/session`, right email and password | `201` with the session. Updates the user's `lastSignedInAt`. The right password is the one the user set through a link, or the demo password if they never set one. |
 | `POST /auth/session`, wrong password, unknown email, or no password set yet | `401`, type `/problems/invalid-credentials`. |
 | `POST /auth/session`, deactivated user with the right password | `403`, type `/problems/account-inactive`. |
 | `POST /auth/session`, missing email or password, or an email without `@` | `422`, with every invalid field in `errors`. |
 | `GET /auth/session` with a valid token | `200` with the session. |
 | `DELETE /auth/session` | `204`, with or without a valid token. The token stops working. |
+| `GET /auth/invitations/{invitationToken}`, `GET /auth/password-resets/{passwordResetToken}` | `200` with the email, first name and expiry. `410` expired or used, `404` unknown, replaced or deactivated user. |
+| `POST /auth/invitations/{invitationToken}/password` | `201` with a new session. Sets `passwordSetAt`, clears the invitation fields, uses up the link. |
+| `POST /auth/password-resets/{passwordResetToken}/password` | `201` with a new session, after deleting every other session of the user. |
+| Either `POST …/password` with a password that breaks the rules | `422` on `password`. The link still works. |
+| `POST /auth/password-resets` | `202` with no body for any valid email. Only for an active user with a password does it create a link, and adds `X-Demo-Link` while demo links are on. `422` for a missing or malformed email. |
+| `POST /users` and `POST /users/{userId}/invitation` | Add the invite link in `X-Demo-Link` while demo links are on. Sending again removes the old link, so it answers `404`. |
+| `PATCH /users/{userId}` that deactivates the user | Also removes all their invite and reset links. They answer `404`, and stay gone after reactivating. |
+| `PATCH /users/{userId}` that changes the email | Also removes the user's reset links. For an active user without a password, also replaces the invite link with a new one, valid for 7 days, and adds it in `X-Demo-Link` while demo links are on. Not audit-logged beyond the `updated` entry for the email. |
 | Any other endpoint without a token, with an unknown token or with an expired one | `401`, type `/problems/unauthenticated`. |
 
+- Links are stored in the `accountLinks` table and passwords, as SHA-256 hashes, in `credentials`. Both start empty in the seed. The helpers are in `src/mocks/support/account-links.ts`, the rules in `src/mocks/rules/auth-rules.ts`.
 - Sessions are stored in the `sessions` table of the mock database, so they survive a reload. `?mock-reset` empties it, which signs everyone out on their next API call.
 - Simulation flags apply to the authentication endpoints too. `?mock-error=server` also makes sign-in fail. To test errors on one area while staying able to sign in, add a scope, for example `?mock-error=server&mock-scope=/topics`.
 - `?mock-delay=2000&mock-scope=/auth` slows down sign-in, to see the loading state.
@@ -122,7 +205,7 @@ Pages behind sign-in need no extra code for sign-in: add them to a role's area a
 
 ## Related
 
-- [Sign in and out](/user-guide/sign-in-and-out): what users see.
+- [Sign in and out](/user-guide/sign-in-and-out), [Set your password](/user-guide/set-your-password) and [Reset your password](/user-guide/reset-your-password): what users see.
 - [API reference](/api-reference/overview#authentication): the authentication endpoints.
 - [Mock API](/developer-guide/mock-api): the mock database, flags and seed.
 - [Roles and access](/developer-guide/access-control): role areas, navigation and role checks in the mock.

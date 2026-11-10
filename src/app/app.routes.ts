@@ -1,17 +1,24 @@
 import { Routes } from '@angular/router';
 import {
+  FORGOT_PASSWORD_PATH,
   LOGIN_PATH,
   NO_ACCESS_PATH,
+  RESET_PASSWORD_PATH,
   ROLE_AREAS,
   roleGuard,
   roleHomeRedirect,
   signedInGuard,
+  SET_PASSWORD_PATH,
   signedOutGuard,
 } from './core/auth';
 import { Shell } from './core/shell/shell';
 import { unsavedChangesGuard } from './features/questionnaires/unsaved-changes.guard';
 
 /*
+ * Public pages, outside the shell: sign in, forgot password, and the pages that invite and
+ * password reset links open. The link pages have no guard: someone who is signed in can still open
+ * a link, and setting the password signs them in as the link's user.
+ *
  * Pages behind sign-in live in one of two areas:
  * - /admin: administrator pages. roleGuard('administrator') covers every child.
  * - /my: employee pages. roleGuard('employee') covers every child.
@@ -25,6 +32,27 @@ export const routes: Routes = [
     title: 'Sign in · HRM Platform',
     canActivate: [signedOutGuard],
     loadComponent: () => import('./features/login/login').then((m) => m.Login),
+  },
+  {
+    path: FORGOT_PASSWORD_PATH,
+    title: 'Forgot password · HRM Platform',
+    canActivate: [signedOutGuard],
+    loadComponent: () =>
+      import('./features/password/forgot-password').then((m) => m.ForgotPassword),
+  },
+  {
+    path: SET_PASSWORD_PATH,
+    title: 'Set your password · HRM Platform',
+    data: { purpose: 'invitation' },
+    loadComponent: () =>
+      import('./features/password/choose-password').then((m) => m.ChoosePassword),
+  },
+  {
+    path: RESET_PASSWORD_PATH,
+    title: 'Reset your password · HRM Platform',
+    data: { purpose: 'password_reset' },
+    loadComponent: () =>
+      import('./features/password/choose-password').then((m) => m.ChoosePassword),
   },
   {
     // Every page behind sign-in renders inside the shell.

@@ -1,6 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { LucidePencil, LucidePlus, LucidePower, LucideRotateCcw } from '@lucide/angular';
+import {
+  LucideMailPlus,
+  LucidePencil,
+  LucidePlus,
+  LucidePower,
+  LucideRotateCcw,
+} from '@lucide/angular';
 import {
   SdButton,
   SdCallout,
@@ -16,18 +22,38 @@ import {
 } from '@specora-dev/ui-kit';
 import { firstValueFrom, forkJoin } from 'rxjs';
 import { AccessDenied } from '../../core/access';
-import { ApiClient, ApiError, type Department, type User } from '../../core/api';
-import { AuthService, ROLE_LABELS } from '../../core/auth';
+import {
+  ApiClient,
+  ApiError,
+  demoLinkOf,
+  type Department,
+  type InvitationStatus,
+  type User,
+} from '../../core/api';
+import { AuthService, DEMO_ACCOUNTS, ROLE_LABELS } from '../../core/auth';
 import { ToastService } from '../../core/toast';
 import { ConfirmDialog } from '../../shared/confirm-dialog/confirm-dialog';
+import { DemoLink } from '../../shared/demo-link/demo-link';
 import { saveFailedMessage } from '../../shared/forms/form-errors';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
-import { EmployeeForm } from './employee-form';
+import { EmployeeForm, type EmployeeSaved } from './employee-form';
 
 const STATUS_LABELS: Record<User['status'], string> = {
   active: 'Active',
   inactive: 'Inactive',
 };
+const INVITE_LABELS: Record<InvitationStatus, string> = {
+  pending: 'Pending',
+  expired: 'Expired',
+  accepted: 'Accepted',
+};
+
+/** Demo only: the invite link to show on the page after creating a user or sending the invite again. */
+interface InviteLink {
+  name: string;
+  link: string;
+}
+
 /** The department filter's value for users without a department. */
 const NO_DEPARTMENT = 'none';
 
@@ -60,12 +86,17 @@ const searchText = (user: User) => {
  *
  * The signed-in administrator cannot deactivate themselves or change their own role, so their own
  * row has no Deactivate action and their role is locked in the form.
+ *
+ * Under each status, the invite status says whether the user has set a password. Users who have not, and are
+ * active, have a "Send invite again" action. In the demo (`environment.demo`), the invite link of
+ * a new user or a new invite is shown on the page, since no email is sent.
  */
 @Component({
   selector: 'app-employee-list',
   imports: [
     AccessDenied,
     ConfirmDialog,
+    DemoLink,
     EmployeeForm,
     SdButton,
     SdCallout,
@@ -83,6 +114,8 @@ export class EmployeeList {
   private readonly toasts = inject(ToastService);
 
   private readonly auth = inject(AuthService);
+  /** Demo only: show invite links on the page, since the demo sends no email. */
+  private readonly demo = inject(DEMO_ACCOUNTS) !== null;
 
   protected readonly icons = { create: LucidePlus };
   /** The signed-in administrator. They cannot deactivate themselves or change their own role. */
@@ -136,14 +169,14 @@ export class EmployeeList {
       subValue: (u) => (this.isMe(u) ? 'You' : null),
       sortable: true,
       // Widths in rem, so all seven columns and the actions fit next to the side navigation.
-      minWidth: 11,
+      minWidth: 10,
     },
     {
       id: 'email',
       label: 'Email',
       value: (u) => u.email,
       sortable: true,
-      minWidth: 12,
+      minWidth: 11,
       maxWidth: 'grow',
     },
     {
@@ -155,7 +188,7 @@ export class EmployeeList {
       sortable: true,
       // Search matches names and emails only, like the API's `q`.
       searchable: false,
-      minWidth: 9,
+      minWidth: 8,
       maxWidth: 13,
     },
     {
@@ -164,19 +197,23 @@ export class EmployeeList {
       value: (u) => ROLE_LABELS[u.role],
       sortable: true,
       searchable: false,
-      minWidth: 7,
+      minWidth: 6,
       maxWidth: 9,
     },
     {
       id: 'status',
       label: 'Status',
-      type: 'badge',
+      headerTitle: 'Status, and whether they have set a password through their invite',
+      // The invite status goes under the status, rather than in a column of its own, so the
+      // columns and the row actions still fit next to the side navigation.
+      type: 'stacked',
       value: (u) => STATUS_LABELS[u.status],
       tone: (u) => (u.status === 'active' ? 'success' : 'muted'),
+      subValue: (u) => `Invite ${INVITE_LABELS[u.invitationStatus].toLowerCase()}`,
       sortable: true,
       searchable: false,
-      minWidth: 6,
-      maxWidth: 7,
+      minWidth: 6.5,
+      maxWidth: 8,
     },
     {
       id: 'assignedTrainingCount',
@@ -195,7 +232,7 @@ export class EmployeeList {
       value: (u) => u.completedTrainingCount,
       sortable: true,
       searchable: false,
-      minWidth: 6.5,
+      minWidth: 6,
       maxWidth: 7,
     },
     {
@@ -228,6 +265,16 @@ export class EmployeeList {
       ],
     },
     {
+      id: 'invitation',
+      label: 'Invite',
+      value: (u) => u.invitationStatus,
+      options: [
+        { value: 'pending', label: INVITE_LABELS.pending },
+        { value: 'expired', label: INVITE_LABELS.expired },
+        { value: 'accepted', label: INVITE_LABELS.accepted },
+      ],
+    },
+    {
       id: 'department',
       label: 'Department',
       value: (u) => u.departmentId ?? NO_DEPARTMENT,
@@ -245,6 +292,14 @@ export class EmployeeList {
 
   protected readonly actions: SdListAction<User>[] = [
     { id: 'edit', label: (u) => `Edit ${fullName(u)}`, icon: LucidePencil },
+    {
+      id: 'resend',
+      label: (u) => `Send invite again to ${fullName(u)}`,
+      icon: LucideMailPlus,
+      // Only active users who have not set a password yet.
+      hidden: (u) => u.status !== 'active' || u.invitationStatus === 'accepted',
+      disabled: (u) => this.resending() === u.id,
+    },
     {
       id: 'deactivate',
       label: (u) => `Deactivate ${fullName(u)}`,
@@ -279,6 +334,11 @@ export class EmployeeList {
   protected readonly deactivating = computed(() => this.statusTarget()?.status === 'active');
   protected readonly fullName = fullName;
 
+  /** The user whose invite is being sent again. */
+  protected readonly resending = signal<string | null>(null);
+  /** Demo only: the latest invite link, shown above the list until closed. */
+  protected readonly inviteLink = signal<InviteLink | null>(null);
+
   protected create(): void {
     this.editing.set({ user: null });
   }
@@ -289,19 +349,57 @@ export class EmployeeList {
 
   protected onAction({ action, row }: SdListActionEvent<User>): void {
     if (action === 'edit') this.edit(row);
+    else if (action === 'resend') void this.resend(row);
     else this.askStatusChange(row);
   }
 
-  protected onSaved(user: User, wasNew: boolean): void {
+  protected onSaved({ user, invited, inviteLink }: EmployeeSaved, wasNew: boolean): void {
     if (wasNew) {
       this.toasts.success(
         'Employee created',
         `An invite to set a password was sent to ${user.email}.`,
       );
+      this.showInviteLink(user, inviteLink);
     } else {
-      this.toasts.success('Employee saved', `${fullName(user)} is up to date.`);
+      this.toasts.success(
+        'Employee saved',
+        invited
+          ? `${fullName(user)} is up to date. A new invite was sent to ${user.email}, and the old link no longer works.`
+          : `${fullName(user)} is up to date.`,
+      );
+      if (invited) this.showInviteLink(user, inviteLink);
+      // An administrator who edited their own name or email sees it in the top bar at once.
+      this.auth.updateUser(user);
     }
     this.data.reload();
+  }
+
+  /** Sends a new invite link. The old one stops working, and the new one is valid for 7 days. */
+  protected async resend(user: User): Promise<void> {
+    if (this.resending()) return;
+    this.resending.set(user.id);
+    try {
+      const response = await firstValueFrom(
+        this.api.postWithHeaders('/users/{userId}/invitation', { path: { userId: user.id } }),
+      );
+      this.toasts.success(
+        'Invite sent again',
+        `${fullName(user)} gets a new link at ${user.email}, valid for 7 days. The old link no longer works.`,
+      );
+      this.showInviteLink(user, demoLinkOf(response));
+      this.data.reload();
+    } catch (error) {
+      this.toasts.show(saveFailedMessage(error), {
+        tone: 'danger',
+        heading: 'Could not send the invite',
+      });
+    } finally {
+      this.resending.set(null);
+    }
+  }
+
+  private showInviteLink(user: User, link: string | null): void {
+    this.inviteLink.set(this.demo && link ? { name: fullName(user), link } : null);
   }
 
   protected askStatusChange(user: User): void {

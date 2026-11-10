@@ -36,7 +36,7 @@ security:
 
 tags:
   - name: Authentication
-    description: Signing in and out, and the current session. Signing in is the only call that needs no session token.
+    description: Signing in and out, the current session, invite links and password resets. Signing in, signing out and the invite and reset endpoints need no session token.
   - name: Organization
     description: The organization the signed-in user belongs to.
   - name: Departments
@@ -117,6 +117,184 @@ paths:
       responses:
         '204':
           description: Signed out.
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/invitations/{invitationToken}:
+    get:
+      operationId: getInvitation
+      tags: [Authentication]
+      summary: Check an invite link
+      description: |
+        Checks the token of an invite link before the user chooses a password, and returns who it is for. Needs no session token: the token in the link is the proof.
+
+        - A link of a user who has set a password already answers `410` with type `/problems/link-used`.
+        - A link past its 7 days answers `410` with type `/problems/link-expired`.
+        - An unknown token, a link replaced by a newer invite, and a link of a user who was deactivated, even if reactivated later, answer `404` with type `/problems/link-not-found`.
+
+        **Access:** anyone with the link.
+      x-mint: *spec-status
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvitationToken'
+      responses:
+        '200':
+          description: The link is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLink'
+        '404':
+          $ref: '#/components/responses/LinkNotFound'
+        '410':
+          $ref: '#/components/responses/LinkGone'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/invitations/{invitationToken}/password:
+    post:
+      operationId: acceptInvitation
+      tags: [Authentication]
+      summary: Set the first password
+      description: |
+        Sets the user's first password through an invite link and signs them in.
+
+        On success `passwordSetAt` is now, `invitationSentAt` and `invitationExpiresAt` are cleared, the link stops working, and the answer is a new session, as for signing in. The password must follow the password rules in the business rules.
+
+        The link is checked before the password: an expired, used or unknown link answers `410` or `404`, as when checking the link.
+
+        **Access:** anyone with the link.
+      x-mint: *spec-status
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/InvitationToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordSet'
+      responses:
+        '201':
+          description: Password set and signed in. The new session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/LinkNotFound'
+        '410':
+          $ref: '#/components/responses/LinkGone'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-resets:
+    post:
+      operationId: requestPasswordReset
+      tags: [Authentication]
+      summary: Request a password reset
+      description: |
+        Emails a password reset link, valid for 1 hour, if the email belongs to an active user who has set a password. A new request replaces the user's earlier reset links.
+
+        The answer is always `202` with no body, whether the email has an account or not and whether a link was sent or not, so it does not reveal which emails have accounts. Only an email that is missing or not an email address answers `422`.
+
+        In the demo, the mock API sends the link in the `X-Demo-Link` header instead of emailing it, when it created one and demo mode is on. The real backend never sends this header.
+
+        **Access:** anyone.
+      x-mint: *spec-status
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '202':
+          description: Accepted. A reset link was emailed if the email belongs to a user who may reset their password.
+          headers:
+            X-Demo-Link:
+              $ref: '#/components/headers/XDemoLink'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-resets/{passwordResetToken}:
+    get:
+      operationId: getPasswordReset
+      tags: [Authentication]
+      summary: Check a password reset link
+      description: |
+        Checks the token of a password reset link before the user chooses a new password, and returns who it is for.
+
+        - A link that was used already answers `410` with type `/problems/link-used`.
+        - A link past its 1 hour answers `410` with type `/problems/link-expired`.
+        - An unknown token, a link replaced by a newer request or by a completed reset, a link of a user who was deactivated (even if reactivated later), and a link sent before the user's email changed answer `404` with type `/problems/link-not-found`.
+
+        **Access:** anyone with the link.
+      x-mint: *spec-status
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PasswordResetToken'
+      responses:
+        '200':
+          description: The link is valid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountLink'
+        '404':
+          $ref: '#/components/responses/LinkNotFound'
+        '410':
+          $ref: '#/components/responses/LinkGone'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/password-resets/{passwordResetToken}/password:
+    post:
+      operationId: resetPassword
+      tags: [Authentication]
+      summary: Set a new password
+      description: |
+        Sets a new password through a password reset link and signs the user in.
+
+        On success the link is used up and the user's other reset links stop working, `passwordSetAt` is now, **all the user's sessions end**, and the answer is a new session, as for signing in. The password must follow the password rules in the business rules.
+
+        The link is checked before the password: an expired, used or unknown link answers `410` or `404`, as when checking the link.
+
+        **Access:** anyone with the link.
+      x-mint: *spec-status
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PasswordResetToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordSet'
+      responses:
+        '201':
+          description: Password changed and signed in. The new session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/LinkNotFound'
+        '410':
+          $ref: '#/components/responses/LinkGone'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -368,6 +546,8 @@ paths:
       description: |
         Creates an active user and sends them an invite link to set a password. `invitationSentAt` is now, `invitationExpiresAt` is 7 days later, and `passwordSetAt` stays `null` until the user sets a password.
 
+        In the demo, the mock API sends the invite link in the `X-Demo-Link` header instead of emailing it, while demo mode is on. The real backend never sends this header.
+
         The email must be unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Only an active department can be chosen.
 
         **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
@@ -381,6 +561,9 @@ paths:
       responses:
         '201':
           description: Created. The new user, with the invite fields set.
+          headers:
+            X-Demo-Link:
+              $ref: '#/components/headers/XDemoLink'
           content:
             application/json:
               schema:
@@ -436,6 +619,7 @@ paths:
         - **Reactivating** lets the user sign in again, and their open assignments count as pending and overdue again.
         - **Department:** only an active department can be chosen. A user already in a department that was deactivated later keeps it, so sending their current `departmentId` again is accepted.
         - **Own account:** administrators cannot deactivate themselves or change their own role. Both answer `409`.
+        - **Email:** a new email makes the user's password reset links stop working. If the user is active and has not set a password yet, the old invite link stops working too, and a new invite is sent to the new address at once, valid for 7 days: `invitationSentAt` and `invitationExpiresAt` are set again. In the demo, the mock sends the new invite link in `X-Demo-Link` while demo mode is on.
 
         **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
       x-mint: *spec-status
@@ -450,6 +634,9 @@ paths:
       responses:
         '200':
           description: The updated user.
+          headers:
+            X-Demo-Link:
+              $ref: '#/components/headers/XDemoLink'
           content:
             application/json:
               schema:
@@ -491,6 +678,52 @@ paths:
                     detail: You cannot deactivate your own account.
         '422':
           $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /users/{userId}/invitation:
+    post:
+      operationId: resendInvitation
+      tags: [Users]
+      summary: Send the invite again
+      description: |
+        Sends the user a new invite link to set a password, valid for 7 days from now. The earlier invite link stops working at once. `invitationSentAt` and `invitationExpiresAt` are set again.
+
+        Only for active users who have not set a password yet. A user who has set a password, or a deactivated user, answers `409`.
+
+        In the demo, the mock API sends the new link in the `X-Demo-Link` header instead of emailing it, while demo mode is on. The real backend never sends this header.
+
+        **Access:** administrators only. Employees get `403`. Not logged in the audit log, until the product decides otherwise (SPE-46).
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '201':
+          description: Sent. The user, with the new invite fields.
+          headers:
+            X-Demo-Link:
+              $ref: '#/components/headers/XDemoLink'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The user has set a password already, or is deactivated.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: /problems/conflict
+                title: Conflict
+                status: 409
+                detail: Aisha Khan has set a password already.
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -926,6 +1159,24 @@ components:
       description: ID of the user.
       schema:
         $ref: '#/components/schemas/Id'
+    InvitationToken:
+      name: invitationToken
+      in: path
+      required: true
+      description: The secret token from the invite link.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+    PasswordResetToken:
+      name: passwordResetToken
+      in: path
+      required: true
+      description: The secret token from the password reset link.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
     TopicId:
       name: topicId
       in: path
@@ -941,7 +1192,47 @@ components:
       schema:
         $ref: '#/components/schemas/Id'
 
+  headers:
+    XDemoLink:
+      description: |
+        Demo only. The link the server would have emailed, for example `http://localhost:4200/set-password?token=…`. The mock API sends it only while the app's demo mode (`environment.demo`) is on, so the demo can show the link on screen. With demo mode off the mock never sends it. The real backend never sends this header and always emails the link: returning links would let anyone take over any account.
+      schema:
+        type: string
+        format: uri
+
   responses:
+    LinkNotFound:
+      description: The link is not valid. The token is unknown, a newer link replaced it, or the user was deactivated.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: /problems/link-not-found
+            title: Link not valid
+            status: 404
+            detail: This link is not valid. It may have been replaced by a newer one.
+    LinkGone:
+      description: The link was valid, but it has expired (`/problems/link-expired`) or was used already (`/problems/link-used`).
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            expired:
+              summary: Expired
+              value:
+                type: /problems/link-expired
+                title: Link expired
+                status: 410
+                detail: This link has expired.
+            used:
+              summary: Used already
+              value:
+                type: /problems/link-used
+                title: Link used
+                status: 410
+                detail: This link was used already.
     BadRequest:
       description: The request could not be read, for example because the body is not valid JSON.
       content:
@@ -1257,6 +1548,52 @@ components:
           maxLength: 200
           description: The user's password.
 
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 128
+      description: |
+        A new password: 12 to 128 characters, counted as Unicode code points, so an emoji is one character. Any characters, spaces included. Not trimmed. It must not be the user's email address. See the password rules in the business rules.
+
+    PasswordSet:
+      type: object
+      description: The password a user chooses through an invite or password reset link.
+      required: [password]
+      additionalProperties: false
+      properties:
+        password:
+          $ref: '#/components/schemas/Password'
+
+    PasswordResetRequest:
+      type: object
+      description: The email to send a password reset link to.
+      required: [email]
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          description: Matched without regard to upper and lower case and spaces around it.
+          examples: [amelia.hughes@brightwater.example]
+
+    AccountLink:
+      type: object
+      description: Who a valid invite or password reset link is for, and until when it works.
+      required: [email, firstName, expiresAt]
+      properties:
+        email:
+          type: string
+          format: email
+          description: The user's email address.
+        firstName:
+          type: string
+          description: The user's first name, for a greeting.
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: When the link stops working.
+
     Session:
       type: object
       description: A signed-in session. It lasts 8 hours from sign-in and is not extended by activity.
@@ -1336,6 +1673,7 @@ components:
           invitationExpiresAt,
           passwordSetAt,
           lastSignedInAt,
+          invitationStatus,
           assignedTrainingCount,
           completedTrainingCount,
           createdAt,
@@ -1380,7 +1718,7 @@ components:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
         passwordSetAt:
-          description: When the user set a password through the invite link. Null while the invite is pending.
+          description: When the user last set a password, through the invite link or a password reset. Null while the invite is pending or expired.
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
@@ -1388,6 +1726,10 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+        invitationStatus:
+          $ref: '#/components/schemas/InvitationStatus'
+          readOnly: true
+          description: Derived. `accepted` once the user has set a password; otherwise `pending` until `invitationExpiresAt`, then `expired`. Never sent in requests.
         assignedTrainingCount:
           type: integer
           minimum: 0
@@ -1402,6 +1744,11 @@ components:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    InvitationStatus:
+      type: string
+      enum: [pending, expired, accepted]
+      description: Where the user's invite stands. Users with a `pending` or `expired` invite have no password and cannot sign in.
 
     UserPage:
       type: object

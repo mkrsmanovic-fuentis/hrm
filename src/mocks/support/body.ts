@@ -156,6 +156,32 @@ export class BodyReader {
     return raw.trim();
   }
 
+  /**
+   * A new password: required text, **not trimmed**, because spaces are part of a password. `check`
+   * applies the password rules and returns the problem, or null. Returns `undefined` when the
+   * field is missing or invalid.
+   */
+  password(
+    name: string,
+    check: (value: string) => { code: string; message: string } | null,
+  ): string | undefined {
+    const value = this.has(name) ? this.body[name] : undefined;
+    if (value === undefined || value === null || value === '') {
+      this.fail(name, 'required', 'Required.');
+      return undefined;
+    }
+    if (typeof value !== 'string') {
+      this.fail(name, 'invalid_type', 'Must be text.');
+      return undefined;
+    }
+    const problem = check(value);
+    if (problem) {
+      this.fail(name, problem.code, problem.message);
+      return undefined;
+    }
+    return value;
+  }
+
   /** Records a problem with a field the handler checked itself, for example a missing record. */
   invalid(name: string, message: string): void {
     this.fail(name, 'invalid_value', message);

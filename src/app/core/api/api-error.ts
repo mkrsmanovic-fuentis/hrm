@@ -10,6 +10,12 @@ export const ProblemType = {
   /** Sign-in only: the password is right, but the account is deactivated. */
   accountInactive: '/problems/account-inactive',
   forbidden: '/problems/forbidden',
+  /** Invite and reset links: unknown, replaced by a newer link, or of a deactivated user. */
+  linkNotFound: '/problems/link-not-found',
+  /** Invite and reset links: the link has expired. */
+  linkExpired: '/problems/link-expired',
+  /** Invite and reset links: the link was used already. */
+  linkUsed: '/problems/link-used',
   notFound: '/problems/not-found',
   conflict: '/problems/conflict',
   /**

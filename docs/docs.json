@@ -23,7 +23,9 @@
           {
             "group": "Account",
             "pages": [
-              "user-guide/sign-in-and-out"
+              "user-guide/sign-in-and-out",
+              "user-guide/set-your-password",
+              "user-guide/reset-your-password"
             ]
           },
           {

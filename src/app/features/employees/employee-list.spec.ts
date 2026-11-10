@@ -7,25 +7,27 @@ import { SdList } from '@specora-dev/ui-kit';
 import { toUser } from '../../../mocks/rules/user-rules';
 import { createTestMockApi, TEST_NOW, type TestMockApiOptions } from '../../../mocks/testing';
 import type { User } from '../../core/api';
-import { AuthService } from '../../core/auth';
+import { AuthService, DEMO_ACCOUNTS } from '../../core/auth';
 import { ToastService } from '../../core/toast';
 import { EmployeeList } from './employee-list';
 
 describe('Employees page', () => {
-  async function render(options: TestMockApiOptions = {}) {
+  async function render(options: TestMockApiOptions = {}, { demo = true } = {}) {
     const mock = createTestMockApi(options);
     const session = mock.db.data.sessions.find((s) => s.token === mock.token);
     const me = mock.db.data.users.find((u) => u.id === session?.userId);
+    // The signed-in administrator, as the page reads it.
+    const auth = {
+      user: signal(me ? toUser(me, mock.db.data, TEST_NOW) : null),
+      updateUser: vi.fn(),
+    };
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         provideHttpClient(),
         ...mock.providers,
-        // The signed-in administrator, as the page reads it.
-        {
-          provide: AuthService,
-          useValue: { user: signal(me ? toUser(me, mock.db.data, TEST_NOW) : null) },
-        },
+        { provide: AuthService, useValue: auth },
+        ...(demo ? [] : [{ provide: DEMO_ACCOUNTS, useValue: null }]),
       ],
     });
     const fixture = TestBed.createComponent(EmployeeList);
@@ -77,11 +79,18 @@ describe('Employees page', () => {
         .find((c) => c.id === id);
     const visibleActions = (user: User) =>
       (list()?.actions() ?? []).filter((a) => !a.hidden?.(user)).map((a) => a.id);
+    /** The token of the invite link shown on the page, or null. */
+    const shownInviteToken = () => {
+      const value = element.querySelector<HTMLInputElement>('app-demo-link input')?.value;
+      return value ? new URL(value).searchParams.get('token') : null;
+    };
     return {
       fixture,
       element,
       mock,
       me,
+      auth,
+      shownInviteToken,
       list,
       buttons,
       click,
@@ -143,7 +152,7 @@ describe('Employees page', () => {
     expect([...(list()?.hiddenColumns() ?? [])]).toEqual(['search']);
     expect(column('search')?.hideable).toBeFalsy();
     const filters = list()?.filters() ?? [];
-    expect(filters.map((f) => f.label)).toEqual(['Status', 'Role', 'Department']);
+    expect(filters.map((f) => f.label)).toEqual(['Status', 'Role', 'Invite', 'Department']);
     const departments = filters.find((f) => f.id === 'department')?.options ?? [];
     expect(departments[0]).toEqual({ value: 'none', label: 'No department' });
     expect(departments.map((o) => o.label)).toContain('Facilities (inactive)');
@@ -194,7 +203,7 @@ describe('Employees page', () => {
   });
 
   it('creates an employee and says an invite was sent', async () => {
-    const { element, click, type, settle, list, mock, toasts } = await render();
+    const { element, click, type, settle, list, mock, toasts, shownInviteToken } = await render();
 
     await click('New employee');
     expect(document.querySelector('sd-drawer')?.textContent).toContain('New employee');
@@ -225,6 +234,143 @@ describe('Employees page', () => {
       }),
     ]);
     expect(element.querySelector('app-employee-form')).toBeNull();
+
+    // Demo only: the invite link is on the page, labelled as such, with a copy button.
+    const hana = mock.db.data.users.find((u) => u.firstName === 'Hana');
+    const demoLink = element.querySelector('app-demo-link');
+    expect(demoLink?.textContent).toContain('Demo only: invite link for Hana Sato');
+    expect(demoLink?.textContent).toContain('Copy invite link');
+    // The demo data lives in this browser, so the link only works here.
+    expect(demoLink?.textContent).toContain('open the link in a new tab of this browser');
+    expect(demoLink?.textContent).toContain('signs this browser in as Hana Sato');
+    expect(mock.db.data.accountLinks.find((l) => l.token === shownInviteToken())?.userId).toBe(
+      hana?.id,
+    );
+  });
+
+  it('shows no invite link when the demo is off', async () => {
+    const { element, click, type, settle, toasts } = await render({}, { demo: false });
+
+    await click('New employee');
+    await type('First name', 'Hana');
+    await type('Last name', 'Sato');
+    await type('Email', 'hana.sato@brightwater.example');
+    await click('Create employee');
+    await settle();
+
+    await vi.waitFor(() => expect(toasts.toasts()).toHaveLength(1));
+    expect(element.querySelector('app-demo-link')).toBeNull();
+  });
+
+  it('shows each invite as pending, expired or accepted', async () => {
+    const { list, row, column } = await render();
+    const expired = list()
+      ?.items()
+      .find((u) => u.invitationStatus === 'expired');
+
+    const invite = (user: User) => column('status')?.subValue?.(user);
+    expect(invite(row('Aisha'))).toBe('Invite pending');
+    expect(invite(expired!)).toBe('Invite expired');
+    expect(invite(row('Oliver'))).toBe('Invite accepted');
+    const filter = list()
+      ?.filters()
+      .find((f) => f.id === 'invitation');
+    expect(filter?.options?.map((o) => o.label)).toEqual(['Pending', 'Expired', 'Accepted']);
+    expect(filter?.value(expired!)).toBe('expired');
+  });
+
+  it('sends the invite again: the old link stops working and the new one is shown', async () => {
+    const { fixture, list, row, mock, toasts, settle, shownInviteToken, visibleActions } =
+      await render();
+    const aisha = row('Aisha');
+    expect(visibleActions(aisha)).toContain('resend');
+
+    list()?.actionClick.emit({ action: 'resend', row: aisha });
+    await fixture.whenStable();
+    await settle();
+    await vi.waitFor(() => expect(shownInviteToken()).not.toBeNull());
+    const first = shownInviteToken();
+
+    list()?.actionClick.emit({ action: 'resend', row: row('Aisha') });
+    await vi.waitFor(() => expect(shownInviteToken()).not.toBe(first));
+    await fixture.whenStable();
+
+    const links = mock.db.data.accountLinks.filter((l) => l.userId === aisha.id);
+    expect(links.map((l) => l.token)).toEqual([shownInviteToken()]);
+    expect(toasts.toasts().map((t) => t.heading)).toEqual([
+      'Invite sent again',
+      'Invite sent again',
+    ]);
+    expect(toasts.toasts()[0].message).toContain('The old link no longer works.');
+  });
+
+  it('shows a toast when sending the invite again fails', async () => {
+    let flags = {};
+    const { fixture, list, row, toasts } = await render({ flags: () => flags });
+    // The list has loaded; now the invite fails.
+    flags = { errorStatus: 500 };
+
+    list()?.actionClick.emit({ action: 'resend', row: row('Aisha') });
+    await fixture.whenStable();
+
+    await vi.waitFor(() =>
+      expect(toasts.toasts()).toEqual([
+        expect.objectContaining({ tone: 'danger', heading: 'Could not send the invite' }),
+      ]),
+    );
+  });
+
+  it('sends a new invite after changing the email of someone without a password', async () => {
+    const { fixture, element, click, type, settle, list, row, mock, toasts, shownInviteToken } =
+      await render();
+    const aisha = row('Aisha');
+
+    list()?.rowClick.emit(aisha);
+    await fixture.whenStable();
+    await type('Email', 'aisha.k@brightwater.example');
+    await click('Save changes');
+    await settle();
+
+    await vi.waitFor(() => expect(shownInviteToken()).not.toBeNull());
+    expect(element.querySelector('app-demo-link')?.textContent).toContain(
+      'Demo only: invite link for Aisha Khan',
+    );
+    expect(mock.db.data.accountLinks.find((l) => l.token === shownInviteToken())?.userId).toBe(
+      aisha.id,
+    );
+    expect(toasts.toasts()[0].message).toContain(
+      'A new invite was sent to aisha.k@brightwater.example',
+    );
+  });
+
+  it('sends no invite when only the name of someone without a password changes', async () => {
+    const { fixture, element, click, type, settle, list, row, toasts } = await render();
+
+    list()?.rowClick.emit(row('Aisha'));
+    await fixture.whenStable();
+    await type('Last name', 'Khan-Ali');
+    await click('Save changes');
+    await settle();
+
+    await vi.waitFor(() => expect(toasts.toasts()).toHaveLength(1));
+    expect(toasts.toasts()[0].message).toBe('Aisha Khan-Ali is up to date.');
+    expect(element.querySelector('app-demo-link')).toBeNull();
+  });
+
+  it('refreshes the signed-in user after an administrator edits their own name', async () => {
+    const { fixture, click, type, settle, list, row, me, auth } = await render();
+
+    list()?.rowClick.emit(row(me!.firstName));
+    await fixture.whenStable();
+    await type('First name', 'Marija');
+    await click('Save changes');
+    await settle();
+
+    await vi.waitFor(() =>
+      expect(auth.updateUser).toHaveBeenCalledWith(
+        expect.objectContaining({ id: me!.id, firstName: 'Marija' }),
+      ),
+    );
   });
 
   it('shows an email already in use on the email field and keeps the drawer open', async () => {
@@ -337,6 +483,7 @@ describe('Employees page', () => {
     expect(visibleActions(row('Oliver'))).toEqual(['edit', 'deactivate']);
     expect(visibleActions(row('Daniel'))).toEqual(['edit', 'deactivate']);
     expect(visibleActions(row('Sofia'))).toEqual(['edit', 'reactivate']);
+    expect(visibleActions(row('Aisha'))).toEqual(['edit', 'resend', 'deactivate']);
     expect(visibleActions(own)).toEqual(['edit']);
     expect(column('name')?.subValue?.(own)).toBe('You');
   });

@@ -1,6 +1,6 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, InjectionToken } from '@angular/core';
-import { catchError, Observable, throwError } from 'rxjs';
+import { catchError, map, Observable, throwError } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiError } from './api-error';
 import type {
@@ -18,6 +18,23 @@ export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL', {
 });
 
 type QueryValue = string | number | boolean | null | undefined;
+
+/** A response body with the response headers, from `postWithHeaders` or `patchWithHeaders`. */
+export interface ApiResponse<T> {
+  body: T;
+  headers: HttpHeaders;
+}
+
+/**
+ * Demo only: the response header in which the mock API sends the link it would have emailed,
+ * such as an invite or password reset link. The real backend never sends it.
+ */
+export const DEMO_LINK_HEADER = 'X-Demo-Link';
+
+/** The demo-only link from a response's headers, or null when there is none. */
+export function demoLinkOf(response: ApiResponse<unknown>): string | null {
+  return response.headers.get(DEMO_LINK_HEADER);
+}
 
 interface RawOptions {
   path?: Record<string, string | number>;
@@ -55,6 +72,25 @@ export class ApiClient {
     return this.request('post', path, options);
   }
 
+  /**
+   * Like {@link post}, but also returns the response headers, for the few endpoints whose spec
+   * describes a header, such as the demo-only `X-Demo-Link`.
+   */
+  postWithHeaders<P extends ApiPathWith<'post'>>(
+    path: P,
+    ...[options]: ApiRequestArgs<ApiOperation<P, 'post'>>
+  ): Observable<ApiResponse<ApiResponseBody<ApiOperation<P, 'post'>>>> {
+    return this.requestWithHeaders('post', path, options);
+  }
+
+  /** Like {@link patch}, but also returns the response headers. See {@link postWithHeaders}. */
+  patchWithHeaders<P extends ApiPathWith<'patch'>>(
+    path: P,
+    ...[options]: ApiRequestArgs<ApiOperation<P, 'patch'>>
+  ): Observable<ApiResponse<ApiResponseBody<ApiOperation<P, 'patch'>>>> {
+    return this.requestWithHeaders('patch', path, options);
+  }
+
   put<P extends ApiPathWith<'put'>>(
     path: P,
     ...[options]: ApiRequestArgs<ApiOperation<P, 'put'>>
@@ -76,19 +112,38 @@ export class ApiClient {
     return this.request('delete', path, options);
   }
 
+  private requestWithHeaders<T>(
+    method: HttpMethod,
+    path: string,
+    options: object | undefined,
+  ): Observable<ApiResponse<T>> {
+    const { path: pathParams, query, body } = (options ?? {}) as RawOptions;
+    const url = this.baseUrl + buildPath(path, pathParams);
+    return this.http
+      .request<T>(method.toUpperCase(), url, {
+        params: buildParams(query),
+        body,
+        observe: 'response',
+      })
+      .pipe(
+        map((response) => ({ body: response.body as T, headers: response.headers })),
+        catchError(toApiError),
+      );
+  }
+
   private request<T>(method: HttpMethod, path: string, options: object | undefined): Observable<T> {
     const { path: pathParams, query, body } = (options ?? {}) as RawOptions;
     const url = this.baseUrl + buildPath(path, pathParams);
     return this.http
       .request<T>(method.toUpperCase(), url, { params: buildParams(query), body })
-      .pipe(
-        catchError((error: unknown) =>
-          throwError(() =>
-            error instanceof HttpErrorResponse ? ApiError.fromHttpError(error) : error,
-          ),
-        ),
-      );
+      .pipe(catchError(toApiError));
   }
+}
+
+function toApiError(error: unknown): Observable<never> {
+  return throwError(() =>
+    error instanceof HttpErrorResponse ? ApiError.fromHttpError(error) : error,
+  );
 }
 
 /** Replaces `{name}` placeholders with encoded path parameters. */

@@ -24,7 +24,11 @@ export const TEST_NOW = new Date('2026-11-10T12:00:00Z');
 
 export interface TestMockApiOptions {
   now?: Date;
-  flags?: SimulationFlags;
+  /**
+   * Simulation flags. Pass a function to change them between requests, for example to move the
+   * clock with `clockOffsetMs`.
+   */
+  flags?: SimulationFlags | (() => SimulationFlags);
   /**
    * Who the requests are sent as. By default a session is started for the first seeded
    * administrator, and its token is added to every request that has no `Authorization` header.
@@ -41,6 +45,11 @@ export interface TestMockApiOptions {
    * APIs the same `MemoryMockStore` to test two browser tabs that share the data.
    */
   store?: MockStore;
+  /**
+   * Whether the mock sends invite and reset links in the demo-only `X-Demo-Link` header, as the
+   * browser does while `environment.demo` is set. Defaults to true.
+   */
+  demoLinks?: boolean;
   /** Wraps every handler, as the browser's cross-tab lock does. */
   exclusive?: MockEnvironment['exclusive'];
 }
@@ -69,8 +78,9 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
   const env: MockEnvironment = {
     db,
     baseUrl: environment.apiBaseUrl,
-    flags: () => options.flags ?? {},
+    flags: () => (typeof options.flags === 'function' ? options.flags() : options.flags) ?? {},
     latency: 0,
+    demoLinks: options.demoLinks ?? true,
     now: () => now,
     exclusive: options.exclusive,
   };

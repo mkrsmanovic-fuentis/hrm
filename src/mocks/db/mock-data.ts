@@ -27,7 +27,7 @@ import type {
  * never listed in an audit entry's `changes`. `recordAudit()` rejects records that carry them.
  */
 export const DERIVED_FIELDS = {
-  user: ['assignedTrainingCount', 'completedTrainingCount'],
+  user: ['assignedTrainingCount', 'completedTrainingCount', 'invitationStatus'],
   department: ['employeeCount'],
   topic: ['questionnaireCount'],
   questionnaire: ['questionCount', 'activationProblems'],
@@ -56,6 +56,33 @@ export interface SessionRecord {
   expiresAt: string;
 }
 
+/** What an account link lets its holder do: set a first password, or reset a forgotten one. */
+export type AccountLinkPurpose = 'invitation' | 'password_reset';
+
+/**
+ * An invite or password reset link. The token is the secret in the link's URL. The real backend
+ * stores only a hash of it; the mock keeps it as it is, like session tokens.
+ */
+export interface AccountLinkRecord {
+  token: string;
+  userId: string;
+  purpose: AccountLinkPurpose;
+  createdAt: string;
+  expiresAt: string;
+  /** When the link was used to set a password. A used link never works again. */
+  usedAt: string | null;
+}
+
+/**
+ * A password the user set through a link. Mock only: a SHA-256 hash, so the browser's storage
+ * never holds the password itself. The real backend uses a slow password hash such as Argon2id.
+ * Users without one sign in with the demo password.
+ */
+export interface CredentialRecord {
+  userId: string;
+  passwordHash: string;
+}
+
 /** Everything the mock API knows: one table per entity in the data model. */
 export interface MockData {
   /** The current organization. The MVP has exactly one. */
@@ -75,4 +102,11 @@ export interface MockData {
   auditLog: AuditLogEntry[];
   /** Signed-in sessions. Empty in the seed; sign-in adds one, sign-out removes it. */
   sessions: SessionRecord[];
+  /**
+   * Invite and password reset links. Empty in the seed: seeded invites have no link the demo can
+   * show, so an administrator sends the invite again to get one.
+   */
+  accountLinks: AccountLinkRecord[];
+  /** Passwords users set through a link. Empty in the seed: seeded users use the demo password. */
+  credentials: CredentialRecord[];
 }

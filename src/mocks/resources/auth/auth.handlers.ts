@@ -1,13 +1,8 @@
 import type { FieldError } from '../../../app/core/api/api-schema.gen';
 import { ProblemType } from '../../../app/core/api/api-error';
-import {
-  hasPassword,
-  isSessionActive,
-  sameEmail,
-  SESSION_LIFETIME_MS,
-} from '../../rules/auth-rules';
+import { hasPassword, sameEmail } from '../../rules/auth-rules';
 import { DEMO_PASSWORD } from '../../seed/people.seed';
-import { newSessionToken, readBearerToken, toSession } from '../../support/auth';
+import { passwordMatches, readBearerToken, startSession, toSession } from '../../support/auth';
 import { problemResponse } from '../../support/problem';
 import { route } from '../../support/mock-route';
 
@@ -40,7 +35,11 @@ export const authRoutes = [
 
       // Unknown email, no password set yet, wrong password: one answer, so the response does
       // not reveal which emails have accounts.
-      if (!user || !hasPassword(user) || password !== DEMO_PASSWORD) {
+      if (
+        !user ||
+        !hasPassword(user) ||
+        !(await passwordMatches(db.data, user, password, DEMO_PASSWORD))
+      ) {
         return problemResponse(401, 'The email or password is wrong.', {
           instance: url.pathname,
           kind: { type: ProblemType.invalidCredentials, title: 'Wrong email or password' },
@@ -57,19 +56,7 @@ export const authRoutes = [
         );
       }
 
-      const session = db.update((data) => {
-        // Drop sessions that have ended, so the table does not grow forever.
-        data.sessions = data.sessions.filter((s) => isSessionActive(s, now));
-        const created = {
-          token: newSessionToken(),
-          userId: user.id,
-          createdAt: now.toISOString(),
-          expiresAt: new Date(now.getTime() + SESSION_LIFETIME_MS).toISOString(),
-        };
-        data.sessions.push(created);
-        user.lastSignedInAt = created.createdAt;
-        return created;
-      });
+      const session = db.update((data) => startSession(data, user, now));
       return ok(toSession(session, user, db.data, now), 201);
     },
     { public: true },

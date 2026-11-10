@@ -188,6 +188,96 @@ describe('AuthService', () => {
     });
   });
 
+  describe('invite and reset links', () => {
+    /** Creates a user as an administrator and returns the token of their invite link. */
+    async function inviteToken(mock: ReturnType<typeof setup>['mock']): Promise<string> {
+      const admin = mock.db.data.users.find((u) => u.email === ADMIN)!;
+      mock.db.update((data) =>
+        data.sessions.push({
+          token: 'test-admin',
+          userId: admin.id,
+          createdAt: TEST_NOW.toISOString(),
+          expiresAt: new Date(TEST_NOW.getTime() + SESSION_LIFETIME_MS).toISOString(),
+        }),
+      );
+      const response = await mock.fetch('/api/v1/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-admin' },
+        body: JSON.stringify({
+          email: 'hana.sato@brightwater.example',
+          firstName: 'Hana',
+          lastName: 'Sato',
+          role: 'employee',
+        }),
+      });
+      return new URL(response.headers.get('X-Demo-Link')!).searchParams.get('token')!;
+    }
+
+    it('sets the first password through an invite link and signs in', async () => {
+      const { auth, mock } = setup();
+      const token = await inviteToken(mock);
+
+      const session = await auth.acceptInvitation(token, 'a long new password');
+
+      expect(auth.user()).toMatchObject({ firstName: 'Hana', invitationStatus: 'accepted' });
+      expect(auth.token()).toBe(session.token);
+      expect(JSON.parse(localStorage.getItem('hrm.session')!).token).toBe(session.token);
+    });
+
+    it('sets a new password through a reset link and signs in', async () => {
+      const { auth, mock } = setup();
+      const response = await mock.fetch('/api/v1/auth/password-resets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: ADMIN }),
+      });
+      const token = new URL(response.headers.get('X-Demo-Link')!).searchParams.get('token')!;
+
+      await auth.resetPassword(token, 'a long new password');
+
+      expect(auth.user()?.email).toBe(ADMIN);
+      await expect(auth.signIn(ADMIN, PASSWORD)).rejects.toBeInstanceOf(ApiError);
+      await auth.signIn(ADMIN, 'a long new password');
+      expect(auth.user()?.email).toBe(ADMIN);
+    });
+
+    it('fails with the link problem and stays signed out', async () => {
+      const { auth } = setup();
+
+      const error = await auth.acceptInvitation('unknown', 'a long new password').catch((e) => e);
+
+      expect(error).toBeInstanceOf(ApiError);
+      expect((error as ApiError).problem.type).toBe(ProblemType.linkNotFound);
+      expect(auth.user()).toBeNull();
+    });
+  });
+
+  describe('updateUser', () => {
+    it('shows new details of the signed-in user at once, and keeps them after a reload', async () => {
+      const { auth } = setup();
+      await auth.signIn(ADMIN, PASSWORD);
+      const user = auth.user()!;
+
+      auth.updateUser({ ...user, firstName: 'Marija', email: 'marija.novak@brightwater.example' });
+
+      expect(auth.user()).toMatchObject({
+        firstName: 'Marija',
+        email: 'marija.novak@brightwater.example',
+      });
+      expect(reload().user()?.firstName).toBe('Marija');
+    });
+
+    it('ignores other users', async () => {
+      const { auth } = setup();
+      await auth.signIn(ADMIN, PASSWORD);
+      const user = auth.user()!;
+
+      auth.updateUser({ ...user, id: 'someone-else', firstName: 'Someone' });
+
+      expect(auth.user()?.firstName).toBe(user.firstName);
+    });
+  });
+
   describe('across browser tabs', () => {
     /** What the browser does in this tab when another tab changes localStorage. */
     function otherTabWrites(value: string | null) {
@@ -267,6 +357,19 @@ describe('AuthService', () => {
       otherTabWrites(localStorage.getItem('hrm.session'));
 
       expect(auth.user()?.email).toBe(ADMIN);
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('shows new details of the same session from another tab, without navigating', async () => {
+      const { auth, router } = setup();
+      await auth.signIn(ADMIN, PASSWORD);
+      await router.navigateByUrl('/admin/home');
+      const navigate = vi.spyOn(router, 'navigateByUrl');
+      const stored = JSON.parse(localStorage.getItem('hrm.session')!);
+
+      otherTabWrites(JSON.stringify({ ...stored, user: { ...stored.user, firstName: 'Marija' } }));
+
+      expect(auth.user()?.firstName).toBe('Marija');
       expect(navigate).not.toHaveBeenCalled();
     });
 

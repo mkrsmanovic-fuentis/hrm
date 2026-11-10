@@ -8,7 +8,7 @@ import {
   submit,
   type FieldTree,
 } from '@angular/forms/signals';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   SdButton,
   SdCallout,
@@ -19,7 +19,14 @@ import {
   SdPassword,
 } from '@specora-dev/ui-kit';
 import { ApiError, ProblemType, type RoleKey } from '../../core/api';
-import { AuthService, ROLE_LABELS, safeReturnUrl } from '../../core/auth';
+import {
+  AuthService,
+  FORGOT_PASSWORD_PATH,
+  returnUrlParams,
+  ROLE_LABELS,
+  safeReturnUrl,
+} from '../../core/auth';
+import { AuthPage } from '../../shared/auth-page/auth-page';
 
 /** What the error callout says when signing in fails. */
 interface SignInError {
@@ -29,11 +36,22 @@ interface SignInError {
 
 /**
  * The login page: email and password, plus one-click sign-in with the demo accounts when the
- * environment has them.
+ * environment has them. **Forgot password?** opens the page that sends a reset link.
  */
 @Component({
   selector: 'app-login',
-  imports: [FormField, SdButton, SdCallout, SdField, SdInput, SdPanel, SdPanelSection, SdPassword],
+  imports: [
+    AuthPage,
+    FormField,
+    RouterLink,
+    SdButton,
+    SdCallout,
+    SdField,
+    SdInput,
+    SdPanel,
+    SdPanelSection,
+    SdPassword,
+  ],
   templateUrl: './login.html',
   styleUrl: './login.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +60,12 @@ export class Login {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected readonly forgotPasswordUrl = `/${FORGOT_PASSWORD_PATH}`;
+  /** Keeps `returnUrl` on the way to Forgot password and back. */
+  protected readonly returnQuery = returnUrlParams(
+    this.route.snapshot.queryParamMap.get('returnUrl') ?? '',
+  );
 
   /** The sign-in in progress: the form, or a demo account. */
   protected readonly busy = signal<'form' | RoleKey | null>(null);

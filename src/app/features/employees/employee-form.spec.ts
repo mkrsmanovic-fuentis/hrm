@@ -22,7 +22,7 @@ describe('Employee form', () => {
     );
     fixture.componentRef.setInput('currentUserId', session?.userId ?? null);
     const saved: User[] = [];
-    fixture.componentInstance.saved.subscribe((u) => saved.push(u));
+    fixture.componentInstance.saved.subscribe((event) => saved.push(event.user));
     await fixture.whenStable();
 
     const component = fixture.componentInstance as unknown as {

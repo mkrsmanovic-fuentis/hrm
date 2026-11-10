@@ -16,6 +16,22 @@
   }
 </sd-status-bar>
 
+@if (inviteLink(); as invite) {
+  <app-demo-link
+    [heading]="'Demo only: invite link for ' + invite.name"
+    fieldLabel="Invite link"
+    copyLabel="Copy invite link"
+    closable
+    [link]="invite.link"
+    (closed)="inviteLink.set(null)"
+  >
+    This demo sends no email. A real deployment emails this link to {{ invite.name }}. To try it,
+    open the link in a new tab of this browser: the demo data lives only in this browser, so another
+    browser or a private window does not know the link. Setting the password signs this browser in
+    as {{ invite.name }}, in every tab, and you are signed out.
+  </app-demo-link>
+}
+
 @if (firstLoad()) {
   <div class="loading" aria-busy="true" aria-label="Loading employees">
     <sd-skeleton height="2.5rem" />

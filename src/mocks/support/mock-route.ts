@@ -26,6 +26,12 @@ export interface MockEnvironment {
   /** The current time. Tests pass a fixed date. */
   now: () => Date;
   /**
+   * Demo only: send the links the server would have emailed in the `X-Demo-Link` response header.
+   * On only while `environment.demo` is set. With it off, the links never leave the mock, as with
+   * the real backend: anyone could otherwise read a working reset link for any email.
+   */
+  demoLinks: boolean;
+  /**
    * Runs one request at a time across browser tabs, from loading the latest data to saving the
    * changes, so no tab's write is lost. The browser passes a Web Lock; tests may pass their own.
    */
@@ -44,14 +50,21 @@ export interface MockContext<O> {
   query: QueryReader;
   db: MockDb;
   now: Date;
+  /** Whether to send demo links in `X-Demo-Link`. See {@link MockEnvironment.demoLinks}. */
+  demoLinks: boolean;
   /**
    * The signed-in user, from the session token. Always set, except on public routes
    * (`{ public: true }`), which run without a session.
    */
   currentUser: UserRecord | null;
-  /** Success response. The body type comes from the spec, so the mock cannot drift from it. */
-  ok(body: ApiResponseBody<O>, status?: 200 | 201): Response;
+  /**
+   * Success response. The body type comes from the spec, so the mock cannot drift from it.
+   * `headers` adds response headers, such as the demo-only `X-Demo-Link`.
+   */
+  ok(body: ApiResponseBody<O>, status?: 200 | 201, headers?: Record<string, string>): Response;
   noContent(): Response;
+  /** `202 Accepted` with no body, for requests the server handles later, such as sending email. */
+  accepted(headers?: Record<string, string>): Response;
   problem(status: number, detail?: string): Response;
   notFound(detail?: string): Response;
   validationFailed(errors: FieldError[]): Response;
@@ -68,8 +81,8 @@ type Resolver<O> = (ctx: MockContext<O>) => Response | Promise<Response>;
 
 export interface RouteOptions {
   /**
-   * Skip the session token check. Only sign-in and sign-out are public; every other route
-   * answers 401 without a valid token.
+   * Skip the session token check. Only sign-in, sign-out and the invite and password reset links
+   * are public; every other route answers 401 without a valid token.
    */
   public?: boolean;
 }
@@ -92,12 +105,15 @@ function define<M extends HttpMethod>(method: M) {
 
         await wait(env.latency, active.delayMs);
         if (active.errorStatus) return simulatedError(active.errorStatus, url.pathname);
+        // `mock-clock` moves the mock's time, for example to see a link expire.
+        const now = () => new Date(env.now().getTime() + (active.clockOffsetMs ?? 0));
 
         const handle = () =>
-          resolve(env, request, url, options, (currentUser) =>
+          resolve(env, request, url, options, now, (currentUser) =>
             resolver(
               createContext<ApiOperation<P, M>>(
                 env,
+                now(),
                 request,
                 url,
                 params,
@@ -119,11 +135,12 @@ async function resolve(
   request: Request,
   url: URL,
   options: RouteOptions,
+  now: () => Date,
   run: (currentUser: UserRecord | null) => Response | Promise<Response>,
 ): Promise<Response> {
   await env.db.sync();
   try {
-    return await authenticateAndRun(env, request, url, options, run);
+    return await authenticateAndRun(env, request, url, options, now, run);
   } finally {
     await env.db.flush();
   }
@@ -134,11 +151,12 @@ async function authenticateAndRun(
   request: Request,
   url: URL,
   options: RouteOptions,
+  now: () => Date,
   run: (currentUser: UserRecord | null) => Response | Promise<Response>,
 ): Promise<Response> {
   let currentUser: UserRecord | null = null;
   if (!options.public) {
-    const auth = authenticate(env.db.data, request, env.now());
+    const auth = authenticate(env.db.data, request, now());
     if (!auth.ok) return problemResponse(401, auth.detail, { instance: url.pathname });
     currentUser = auth.user;
   }
@@ -197,6 +215,7 @@ export const unhandledApiRoute: MockRoute = (env) =>
 
 function createContext<O>(
   env: MockEnvironment,
+  now: Date,
   request: Request,
   url: URL,
   params: Record<string, string | readonly string[] | undefined>,
@@ -210,10 +229,13 @@ function createContext<O>(
     params: params as MockContext<O>['params'],
     query: new QueryReader(url.searchParams),
     db: env.db,
-    now: env.now(),
+    now,
+    demoLinks: env.demoLinks,
     currentUser,
-    ok: (body, status = 200) => HttpResponse.json(body as JsonBodyType, { status }),
+    ok: (body, status = 200, headers) =>
+      HttpResponse.json(body as JsonBodyType, { status, headers }),
     noContent: () => new HttpResponse(null, { status: 204 }),
+    accepted: (headers) => new HttpResponse(null, { status: 202, headers }),
     problem: (status, detail) => problemResponse(status, detail, { instance }),
     notFound: (detail) => problemResponse(404, detail, { instance }),
     validationFailed: (errors) => validationProblem(errors, instance),

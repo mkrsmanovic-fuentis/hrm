@@ -8,6 +8,11 @@ export const LOGIN_PATH = 'login';
 /** Path of the "no access" page, without a leading slash. The role guard shows it. */
 export const NO_ACCESS_PATH = 'no-access';
 
+/** Public pages for invite and password reset links, without a leading slash. */
+export const SET_PASSWORD_PATH = 'set-password';
+export const FORGOT_PASSWORD_PATH = 'forgot-password';
+export const RESET_PASSWORD_PATH = 'reset-password';
+
 /**
  * The first URL segment of each role's area. Every administrator page lives under `/admin`, every
  * employee page under `/my`. The role guard on each area keeps the other role out.

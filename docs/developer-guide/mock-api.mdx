@@ -59,6 +59,7 @@ On first load, and after a reset, the mock database is filled from the seed in `
 | Assignments | About 120, in every status: Not Started, In Progress, Passed, Failed and Overdue. Includes retakes, late passes and attempts submitted by the time limit. |
 | Notifications | New assignments and deadline reminders, some read. |
 | Audit log | Creation of every department, topic, questionnaire, employee and assignment, plus edits and deactivations. |
+| Invite and reset links, passwords | None. Seeded users sign in with the demo password. To get an invite link for a seeded user with a pending or expired invite, send the invite again on the Employees page. |
 
 ## Sign in to the mock
 
@@ -103,6 +104,7 @@ Add flags to the app's address to see loading, error, access-denied and empty st
 | `mock-error=unauthenticated` | Every request fails with `401`, not signed in. |
 | `mock-error=not-found`, `conflict`, `validation`, `bad-request` | `404`, `409`, `422` and `400`. Any status from 400 to 599 also works, for example `mock-error=503`. |
 | `mock-empty` | List endpoints return no items. |
+| `mock-clock=2h` | Moves the mock's clock forward, in minutes (`m`), hours (`h`) or days (`d`), for example to see a link expire. `-30m` moves it back. Sessions use the same clock, so add a scope, for example `mock-clock=2h&mock-scope=/auth/password-resets`. |
 | `mock-scope=/topics` | Applies the other flags only to API paths that start with `/topics`, for example `/topics` and `/topics/{topicId}`. |
 | `mock-clear` | Turns all flags off. |
 
