@@ -151,6 +151,35 @@ describe('Set and reset password pages', () => {
       expect(TestBed.inject(Router).url).toContain('/set-password');
     });
 
+    it('counts characters as the API does: an emoji is one character', async () => {
+      const page = await setup();
+      const token = await invite(page);
+      await open(page, `/set-password?token=${token}`);
+
+      // 10 letters and an emoji: 11 characters, though 12 UTF-16 units.
+      type('New password', 'tenletters🔑');
+      type('Confirm password', 'tenletters🔑');
+      await submit(page);
+      expect(text()).toContain('Use at least 12 characters.');
+
+      type('New password', 'elevenchars🔑');
+      type('Confirm password', 'elevenchars🔑');
+      await submit(page);
+      await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/'));
+    });
+
+    it('opens the return URL after setting the password, when the link has one', async () => {
+      const page = await setup();
+      const token = await invite(page);
+      await open(page, `/set-password?token=${token}&returnUrl=%2Fmy%2Ftraining`);
+
+      type('New password', NEW_PASSWORD);
+      type('Confirm password', NEW_PASSWORD);
+      await submit(page);
+
+      await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/my/training'));
+    });
+
     it('explains an expired invite link and what to do next', async () => {
       const page = await setup();
       const token = await invite(page);

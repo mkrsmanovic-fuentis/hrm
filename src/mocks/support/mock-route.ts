@@ -26,6 +26,12 @@ export interface MockEnvironment {
   /** The current time. Tests pass a fixed date. */
   now: () => Date;
   /**
+   * Demo only: send the links the server would have emailed in the `X-Demo-Link` response header.
+   * On only while `environment.demo` is set. With it off, the links never leave the mock, as with
+   * the real backend: anyone could otherwise read a working reset link for any email.
+   */
+  demoLinks: boolean;
+  /**
    * Runs one request at a time across browser tabs, from loading the latest data to saving the
    * changes, so no tab's write is lost. The browser passes a Web Lock; tests may pass their own.
    */
@@ -44,6 +50,8 @@ export interface MockContext<O> {
   query: QueryReader;
   db: MockDb;
   now: Date;
+  /** Whether to send demo links in `X-Demo-Link`. See {@link MockEnvironment.demoLinks}. */
+  demoLinks: boolean;
   /**
    * The signed-in user, from the session token. Always set, except on public routes
    * (`{ public: true }`), which run without a session.
@@ -221,6 +229,7 @@ function createContext<O>(
     query: new QueryReader(url.searchParams),
     db: env.db,
     now,
+    demoLinks: env.demoLinks,
     currentUser,
     ok: (body, status = 200, headers) =>
       HttpResponse.json(body as JsonBodyType, { status, headers }),

@@ -89,6 +89,13 @@ describe('Login page', () => {
     expect(link?.textContent?.trim()).toBe('Forgot password?');
   });
 
+  it('keeps the return URL on the way to the forgot password page', async () => {
+    const { element } = await render('/login?returnUrl=%2Fadmin%2Fdepartments');
+
+    const link = element.querySelector<HTMLAnchorElement>('a[href^="/forgot-password"]');
+    expect(link?.getAttribute('href')).toBe('/forgot-password?returnUrl=%2Fadmin%2Fdepartments');
+  });
+
   it('asks for both fields before calling the API', async () => {
     const { element, submit, auth } = await render();
 

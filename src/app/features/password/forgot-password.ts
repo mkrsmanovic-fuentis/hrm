@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { disabled, email, form, FormField, required, submit } from '@angular/forms/signals';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   SdButton,
   SdCallout,
@@ -11,7 +11,7 @@ import {
 } from '@specora-dev/ui-kit';
 import { firstValueFrom } from 'rxjs';
 import { ApiClient, demoLinkOf } from '../../core/api';
-import { DEMO_ACCOUNTS, LOGIN_PATH } from '../../core/auth';
+import { DEMO_ACCOUNTS, LOGIN_PATH, returnUrlParams } from '../../core/auth';
 import { AuthPage } from '../../shared/auth-page/auth-page';
 import { DemoLink } from '../../shared/demo-link/demo-link';
 import { serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
@@ -53,6 +53,10 @@ export class ForgotPassword {
   private readonly demo = inject(DEMO_ACCOUNTS) !== null;
 
   protected readonly loginUrl = `/${LOGIN_PATH}`;
+  /** The login page's `returnUrl`, kept for **Back to sign in**. */
+  protected readonly returnQuery = returnUrlParams(
+    inject(ActivatedRoute).snapshot.queryParamMap.get('returnUrl') ?? '',
+  );
   protected readonly busy = signal(false);
   protected readonly formError = signal<string | null>(null);
   protected readonly sent = signal<Sent | null>(null);

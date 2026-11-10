@@ -79,7 +79,8 @@ Invite and password reset links need no session token: the secret token in the l
 - A link that has expired answers `410` with type `/problems/link-expired`, one that was used already `410` with `/problems/link-used`, and an unknown or replaced one `404` with `/problems/link-not-found`. The link is checked before the body.
 - A password that breaks the [password rules](/developer-guide/business-rules#passwords) answers `422` on `password`.
 - Administrators send an invite again with `POST /users/{userId}/invitation`. It answers `201` with the user. Employees get `403`.
-- **Demo only:** `POST /users`, `POST /users/{userId}/invitation` and `POST /auth/password-resets` send the link they would have emailed in the `X-Demo-Link` response header, when they created one. The real backend never sends this header.
+- **Demo only:** while the app's demo mode is on, the mock's `POST /users`, `POST /users/{userId}/invitation` and `POST /auth/password-resets` send the link they would have emailed in the `X-Demo-Link` response header, when they created one. With demo mode off the mock never sends it, and the real backend never does.
+- Deactivating a user makes all their links stop working for good. Changing their email makes their reset links stop working.
 
 - A session lasts **8 hours** from sign-in. Activity does not extend it. After `expiresAt`, every call with the token answers `401`.
 - A wrong password, an unknown email and a user who has not set a password yet all get the same `401` with type `/problems/invalid-credentials`, so the answer does not reveal which emails have accounts.

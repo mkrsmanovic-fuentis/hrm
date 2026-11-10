@@ -51,7 +51,7 @@ export interface paths {
          *
          *     - A link of a user who has set a password already answers `410` with type `/problems/link-used`.
          *     - A link past its 7 days answers `410` with type `/problems/link-expired`.
-         *     - An unknown token, a link replaced by a newer invite, and a link of a deactivated user answer `404` with type `/problems/link-not-found`.
+         *     - An unknown token, a link replaced by a newer invite, and a link of a user who was deactivated, even if reactivated later, answer `404` with type `/problems/link-not-found`.
          *
          *     **Access:** anyone with the link.
          */
@@ -105,7 +105,7 @@ export interface paths {
          *
          *     The answer is always `202` with no body, whether the email has an account or not and whether a link was sent or not, so it does not reveal which emails have accounts. Only an email that is missing or not an email address answers `422`.
          *
-         *     In the demo, the mock API sends the link in the `X-Demo-Link` header instead of emailing it, when it created one. The real backend never sends this header.
+         *     In the demo, the mock API sends the link in the `X-Demo-Link` header instead of emailing it, when it created one and demo mode is on. The real backend never sends this header.
          *
          *     **Access:** anyone.
          */
@@ -129,7 +129,7 @@ export interface paths {
          *
          *     - A link that was used already answers `410` with type `/problems/link-used`.
          *     - A link past its 1 hour answers `410` with type `/problems/link-expired`.
-         *     - An unknown token, a link replaced by a newer request or by a completed reset, and a link of a deactivated user answer `404` with type `/problems/link-not-found`.
+         *     - An unknown token, a link replaced by a newer request or by a completed reset, a link of a user who was deactivated (even if reactivated later), and a link sent before the user's email changed answer `404` with type `/problems/link-not-found`.
          *
          *     **Access:** anyone with the link.
          */
@@ -267,7 +267,7 @@ export interface paths {
          * Create a user
          * @description Creates an active user and sends them an invite link to set a password. `invitationSentAt` is now, `invitationExpiresAt` is 7 days later, and `passwordSetAt` stays `null` until the user sets a password.
          *
-         *     In the demo, the mock API sends the invite link in the `X-Demo-Link` header instead of emailing it. The real backend never sends this header.
+         *     In the demo, the mock API sends the invite link in the `X-Demo-Link` header instead of emailing it, while demo mode is on. The real backend never sends this header.
          *
          *     The email must be unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Only an active department can be chosen.
          *
@@ -328,7 +328,7 @@ export interface paths {
          *
          *     Only for active users who have not set a password yet. A user who has set a password, or a deactivated user, answers `409`.
          *
-         *     In the demo, the mock API sends the new link in the `X-Demo-Link` header instead of emailing it. The real backend never sends this header.
+         *     In the demo, the mock API sends the new link in the `X-Demo-Link` header instead of emailing it, while demo mode is on. The real backend never sends this header.
          *
          *     **Access:** administrators only. Employees get `403`. Not logged in the audit log, until the product decides otherwise (SPE-46).
          */
@@ -557,7 +557,7 @@ export interface components {
             /** @description The user's password. */
             password: string;
         };
-        /** @description A new password: 12 to 128 characters, any characters, spaces included. Not trimmed. It must not be the user's email address. See the password rules in the business rules. */
+        /** @description A new password: 12 to 128 characters, counted as Unicode code points, so an emoji is one character. Any characters, spaces included. Not trimmed. It must not be the user's email address. See the password rules in the business rules. */
         Password: string;
         /** @description The password a user chooses through an invite or password reset link. */
         PasswordSet: {
@@ -1255,7 +1255,7 @@ export interface components {
     };
     requestBodies: never;
     headers: {
-        /** @description Demo only. The link the server would have emailed, for example `http://localhost:4200/set-password?token=…`. The mock API sends it so the demo can show the link on screen. The real backend never sends this header and always emails the link. */
+        /** @description Demo only. The link the server would have emailed, for example `http://localhost:4200/set-password?token=…`. The mock API sends it only while the app's demo mode (`environment.demo`) is on, so the demo can show the link on screen. With demo mode off the mock never sends it. The real backend never sends this header and always emails the link: returning links would let anyone take over any account. */
         XDemoLink: string;
     };
     pathItems: never;

@@ -226,6 +226,24 @@ describe('invite link and password reset mock handlers', () => {
       expect((await admin.fetch(`/api/v1/auth/invitations/${token}`)).status).toBe(200);
     });
 
+    it('counts characters as code points: an emoji is one character', async () => {
+      const admin = setup();
+      const { token } = await createUser(admin);
+
+      // 11 letters and one emoji: 12 characters, 13 UTF-16 units.
+      expect((await setPassword(admin, token, 'elevenchars🔑')).status).toBe(201);
+    });
+
+    it('rejects 11 characters, even when an emoji makes them 12 UTF-16 units', async () => {
+      const admin = setup();
+      const { token } = await createUser(admin);
+
+      const response = await setPassword(admin, token, 'tenletters🔑');
+
+      expect(response.status).toBe(422);
+      expect((await response.json()).errors[0].code).toBe('too_short');
+    });
+
     it('keeps spaces in a password: 12 characters with spaces around them are fine', async () => {
       const admin = setup();
       const { user, token } = await createUser(admin);
@@ -462,6 +480,91 @@ describe('invite link and password reset mock handlers', () => {
         404,
         ProblemType.linkNotFound,
       );
+    });
+
+    it('stops a reset link working when an administrator changes the email', async () => {
+      const admin = setup();
+      const user = userByEmail(admin, EMAIL);
+      const token = tokenOf(await requestReset(admin, EMAIL));
+
+      await admin.fetch(
+        `/api/v1/users/${user.id}`,
+        json('PATCH', { email: 'amelia.h@brightwater.example' }),
+      );
+
+      await expectProblem(await resetPassword(admin, token), 404, ProblemType.linkNotFound);
+    });
+
+    it('keeps a reset link when an edit leaves the email as it is, apart from case', async () => {
+      const admin = setup();
+      const user = userByEmail(admin, EMAIL);
+      const token = tokenOf(await requestReset(admin, EMAIL));
+
+      await admin.fetch(`/api/v1/users/${user.id}`, json('PATCH', { lastName: 'Hughes-Lee' }));
+
+      expect((await admin.fetch(`/api/v1/auth/password-resets/${token}`)).status).toBe(200);
+    });
+  });
+
+  describe('deactivating', () => {
+    it('makes invite and reset links stop working for good, even after reactivating', async () => {
+      const admin = setup();
+      const { user: hana, token: invite } = await createUser(admin);
+      const amelia = userByEmail(admin, 'amelia.hughes@brightwater.example');
+      const reset = tokenOf(await requestReset(admin, amelia.email));
+
+      for (const id of [hana.id, amelia.id]) {
+        await admin.fetch(`/api/v1/users/${id}`, json('PATCH', { status: 'inactive' }));
+        await admin.fetch(`/api/v1/users/${id}`, json('PATCH', { status: 'active' }));
+      }
+
+      await expectProblem(await setPassword(admin, invite), 404, ProblemType.linkNotFound);
+      await expectProblem(await resetPassword(admin, reset), 404, ProblemType.linkNotFound);
+      expect(admin.db.data.accountLinks).toEqual([]);
+      // Sending the invite again gives a working link.
+      expect((await setPassword(admin, tokenOf(await resend(admin, hana.id)))).status).toBe(201);
+    });
+  });
+
+  describe('demo links', () => {
+    it('are sent only while demo links are on', async () => {
+      const admin = setup({ demoLinks: false });
+      const pending = userByEmail(admin, 'aisha.khan@brightwater.example');
+
+      const created = await admin.fetch(
+        '/api/v1/users',
+        json('POST', {
+          email: 'kai.berg@brightwater.example',
+          firstName: 'Kai',
+          lastName: 'Berg',
+          role: 'employee',
+        }),
+      );
+      const resent = await resend(admin, pending.id);
+      const reset = await requestReset(admin, 'amelia.hughes@brightwater.example');
+
+      expect([created.status, resent.status, reset.status]).toEqual([201, 201, 202]);
+      for (const response of [created, resent, reset]) {
+        expect(response.headers.has('X-Demo-Link')).toBe(false);
+      }
+      expect(await reset.text()).toBe('');
+      // The links exist, as they would be emailed; only the response leaves them out.
+      expect(admin.db.data.accountLinks.map((l) => l.purpose).sort()).toEqual([
+        'invitation',
+        'invitation',
+        'password_reset',
+      ]);
+    });
+
+    it('make an existing and an unknown email look the same when off', async () => {
+      const mock = setup({ signedInAs: null, demoLinks: false });
+
+      const known = await requestReset(mock, 'amelia.hughes@brightwater.example');
+      const unknown = await requestReset(mock, 'nobody@brightwater.example');
+
+      expect([known.status, unknown.status]).toEqual([202, 202]);
+      expect([...known.headers.keys()].sort()).toEqual([...unknown.headers.keys()].sort());
+      expect(await known.text()).toBe(await unknown.text());
     });
   });
 });

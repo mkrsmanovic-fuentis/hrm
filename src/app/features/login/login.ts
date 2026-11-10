@@ -19,7 +19,13 @@ import {
   SdPassword,
 } from '@specora-dev/ui-kit';
 import { ApiError, ProblemType, type RoleKey } from '../../core/api';
-import { AuthService, FORGOT_PASSWORD_PATH, ROLE_LABELS, safeReturnUrl } from '../../core/auth';
+import {
+  AuthService,
+  FORGOT_PASSWORD_PATH,
+  returnUrlParams,
+  ROLE_LABELS,
+  safeReturnUrl,
+} from '../../core/auth';
 import { AuthPage } from '../../shared/auth-page/auth-page';
 
 /** What the error callout says when signing in fails. */
@@ -56,6 +62,10 @@ export class Login {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly forgotPasswordUrl = `/${FORGOT_PASSWORD_PATH}`;
+  /** Keeps `returnUrl` on the way to Forgot password and back. */
+  protected readonly returnQuery = returnUrlParams(
+    this.route.snapshot.queryParamMap.get('returnUrl') ?? '',
+  );
 
   /** The sign-in in progress: the form, or a demo account. */
   protected readonly busy = signal<'form' | RoleKey | null>(null);

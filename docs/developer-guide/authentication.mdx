@@ -127,6 +127,8 @@ The pages are public: they live outside the shell in `src/app/features/password/
   </Step>
   <Step title="Forgot password always answers the same">
     `ForgotPassword` sends `POST /auth/password-resets` and always shows **Check your email**, with the same text for every email.
+
+    The login page's `returnUrl` goes along to **Forgot password?** and back with **Back to sign in**. The emailed reset link does not carry it. A set or reset page opened with a `returnUrl` keeps it on its links and opens it after success, through `safeReturnUrl()`.
   </Step>
 </Steps>
 
@@ -140,7 +142,11 @@ The demo sends no email. The mock API returns the link it would have emailed in 
 | `POST /users/{userId}/invitation` | The new invite link. |
 | `POST /auth/password-resets` | The reset link, only when one was created. |
 
-`ApiClient.postWithHeaders()` returns the body and the headers, and `demoLinkOf()` from `core/api` reads the link. Pages show it with `<app-demo-link>` from `src/app/shared/demo-link/`, an `sd-callout` labelled **Demo only** with a read-only field and a copy button, and only while `environment.demo` is set, like the demo accounts. Set `environment.demo` to `null` and the links are never shown.
+**The mock sends the header only while `environment.demo` is set.** `src/mocks/browser.ts` passes `demoLinks: environment.demo !== null` to the mock, and handlers add the header through `demoLinkHeader(ctx, link)`, which adds nothing while `ctx.demoLinks` is off. With `environment.demo` set to `null`, the links never leave the mock, as with the real backend: otherwise anyone could read a working reset link for any email from the response headers. In unit tests, `createTestMockApi({ demoLinks: false })` turns the header off; it is on by default.
+
+`ApiClient.postWithHeaders()` returns the body and the headers, and `demoLinkOf()` from `core/api` reads the link. Pages show it with `<app-demo-link>` from `src/app/shared/demo-link/`, an `sd-callout` labelled **Demo only** with a read-only field and a copy button, and only while `environment.demo` is set, like the demo accounts. Set `environment.demo` to `null` and the mock sends no links and the pages show none.
+
+The demo data lives in the browser's IndexedDB, so a link works only in the browser that created it. Open it in a new tab of the same browser. Setting the password there signs that browser in as the link's user, in every tab, replacing the administrator's session.
 
 - The Employees page shows the invite link above the list after creating a user or sending the invite again.
 - The **Check your email** page shows the reset link under the confirmation, when the mock created one.
@@ -154,7 +160,9 @@ Move the mock's clock with the `mock-clock` flag, scoped to the link endpoints s
 /set-password?token=…&mock-clock=8d&mock-scope=/auth/invitations
 ```
 
-The page shows **This reset link has expired** or **This invite link has expired**. Open the app with `?mock-clear` to stop. See [Simulate slow responses, errors and empty lists](/developer-guide/mock-api#simulate-slow-responses-errors-and-empty-lists).
+The page shows **This reset link has expired** or **This invite link has expired**. Open the app with `?mock-clear` to stop.
+
+The clock also moves sessions, so to see **Invite expired** on the Employees page, look at the seeded Samuel Adeyemi instead: his invite expired in the seed. He has no link; send the invite again to get one. See [Simulate slow responses, errors and empty lists](/developer-guide/mock-api#simulate-slow-responses-errors-and-empty-lists).
 
 ## Rules
 
@@ -177,8 +185,10 @@ The page shows **This reset link has expired** or **This invite link has expired
 | `POST /auth/invitations/{invitationToken}/password` | `201` with a new session. Sets `passwordSetAt`, clears the invitation fields, uses up the link. |
 | `POST /auth/password-resets/{passwordResetToken}/password` | `201` with a new session, after deleting every other session of the user. |
 | Either `POST …/password` with a password that breaks the rules | `422` on `password`. The link still works. |
-| `POST /auth/password-resets` | `202` with no body for any valid email. Only for an active user with a password does it create a link and add `X-Demo-Link`. `422` for a missing or malformed email. |
-| `POST /users` and `POST /users/{userId}/invitation` | Add the invite link in `X-Demo-Link`. Sending again removes the old link, so it answers `404`. |
+| `POST /auth/password-resets` | `202` with no body for any valid email. Only for an active user with a password does it create a link, and adds `X-Demo-Link` while demo links are on. `422` for a missing or malformed email. |
+| `POST /users` and `POST /users/{userId}/invitation` | Add the invite link in `X-Demo-Link` while demo links are on. Sending again removes the old link, so it answers `404`. |
+| `PATCH /users/{userId}` that deactivates the user | Also removes all their invite and reset links. They answer `404`, and stay gone after reactivating. |
+| `PATCH /users/{userId}` that changes the email | Also removes the user's reset links. |
 | Any other endpoint without a token, with an unknown token or with an expired one | `401`, type `/problems/unauthenticated`. |
 
 - Links are stored in the `accountLinks` table and passwords, as SHA-256 hashes, in `credentials`. Both start empty in the seed. The helpers are in `src/mocks/support/account-links.ts`, the rules in `src/mocks/rules/auth-rules.ts`.

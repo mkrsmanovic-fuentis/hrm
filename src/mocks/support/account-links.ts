@@ -106,14 +106,17 @@ export function setPasswordThroughLink(
   }
 }
 
-/** Removes the user's links of a purpose, except `keep`. */
-function removeLinks(
+/**
+ * Makes the user's links stop working: those of one purpose, or all of them. `keep` stays. Call it
+ * inside `db.update()`. A removed link answers "not found".
+ */
+export function removeLinks(
   data: MockData,
   userId: string,
-  purpose: AccountLinkPurpose,
+  purpose?: AccountLinkPurpose,
   keep?: AccountLinkRecord,
 ): void {
   data.accountLinks = data.accountLinks.filter(
-    (l) => l === keep || l.userId !== userId || l.purpose !== purpose,
+    (l) => l === keep || l.userId !== userId || (purpose !== undefined && l.purpose !== purpose),
   );
 }

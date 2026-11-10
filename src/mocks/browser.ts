@@ -58,6 +58,8 @@ export async function startMockApi(): Promise<void> {
       baseUrl: environment.apiBaseUrl,
       flags: () => flags,
       latency: 'real',
+      // Demo links in `X-Demo-Link` only while the demo UI is on. See mock-route.ts.
+      demoLinks: environment.demo !== null,
       now: () => new Date(),
       exclusive,
     }),

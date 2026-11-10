@@ -212,8 +212,10 @@ Two kinds of links let a user set a password without being signed in. The secret
 | - | - | - |
 | Past its 7 days or 1 hour | `410`, type `/problems/link-expired` | Ask an administrator for a new invite, or request a new reset link. |
 | Used already | `410`, type `/problems/link-used` | Sign in, or request a new reset link. |
-| Unknown token, replaced by a newer link, or the user was deactivated | `404`, type `/problems/link-not-found` | Use the newest link, ask an administrator for a new invite, or request a new reset link. |
+| Unknown token, replaced by a newer link, or removed because the user was deactivated or their email changed | `404`, type `/problems/link-not-found` | Use the newest link, ask an administrator for a new invite, or request a new reset link. |
 
+- **Deactivating a user makes all their invite and reset links stop working for good.** Reactivating does not bring them back: the administrator sends the invite again, or the user requests a new reset link.
+- **Changing a user's email makes their reset links stop working**, because they were sent to the old address.
 - The link is checked when the page opens and again when the password is sent. A link that expires while the page is open shows the same message.
 - Only the token holder learns whether a link was used or expired. Without a valid token, nothing reveals which emails have accounts.
 
@@ -221,7 +223,7 @@ Two kinds of links let a user set a password without being signed in. The secret
 
 Rules for every new password, set through an invite or a reset link:
 
-- **At least 12 and at most 128 characters.** Any characters, including spaces and emoji. There are no rules about kinds of characters, such as digits or symbols: length matters most.
+- **At least 12 and at most 128 characters.** Any characters, including spaces and emoji. Characters are counted as Unicode code points, as JSON Schema counts `minLength`: an emoji is one character. There are no rules about kinds of characters, such as digits or symbols: length matters most.
 - **Not trimmed.** Spaces at the start and end are part of the password.
 - **Not the user's email address**, ignoring upper and lower case and spaces around it.
 - The user types it **twice**. The page checks that both match before sending; the API receives it once.
@@ -232,7 +234,7 @@ The real backend must also:
 - Generate link tokens with a cryptographically secure random generator, with at least 128 bits of randomness, and store only a hash of each token.
 - Store passwords as a salted hash made with a slow password-hashing algorithm, as for signing in.
 - Never log link tokens. They appear in page URLs and endpoint paths, so keep them out of access logs and analytics.
-- Email the links and never return them in a response. The mock's `X-Demo-Link` header is for the demo only.
+- Email the links and never return them in a response. The mock's `X-Demo-Link` header is for the demo only, and the mock sends it only while `environment.demo` is set. A server that returned links could be used to take over any account.
 - Limit how often reset links can be requested for one email and from one address, so the endpoint cannot be used to flood a mailbox. {/* TODO: the PO to decide the limits. */}
 
 The mock stores a SHA-256 hash of each password it is given, salted with the user ID, so the browser's storage never holds a password. It is not a slow hash; the real backend must use one.

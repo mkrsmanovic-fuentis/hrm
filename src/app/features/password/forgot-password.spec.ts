@@ -1,6 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { createTestMockApi, TEST_NOW, type TestMockApiOptions } from '../../../mocks/testing';
 import { authInterceptor, DEMO_ACCOUNTS } from '../../core/auth';
 import { ForgotPassword } from './forgot-password';
@@ -49,6 +50,22 @@ describe('Forgot password page', () => {
 
     expect(element.querySelector('h1')?.textContent).toBe('Forgot your password?');
     expect(element.querySelector('a[href="/login"]')?.textContent).toContain('Back to sign in');
+  });
+
+  it('keeps the return URL on Back to sign in', async () => {
+    const mock = createTestMockApi({ signedInAs: null });
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: 'forgot-password', component: ForgotPassword }]),
+        provideHttpClient(withInterceptors([authInterceptor])),
+        ...mock.providers,
+      ],
+    });
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/forgot-password?returnUrl=%2Fadmin%2Fdepartments');
+
+    const back = harness.routeNativeElement?.querySelector('a[href^="/login"]');
+    expect(back?.getAttribute('href')).toBe('/login?returnUrl=%2Fadmin%2Fdepartments');
   });
 
   it('confirms in neutral words and shows the demo-only reset link', async () => {

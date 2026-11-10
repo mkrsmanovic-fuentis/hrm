@@ -13,7 +13,7 @@ import {
   USER_NAME_MAX_LENGTH,
 } from '../../rules/user-rules';
 import { requireRole } from '../../support/access';
-import { issueLink } from '../../support/account-links';
+import { issueLink, removeLinks } from '../../support/account-links';
 import { demoLinkHeader } from '../../support/auth';
 import { BodyReader, notUnique } from '../../support/body';
 import { route } from '../../support/mock-route';
@@ -81,7 +81,7 @@ export const userRoutes = [
 
   route.post('/users', async (ctx) => {
     const admin = requireRole(ctx, 'administrator');
-    const { db, now, url, ok, validationFailed } = ctx;
+    const { db, now, ok, validationFailed } = ctx;
     const body = new BodyReader(await ctx.json(), [
       'email',
       'firstName',
@@ -140,12 +140,12 @@ export const userRoutes = [
       });
       return { user, link };
     });
-    return ok(toUser(created.user, db.data, now), 201, demoLinkHeader(url, created.link));
+    return ok(toUser(created.user, db.data, now), 201, demoLinkHeader(ctx, created.link));
   }),
 
   route.post('/users/{userId}/invitation', (ctx) => {
     requireRole(ctx, 'administrator');
-    const { db, params, now, url, ok, notFound } = ctx;
+    const { db, params, now, ok, notFound } = ctx;
     const user = db.data.users.find((u) => u.id === params.userId);
     if (!user) return notFound(`User ${params.userId} was not found.`);
     if (!canResendInvitation(user)) {
@@ -158,7 +158,7 @@ export const userRoutes = [
     }
     // Not audit-logged: whether resending is logged is open for the PO (SPE-46).
     const link = db.update((data) => issueLink(data, user, 'invitation', now));
-    return ok(toUser(user, db.data, now), 201, demoLinkHeader(url, link));
+    return ok(toUser(user, db.data, now), 201, demoLinkHeader(ctx, link));
   }),
 
   route.get('/users/{userId}', (ctx) => {
@@ -222,10 +222,14 @@ export const userRoutes = [
         after: user,
       });
       if (entries.length > 0) user.updatedAt = now.toISOString();
-      // Deactivating ends the user's sessions at once. Reactivating does not bring them back.
+      // Deactivating ends the user's sessions at once and makes their invite and reset links stop
+      // working. Reactivating brings neither back: send the invite again if needed.
       if (user.status === 'inactive') {
         data.sessions = data.sessions.filter((session) => session.userId !== user.id);
+        removeLinks(data, user.id);
       }
+      // A reset link went to the old address, so a new email makes it stop working.
+      if (!isSameEmail(before.email, user.email)) removeLinks(data, user.id, 'password_reset');
       return user;
     });
     return ok(toUser(updated, db.data, now));

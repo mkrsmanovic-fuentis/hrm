@@ -18,7 +18,7 @@ The list shows each person's **Name**, **Email**, **Department**, **Role**, **St
 | Invite status | What it means |
 | - | - |
 | **Invite pending** | The person has an invite link that still works, and has not set a password yet. They cannot sign in yet. |
-| **Invite expired** | The invite link is older than 7 days and no longer works. The person has no password and cannot sign in. Send the invite again. |
+| **Invite expired** | The invite link is older than 7 days and no longer works. The person has no password and cannot sign in. Send the invite again. In the demo, Samuel Adeyemi has an expired invite. |
 | **Invite accepted** | The person has set a password and can sign in. |
 
 The training counts:
@@ -58,7 +58,11 @@ If a person's department has been deactivated, the list still shows it, with **I
 
 The new person gets an invite by email to set a password. The invite is valid for 7 days. Until they set a password, they cannot sign in. See [Set your password](/user-guide/set-your-password) for what they see.
 
-In the demo version, no email is sent. Instead, a **Demo only: invite link** panel appears above the list, with the link and **Copy invite link**. Copy the link and open it in another browser or a private window to set the password as that person. Opening it in the same browser signs you out of your own account once the password is set. Select **Close** to hide the panel.
+In the demo version, no email is sent. Instead, a **Demo only: invite link** panel appears above the list, with the link and **Copy invite link**. Select **Close** to hide the panel. To try the link:
+
+1. Select **Copy invite link**, then open the link in a new tab of the **same** browser. The demo keeps its data in your browser, so the link does not work in another browser or a private window: there it shows **This invite link is not valid**.
+2. Set the password as the new person. This signs the browser in as them, in every tab, and signs you out of your own account.
+3. To continue as yourself, sign out and sign in again.
 
 ## Send the invite again
 
@@ -76,7 +80,8 @@ Send a new invite when someone's invite has expired, or they cannot find the ema
 - The new link is valid for 7 days from now.
 - The earlier link stops working at once. Only the newest link works.
 - You cannot send an invite to someone who has set a password already. If they forgot it, they can [reset it](/user-guide/reset-your-password).
-- To invite a deactivated person, reactivate them first.
+- To invite a deactivated person, reactivate them first, then send the invite again. Deactivating someone makes their invite and reset links stop working for good, so reactivating does not bring the old links back.
+- Changing someone's email makes their password reset links stop working, because those were sent to the old address.
 - In the demo version, the new link appears in the **Demo only: invite link** panel.
 
 ## Edit an employee

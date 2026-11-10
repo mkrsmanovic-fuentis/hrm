@@ -13,7 +13,13 @@ import {
 } from '@specora-dev/ui-kit';
 import { map, throwError } from 'rxjs';
 import { ApiClient, ApiError, ProblemType, type AccountLink } from '../../core/api';
-import { AuthService, FORGOT_PASSWORD_PATH, LOGIN_PATH } from '../../core/auth';
+import {
+  AuthService,
+  FORGOT_PASSWORD_PATH,
+  LOGIN_PATH,
+  returnUrlParams,
+  safeReturnUrl,
+} from '../../core/auth';
 import { ToastService } from '../../core/toast';
 import { AuthPage } from '../../shared/auth-page/auth-page';
 import { serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
@@ -167,6 +173,10 @@ export class ChoosePassword {
     initialValue: this.route.snapshot.queryParamMap.get('token'),
   });
 
+  /** A `returnUrl` on the link, kept from the login page: opened after success, and kept on links. */
+  private readonly returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
+  protected readonly returnQuery = returnUrlParams(this.returnUrl ?? '');
+
   protected readonly text = computed(() => TEXT[this.purpose()]);
 
   /** Who the link is for, checked with the API when the page opens. */
@@ -229,7 +239,7 @@ export class ChoosePassword {
         else await this.auth.resetPassword(token, password);
         const [heading, message] = this.text().toast(link);
         this.toasts.success(heading, message);
-        await this.router.navigateByUrl('/');
+        await this.router.navigateByUrl(safeReturnUrl(this.returnUrl, this.auth.role()));
         return undefined;
       } catch (error) {
         const problem = linkProblemOf(error);
@@ -258,10 +268,12 @@ export function passwordError(
   email: string,
 ): { kind: string; message: string } | undefined {
   if (password === '') return { kind: 'required', message: 'Enter a password.' };
-  if (password.length < PASSWORD_MIN_LENGTH) {
+  // Characters are Unicode code points, as the API counts them: an emoji is one character.
+  const length = [...password].length;
+  if (length < PASSWORD_MIN_LENGTH) {
     return { kind: 'minLength', message: `Use at least ${PASSWORD_MIN_LENGTH} characters.` };
   }
-  if (password.length > PASSWORD_MAX_LENGTH) {
+  if (length > PASSWORD_MAX_LENGTH) {
     return { kind: 'maxLength', message: `Use at most ${PASSWORD_MAX_LENGTH} characters.` };
   }
   if (email && password.trim().toLowerCase() === email.trim().toLowerCase()) {

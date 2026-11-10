@@ -25,8 +25,10 @@
     [link]="invite.link"
     (closed)="inviteLink.set(null)"
   >
-    This demo sends no email. A real deployment emails this link to {{ invite.name }}. Open it in
-    another browser, or a private window, to set the password and sign in as them.
+    This demo sends no email. A real deployment emails this link to {{ invite.name }}. To try it,
+    open the link in a new tab of this browser: the demo data lives only in this browser, so another
+    browser or a private window does not know the link. Setting the password signs this browser in
+    as {{ invite.name }}, in every tab, and you are signed out.
   </app-demo-link>
 }
 

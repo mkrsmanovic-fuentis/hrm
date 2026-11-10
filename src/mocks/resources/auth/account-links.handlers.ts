@@ -47,7 +47,7 @@ export const accountLinkRoutes = [
 
   route.post(
     '/auth/password-resets',
-    async ({ db, now, url, json, accepted, validationFailed }) => {
+    async ({ db, now, url, demoLinks, json, accepted, validationFailed }) => {
       const body = new BodyReader(await json(), ['email']);
       const email = body.email('email', {
         required: true,
@@ -62,7 +62,7 @@ export const accountLinkRoutes = [
       if (!user || !canResetPassword(user)) return accepted();
 
       const link = db.update((data) => issueLink(data, user, 'password_reset', now));
-      return accepted(demoLinkHeader(url, link));
+      return accepted(demoLinkHeader({ url, demoLinks }, link));
     },
     { public: true },
   ),

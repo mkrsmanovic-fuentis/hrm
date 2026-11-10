@@ -45,6 +45,11 @@ export interface TestMockApiOptions {
    * APIs the same `MemoryMockStore` to test two browser tabs that share the data.
    */
   store?: MockStore;
+  /**
+   * Whether the mock sends invite and reset links in the demo-only `X-Demo-Link` header, as the
+   * browser does while `environment.demo` is set. Defaults to true.
+   */
+  demoLinks?: boolean;
   /** Wraps every handler, as the browser's cross-tab lock does. */
   exclusive?: MockEnvironment['exclusive'];
 }
@@ -75,6 +80,7 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
     baseUrl: environment.apiBaseUrl,
     flags: () => (typeof options.flags === 'function' ? options.flags() : options.flags) ?? {},
     latency: 0,
+    demoLinks: options.demoLinks ?? true,
     now: () => now,
     exclusive: options.exclusive,
   };

@@ -26,7 +26,9 @@
           Sign in
         </button>
 
-        <a sd-button variant="ghost" [routerLink]="forgotPasswordUrl">Forgot password?</a>
+        <a sd-button variant="ghost" [routerLink]="forgotPasswordUrl" [queryParams]="returnQuery">
+          Forgot password?
+        </a>
       </form>
     </sd-panel-section>
 

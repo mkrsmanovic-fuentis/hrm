@@ -240,6 +240,9 @@ describe('Employees page', () => {
     const demoLink = element.querySelector('app-demo-link');
     expect(demoLink?.textContent).toContain('Demo only: invite link for Hana Sato');
     expect(demoLink?.textContent).toContain('Copy invite link');
+    // The demo data lives in this browser, so the link only works here.
+    expect(demoLink?.textContent).toContain('open the link in a new tab of this browser');
+    expect(demoLink?.textContent).toContain('signs this browser in as Hana Sato');
     expect(mock.db.data.accountLinks.find((l) => l.token === shownInviteToken())?.userId).toBe(
       hana?.id,
     );

@@ -100,13 +100,15 @@ const LINK_PAGES: Record<AccountLinkPurpose, string> = {
 };
 
 /**
- * The `X-Demo-Link` header for a link, on the origin the request came from. The real backend
- * emails the link instead and never sends this header.
+ * The `X-Demo-Link` header for a link, on the origin the request came from, or no header at all
+ * when demo links are off (`ctx.demoLinks`). The real backend emails the link instead and never
+ * sends this header.
  */
 export function demoLinkHeader(
-  url: URL,
+  { url, demoLinks }: { url: URL; demoLinks: boolean },
   link: Pick<AccountLinkRecord, 'purpose' | 'token'>,
 ): Record<string, string> {
+  if (!demoLinks) return {};
   const page = new URL(LINK_PAGES[link.purpose], url.origin);
   page.searchParams.set('token', link.token);
   return { [DEMO_LINK_HEADER]: page.toString() };

@@ -36,6 +36,14 @@ export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
 
 /**
+ * The length of a password in characters, counted as Unicode code points, as JSON Schema's
+ * `minLength` counts them: an emoji is one character, not two UTF-16 units.
+ */
+export function passwordLength(password: string): number {
+  return [...password].length;
+}
+
+/**
  * Why a new password is not allowed, or null when it is. Passwords are not trimmed: spaces count
  * like any other character. There are no rules on kinds of characters; length matters most.
  */
@@ -43,10 +51,11 @@ export function passwordProblem(
   password: string,
   email: string,
 ): { code: 'too_short' | 'too_long' | 'invalid_value'; message: string } | null {
-  if (password.length < PASSWORD_MIN_LENGTH) {
+  const length = passwordLength(password);
+  if (length < PASSWORD_MIN_LENGTH) {
     return { code: 'too_short', message: `Use at least ${PASSWORD_MIN_LENGTH} characters.` };
   }
-  if (password.length > PASSWORD_MAX_LENGTH) {
+  if (length > PASSWORD_MAX_LENGTH) {
     return { code: 'too_long', message: `Use at most ${PASSWORD_MAX_LENGTH} characters.` };
   }
   if (sameEmail(password, email)) {
