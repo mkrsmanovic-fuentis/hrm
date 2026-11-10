@@ -36,9 +36,9 @@ The mock API follows these rules so the frontend behaves as it will with the rea
 - Each questionnaire belongs to exactly one topic. A topic can have many questionnaires.
 - The questionnaire count of a topic is the number of **all** its questionnaires, active and inactive. Inactive questionnaires still belong to the topic and keep their results.
 - Topics are deactivated, never deleted. Deactivating keeps the topic's history, and the results of its questionnaires stay accessible (FR-014). Reactivating makes it active again, with nothing else changed.
-- Deactivating a topic does not change its questionnaires: their status, versions, assignments and attempts stay as they are. Employees no longer see the topic itself. What an inactive topic means for creating questionnaires and assigning training belongs to those features (Assignments is SPE-20).
-
-{/* TODO: confirm with the PO whether an inactive topic can be chosen for a new questionnaire, and whether questionnaires of an inactive topic can still be assigned. Nothing is blocked yet. */}
+- Deactivating a topic does not change its questionnaires: their status, versions, assignments and attempts stay as they are. Employees no longer see the topic itself.
+- An **inactive** topic cannot be chosen for a new questionnaire, and a questionnaire cannot be moved into it.
+- Questionnaires in an inactive topic **cannot be assigned**. Existing assignments on them continue and can still be completed, and all history stays.
 
 ## Scoring
 
