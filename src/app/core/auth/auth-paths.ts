@@ -29,10 +29,21 @@ export function returnUrlParams(url: string): Params {
 /**
  * Where to go after signing in: the `returnUrl` when it is a path inside the app, otherwise `/`,
  * which opens the role's home page. Other origins are ignored, so a link cannot send users off
- * the site.
+ * the site. With a `role`, a `returnUrl` in another role's area also leads to `/`, so a user who
+ * signs in where someone else's session ended lands on their own home, not on "No access".
  */
-export function safeReturnUrl(returnUrl: string | null | undefined): string {
+export function safeReturnUrl(returnUrl: string | null | undefined, role?: RoleKey | null): string {
   if (!returnUrl || !returnUrl.startsWith('/') || returnUrl.startsWith('//')) return '/';
-  if (returnUrl.startsWith(`/${LOGIN_PATH}`)) return '/';
+  if (isUnder(returnUrl, LOGIN_PATH)) return '/';
+  if (role) {
+    const otherAreas = Object.entries(ROLE_AREAS).filter(([key]) => key !== role);
+    if (otherAreas.some(([, area]) => isUnder(returnUrl, area))) return '/';
+  }
   return returnUrl;
+}
+
+/** Whether the URL is `/<segment>` or below it, with or without a query or fragment. */
+function isUnder(url: string, segment: string): boolean {
+  const first = url.slice(1).split(/[/?#]/, 1)[0];
+  return first === segment;
 }

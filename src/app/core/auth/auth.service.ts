@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment, type DemoAccount } from '../../../environments/environment';
 import { ApiClient, type RoleKey, type Session } from '../api';
-import { LOGIN_PATH, returnUrlParams } from './auth-paths';
+import { LOGIN_PATH, returnUrlParams, safeReturnUrl } from './auth-paths';
 
 /** Where the session is kept between page loads. Tests replace it. */
 export const SESSION_STORAGE = new InjectionToken<Storage | null>('SESSION_STORAGE', {
@@ -188,8 +188,20 @@ export class AuthService {
 
     this.state.set(next);
     this.scheduleExpiry();
-    if (next) void this.router.navigateByUrl('/');
+    if (next) void this.router.navigateByUrl(this.pageAfterOtherTabSignIn(next));
     else this.openLogin();
+  }
+
+  /**
+   * On the login page, where the login page itself would go: its `returnUrl`, unless that is in
+   * another role's area. On any other page, `/`, the new user's home: the page they were on may
+   * belong to the previous user's role.
+   */
+  private pageAfterOtherTabSignIn(session: Session): string {
+    const current = this.router.parseUrl(this.router.url);
+    const onLogin = current.root.children['primary']?.segments[0]?.path === LOGIN_PATH;
+    if (!onLogin) return '/';
+    return safeReturnUrl(current.queryParamMap.get('returnUrl'), session.user.role);
   }
 
   /** Forgets the session and opens the login page, which returns to the current page. */

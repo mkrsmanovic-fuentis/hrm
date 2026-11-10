@@ -2,117 +2,147 @@ import { buildSeed } from '../seed/seed';
 import { TEST_NOW } from '../testing';
 import { MockDb } from './mock-db';
 import type { MockData } from './mock-data';
+import { MemoryMockStore } from './mock-store';
 
 describe('MockDb', () => {
   const seedData = buildSeed(TEST_NOW);
   const seed = () => structuredClone(seedData);
-  let storage: Storage;
+  let store: MemoryMockStore;
 
   beforeEach(() => {
-    storage = new MemoryStorage();
+    store = new MemoryMockStore();
   });
 
-  function createDb(version = 1) {
-    return new MockDb({ seed, storage, version, storageKey: 'test.db' });
+  /** A tab: a database on the shared store, synced as the route wrapper does before a request. */
+  async function openTab(version = 1) {
+    const db = new MockDb({ seed, store, version });
+    await db.sync();
+    return db;
   }
 
-  it('starts from the seed and saves it', () => {
-    const db = createDb();
+  /** One request in a tab: sync, change, save, as the route wrapper does inside the lock. */
+  async function request(db: MockDb, change: (data: MockData) => void) {
+    await db.sync();
+    db.update(change);
+    await db.flush();
+  }
+
+  it('starts from the seed and saves it', async () => {
+    const db = await openTab();
 
     expect(db.data.topics).toHaveLength(7);
-    expect(storage.getItem('test.db')).not.toBeNull();
+    expect(await store.read()).toMatchObject({ version: 1, data: { topics: seedData.topics } });
   });
 
-  it('keeps changes across a reload', () => {
-    createDb().update((data) => {
+  it('keeps saved changes across a reload', async () => {
+    await request(await openTab(), (data) => {
       data.organization.name = 'Renamed Ltd';
     });
 
-    const afterReload = createDb();
+    const afterReload = await openTab();
 
     expect(afterReload.data.organization.name).toBe('Renamed Ltd');
   });
 
-  it('serves the data another tab saved, like one shared backend', () => {
-    const thisTab = createDb();
-    const otherTab = createDb();
-    expect(thisTab.data.organization.name).toBe(seedData.organization.name);
+  it('saves only on flush', async () => {
+    const db = await openTab();
+    const revision = await store.readRevision();
 
-    otherTab.update((data) => {
+    db.update((data) => {
       data.organization.name = 'Renamed Ltd';
     });
+    expect(await store.readRevision()).toBe(revision);
 
-    expect(thisTab.syncFromOtherTab({ key: 'unrelated' })).toBe(false);
-    expect(thisTab.data.organization.name).toBe(seedData.organization.name);
-    expect(thisTab.syncFromOtherTab({ key: 'test.db' })).toBe(true);
-    expect(thisTab.data.organization.name).toBe('Renamed Ltd');
+    await db.flush();
+    expect(await store.readRevision()).not.toBe(revision);
+    await db.flush();
+    expect((await store.read())?.data).toMatchObject({ organization: { name: 'Renamed Ltd' } });
   });
 
-  it('returns the value from update', () => {
-    const db = createDb();
+  describe('shared by two tabs', () => {
+    it("keeps both tabs' writes when each request syncs first", async () => {
+      const tabA = await openTab();
+      const tabB = await openTab();
+
+      // Each tab has loaded the data before the other writes.
+      await request(tabA, (data) => data.sessions.push(session('a')));
+      await request(tabB, (data) => data.sessions.push(session('b')));
+      await request(tabA, (data) => data.sessions.push(session('c')));
+
+      const tokens = ['a', 'b', 'c'];
+      expect(tabA.data.sessions.map((s) => s.token)).toEqual(tokens);
+      expect((await openTab()).data.sessions.map((s) => s.token)).toEqual(tokens);
+    });
+
+    it("loads the other tab's data on sync, and keeps its own copy when nothing changed", async () => {
+      const tabA = await openTab();
+      const tabB = await openTab();
+      const own = tabB.data;
+
+      await tabB.sync();
+      expect(tabB.data).toBe(own);
+
+      await request(tabA, (data) => {
+        data.organization.name = 'Renamed Ltd';
+      });
+      expect(tabB.data.organization.name).toBe(seedData.organization.name);
+      await tabB.sync();
+      expect(tabB.data.organization.name).toBe('Renamed Ltd');
+    });
+
+    it('follows a reset in the other tab', async () => {
+      const tabA = await openTab();
+      const tabB = await openTab();
+      await request(tabB, (data) => data.sessions.push(session('b')));
+
+      await tabA.sync();
+      tabA.reset();
+      await tabA.flush();
+      await tabB.sync();
+
+      expect(tabB.data.sessions).toEqual([]);
+    });
+
+    function session(token: string) {
+      const at = TEST_NOW.toISOString();
+      return { token, userId: 'user-1', createdAt: at, expiresAt: at };
+    }
+  });
+
+  it('returns the value from update', async () => {
+    const db = await openTab();
 
     const count = db.update((data) => data.topics.length);
 
     expect(count).toBe(7);
   });
 
-  it('resets to the seed', () => {
-    const db = createDb();
-    db.update((data) => data.topics.splice(0, 3));
+  it('resets to the seed', async () => {
+    const db = await openTab();
+    await request(db, (data) => data.topics.splice(0, 3));
 
     db.reset();
+    await db.flush();
 
     expect(db.data.topics).toHaveLength(7);
-    expect(createDb().data.topics).toHaveLength(7);
+    expect((await openTab()).data.topics).toHaveLength(7);
   });
 
-  it('starts again from the seed when the stored version is older', () => {
-    createDb(1).update((data) => {
+  it('starts again from the seed when the stored version is older', async () => {
+    await request(await openTab(1), (data) => {
       data.topics = [];
     });
 
-    expect(createDb(2).data.topics).toHaveLength(7);
+    expect((await openTab(2)).data.topics).toHaveLength(7);
+    expect(await store.read()).toMatchObject({ version: 2 });
   });
 
-  it('starts again from the seed when stored data is unreadable', () => {
-    storage.setItem('test.db', '{not json');
-
-    expect(createDb().data.topics).toHaveLength(7);
-  });
-
-  it('works in memory without storage', () => {
-    const db = new MockDb({ seed, storage: null, version: 1 });
+  it('works in memory without a store', async () => {
+    const db = new MockDb({ seed, store: null, version: 1 });
     db.update((data: MockData) => data.users.pop());
+    await db.sync();
+    await db.flush();
 
     expect(db.data.users).toHaveLength(seedData.users.length - 1);
   });
 });
-
-/** A Storage that lives only in memory, so tests never touch the browser's localStorage. */
-class MemoryStorage implements Storage {
-  private readonly items = new Map<string, string>();
-
-  get length(): number {
-    return this.items.size;
-  }
-
-  clear(): void {
-    this.items.clear();
-  }
-
-  getItem(key: string): string | null {
-    return this.items.get(key) ?? null;
-  }
-
-  key(index: number): string | null {
-    return [...this.items.keys()][index] ?? null;
-  }
-
-  removeItem(key: string): void {
-    this.items.delete(key);
-  }
-
-  setItem(key: string, value: string): void {
-    this.items.set(key, value);
-  }
-}

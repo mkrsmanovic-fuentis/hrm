@@ -11,6 +11,7 @@ import { getResponse, type HttpHandler } from 'msw';
 import { Observable } from 'rxjs';
 import { environment } from '../environments/environment';
 import { MockDb } from './db/mock-db';
+import type { MockStore } from './db/mock-store';
 import { createHandlers } from './handlers';
 import type { RoleKey } from '../app/core/api/api-schema.gen';
 import { SESSION_LIFETIME_MS } from './rules/auth-rules';
@@ -35,6 +36,13 @@ export interface TestMockApiOptions {
    * as `requireRole()`. Unknown API paths still answer 404.
    */
   routes?: MockRoute[];
+  /**
+   * Where the mock data is shared. Leave it out to keep data in this mock API only. Give two mock
+   * APIs the same `MemoryMockStore` to test two browser tabs that share the data.
+   */
+  store?: MockStore;
+  /** Wraps every handler, as the browser's cross-tab lock does. */
+  exclusive?: MockEnvironment['exclusive'];
 }
 
 /**
@@ -48,7 +56,11 @@ export interface TestMockApiOptions {
  */
 export function createTestMockApi(options: TestMockApiOptions = {}) {
   const now = options.now ?? TEST_NOW;
-  const db = new MockDb({ seed: () => buildSeed(now), storage: null, version: SEED_VERSION });
+  const db = new MockDb({
+    seed: () => buildSeed(now),
+    store: options.store ?? null,
+    version: SEED_VERSION,
+  });
   const token = startTestSession(
     db,
     options.signedInAs === undefined ? 'administrator' : options.signedInAs,
@@ -60,6 +72,7 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
     flags: () => options.flags ?? {},
     latency: 0,
     now: () => now,
+    exclusive: options.exclusive,
   };
   const handlers = options.routes
     ? [...options.routes, unhandledApiRoute].map((defineRoute) => defineRoute(env))

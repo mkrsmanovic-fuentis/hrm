@@ -36,7 +36,7 @@ The demo password and the two accounts are set in `environment.demo` in `src/env
 
 <Steps>
   <Step title="Sign in">
-    The login page (`src/app/features/login/`) calls [`POST /auth/session`](/api-reference/overview#authentication) with the email and password. The answer is a `Session`: the token, when it was created, when it expires, and the signed-in user.
+    The login page (`src/app/features/login/`) calls [`POST /auth/session`](/api-reference/overview#authentication) with the email and password. The answer is a `Session`: the token, when it was created, when it expires, and the signed-in user. Then it opens the `returnUrl`, or the user's home page. A `returnUrl` in the other role's area also opens the user's home page instead of **No access**, for example when an employee signs in where an administrator's session ended.
   </Step>
   <Step title="The session is kept in the browser">
     `AuthService` (`src/app/core/auth/auth.service.ts`) stores the session in `localStorage` under `hrm.session`, so it survives a reload. On load, a session past its `expiresAt` is dropped.
@@ -58,7 +58,9 @@ The demo password and the two accounts are set in `environment.demo` in `src/env
     | Sign out, or the session expires | Sign out and open `/login?returnUrl=<current page>`. |
     | Sign in, or switch the demo role | Take over the new session and open its home page. |
 
-    In the mock, the tabs also share the mock data: when one tab saves it, the others load it, so every tab knows the sessions the others started.
+    In the mock, the tabs also share the mock data, so every tab knows the sessions the others started. See [Several tabs share the data](/developer-guide/mock-api#several-tabs-share-the-data).
+
+    When another tab signs in while this tab shows the login page, this tab opens the login page's `returnUrl`, as if it had signed in itself.
   </Step>
   <Step title="Guards protect the routes">
     `signedInGuard` sends signed-out users, and users whose session has expired, to `/login`. `signedOutGuard` sends signed-in users from `/login` to their home page. Every page behind sign-in is a child of the shell route in `src/app/app.routes.ts`, which runs `signedInGuard` on every navigation. `roleGuard` keeps each role to its own area; see [Roles and access](/developer-guide/access-control).

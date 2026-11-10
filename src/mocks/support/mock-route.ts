@@ -24,6 +24,11 @@ export interface MockEnvironment {
   latency: 'real' | number;
   /** The current time. Tests pass a fixed date. */
   now: () => Date;
+  /**
+   * Runs one request at a time across browser tabs, from loading the latest data to saving the
+   * changes, so no tab's write is lost. The browser passes a Web Lock; tests may pass their own.
+   */
+  exclusive?: <T>(run: () => Promise<T>) => Promise<T>;
 }
 
 /** Everything a resolver needs, typed from the operation in the spec. */
@@ -87,36 +92,70 @@ function define<M extends HttpMethod>(method: M) {
         await wait(env.latency, active.delayMs);
         if (active.errorStatus) return simulatedError(active.errorStatus, url.pathname);
 
-        let currentUser: User | null = null;
-        if (!options.public) {
-          const auth = authenticate(env.db.data, request, env.now());
-          if (!auth.ok) return problemResponse(401, auth.detail, { instance: url.pathname });
-          currentUser = auth.user;
-        }
-
-        const ctx = createContext<ApiOperation<P, M>>(
-          env,
-          request,
-          url,
-          params,
-          active.empty === true,
-          currentUser,
-        );
-        try {
-          return await resolver(ctx);
-        } catch (error) {
-          if (error instanceof MockProblem) {
-            return problemResponse(error.status, error.detail, {
-              instance: url.pathname,
-              errors: error.errors,
-            });
-          }
-          console.error(`[mock api] ${request.method} ${url.pathname} failed`, error);
-          return problemResponse(500, 'The mock handler failed. See the browser console.', {
-            instance: url.pathname,
-          });
-        }
+        const handle = () =>
+          resolve(env, request, url, options, (currentUser) =>
+            resolver(
+              createContext<ApiOperation<P, M>>(
+                env,
+                request,
+                url,
+                params,
+                active.empty === true,
+                currentUser,
+              ),
+            ),
+          );
+        return env.exclusive ? env.exclusive(handle) : handle();
       });
+}
+
+/**
+ * Runs one request against the latest data and saves its changes: loads what other tabs saved,
+ * checks the session, runs the handler (turning failures into problems), then saves.
+ */
+async function resolve(
+  env: MockEnvironment,
+  request: Request,
+  url: URL,
+  options: RouteOptions,
+  run: (currentUser: User | null) => Response | Promise<Response>,
+): Promise<Response> {
+  await env.db.sync();
+  try {
+    return await authenticateAndRun(env, request, url, options, run);
+  } finally {
+    await env.db.flush();
+  }
+}
+
+async function authenticateAndRun(
+  env: MockEnvironment,
+  request: Request,
+  url: URL,
+  options: RouteOptions,
+  run: (currentUser: User | null) => Response | Promise<Response>,
+): Promise<Response> {
+  let currentUser: User | null = null;
+  if (!options.public) {
+    const auth = authenticate(env.db.data, request, env.now());
+    if (!auth.ok) return problemResponse(401, auth.detail, { instance: url.pathname });
+    currentUser = auth.user;
+  }
+
+  try {
+    return await run(currentUser);
+  } catch (error) {
+    if (error instanceof MockProblem) {
+      return problemResponse(error.status, error.detail, {
+        instance: url.pathname,
+        errors: error.errors,
+      });
+    }
+    console.error(`[mock api] ${request.method} ${url.pathname} failed`, error);
+    return problemResponse(500, 'The mock handler failed. See the browser console.', {
+      instance: url.pathname,
+    });
+  }
 }
 
 /**

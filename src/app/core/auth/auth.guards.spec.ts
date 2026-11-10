@@ -142,5 +142,20 @@ describe('auth guards', () => {
     ])('turns %j into %j', (input, expected) => {
       expect(safeReturnUrl(input)).toBe(expected);
     });
+
+    it.each([
+      ['employee', '/admin/home', '/'],
+      ['employee', '/admin?x=1', '/'],
+      ['employee', '/my/home', '/my/home'],
+      ['employee', '/administration', '/administration'],
+      ['administrator', '/my/home#top', '/'],
+      ['administrator', '/admin/home?page=2', '/admin/home?page=2'],
+      ['administrator', '/no-access', '/no-access'],
+    ] as const)(
+      "for an %s, turns %j into %j, so another role's area leads home",
+      (role, input, expected) => {
+        expect(safeReturnUrl(input, role)).toBe(expected);
+      },
+    );
   });
 });

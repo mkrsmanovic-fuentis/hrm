@@ -228,6 +228,22 @@ describe('AuthService', () => {
       expect(navigate).toHaveBeenCalledWith('/');
     });
 
+    it.each([
+      ['keeps the return URL', '/login?returnUrl=%2Fmy%2Fhome%3Fpage%3D2', '/my/home?page=2'],
+      ["goes home instead of another role's area", '/login?returnUrl=%2Fadmin%2Fhome', '/'],
+      ['goes home without a return URL', '/login', '/'],
+    ])('on the login page, when another tab signs in, %s', async (_, loginUrl, expected) => {
+      const { auth, router } = setup();
+      await router.navigateByUrl(loginUrl);
+      const employee = await setupOtherTabSession('amelia.hughes@brightwater.example');
+      const navigate = vi.spyOn(router, 'navigateByUrl');
+
+      otherTabWrites(JSON.stringify(employee));
+
+      expect(auth.role()).toBe('employee');
+      expect(navigate).toHaveBeenCalledWith(expected);
+    });
+
     it('ignores other keys and unchanged sessions', async () => {
       const { auth, router } = setup();
       await auth.signIn(ADMIN, PASSWORD);
