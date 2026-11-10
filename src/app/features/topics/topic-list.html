@@ -1,0 +1,93 @@
+<sd-status-bar
+  heading="Topics"
+  description="Group questionnaires by security topic. Deactivate a topic you no longer use; its history and results are kept."
+>
+  @if (!error()?.isForbidden) {
+    <button
+      sdStatusBarActions
+      sd-button
+      variant="primary"
+      type="button"
+      [icon]="icons.create"
+      (click)="create()"
+    >
+      New topic
+    </button>
+  }
+</sd-status-bar>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading topics">
+    <sd-skeleton height="2.5rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied description="You don't have permission to manage topics." [headingLevel]="2" />
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load topics">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="topics.reload()">Try again</button>
+  </sd-callout>
+} @else {
+  <sd-list
+    class="list"
+    [items]="topics.value() ?? []"
+    [columns]="columns"
+    [rowId]="byId"
+    [actions]="actions"
+    [filters]="filters"
+    [labels]="listLabels"
+    searchable
+    interactive
+    [(search)]="search"
+    [(filterValues)]="filterValues"
+    [(sort)]="sort"
+    (rowClick)="edit($event)"
+    (actionClick)="onAction($event)"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No topics yet"
+      description="Create the first topic to group your questionnaires."
+    >
+      <button sd-button variant="primary" type="button" [icon]="icons.create" (click)="create()">
+        New topic
+      </button>
+    </sd-empty-state>
+  </sd-list>
+}
+
+@if (editing(); as drawer) {
+  <app-topic-form
+    [topic]="drawer.topic"
+    (saved)="onSaved($event, drawer.topic === null)"
+    (closed)="editing.set(null)"
+  />
+}
+
+<app-confirm-dialog
+  [open]="statusTarget() !== null"
+  [heading]="deactivating() ? 'Deactivate topic?' : 'Reactivate topic?'"
+  [confirmLabel]="deactivating() ? 'Deactivate' : 'Reactivate'"
+  [tone]="deactivating() ? 'danger' : 'primary'"
+  [busy]="statusSaving()"
+  [error]="statusError()"
+  (confirmed)="changeStatus()"
+  (closed)="statusTarget.set(null)"
+>
+  @if (statusTarget(); as target) {
+    @if (deactivating()) {
+      <p class="message">
+        <strong>{{ target.name }}</strong> will be marked inactive, and employees will no longer see
+        it. Its history and its questionnaires' results are kept and stay accessible. Its
+        questionnaires are not changed. You can reactivate it at any time.
+      </p>
+    } @else {
+      <p class="message">
+        <strong>{{ target.name }}</strong> will be active again, and employees will see it. Its
+        history and its questionnaires are unchanged.
+      </p>
+    }
+  }
+</app-confirm-dialog>

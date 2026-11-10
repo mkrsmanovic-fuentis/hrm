@@ -1,4 +1,4 @@
-import { LucideBuilding2, LucideHouse } from '@lucide/angular';
+import { LucideBookOpen, LucideBuilding2, LucideHouse } from '@lucide/angular';
 import { homeUrl } from './core/auth';
 import type { AppNavItem } from './core/navigation';
 
@@ -21,5 +21,6 @@ export const navigation: AppNavItem[] = [
     route: '/admin/departments',
     role: 'administrator',
   },
+  { label: 'Topics', icon: LucideBookOpen, route: '/admin/topics', role: 'administrator' },
   { label: 'Home', icon: LucideHouse, route: homeUrl('employee'), role: 'employee' },
 ];
