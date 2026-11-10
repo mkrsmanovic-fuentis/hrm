@@ -139,6 +139,9 @@ describe('auth guards', () => {
       ['https://evil.example/', '/'],
       ['//evil.example/', '/'],
       ['/login?returnUrl=%2F', '/'],
+      ['/no-access', '/'],
+      ['/no-access?x=1', '/'],
+      ['/no-accessible', '/no-accessible'],
     ])('turns %j into %j', (input, expected) => {
       expect(safeReturnUrl(input)).toBe(expected);
     });
@@ -150,7 +153,7 @@ describe('auth guards', () => {
       ['employee', '/administration', '/administration'],
       ['administrator', '/my/home#top', '/'],
       ['administrator', '/admin/home?page=2', '/admin/home?page=2'],
-      ['administrator', '/no-access', '/no-access'],
+      ['administrator', '/no-access', '/'],
     ] as const)(
       "for an %s, turns %j into %j, so another role's area leads home",
       (role, input, expected) => {

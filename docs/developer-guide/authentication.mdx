@@ -36,7 +36,7 @@ The demo password and the two accounts are set in `environment.demo` in `src/env
 
 <Steps>
   <Step title="Sign in">
-    The login page (`src/app/features/login/`) calls [`POST /auth/session`](/api-reference/overview#authentication) with the email and password. The answer is a `Session`: the token, when it was created, when it expires, and the signed-in user. Then it opens the `returnUrl`, or the user's home page. A `returnUrl` in the other role's area also opens the user's home page instead of **No access**, for example when an employee signs in where an administrator's session ended.
+    The login page (`src/app/features/login/`) calls [`POST /auth/session`](/api-reference/overview#authentication) with the email and password. The answer is a `Session`: the token, when it was created, when it expires, and the signed-in user. Then it opens the `returnUrl`, or the user's home page. A `returnUrl` in the other role's area, or `/no-access`, also opens the user's home page instead of **No access**, for example when an employee signs in where an administrator's session ended.
   </Step>
   <Step title="The session is kept in the browser">
     `AuthService` (`src/app/core/auth/auth.service.ts`) stores the session in `localStorage` under `hrm.session`, so it survives a reload. On load, a session past its `expiresAt` is dropped.
@@ -45,10 +45,12 @@ The demo password and the two accounts are set in `environment.demo` in `src/env
     `authInterceptor` adds `Authorization: Bearer <token>` to every request to the API base URL. Other requests, such as assets, get no token.
   </Step>
   <Step title="A 401 signs the user out">
-    When any API call answers `401`, the interceptor clears the session and opens `/login?returnUrl=<current page>`. After signing in, the login page returns there. The failed sign-in itself also answers `401`; the interceptor leaves that one to the login page.
+    When any API call answers `401`, the interceptor calls `AuthService.endSession()`, which clears the session and opens `/login?returnUrl=<current page>`. After signing in, the login page returns there. The failed sign-in itself also answers `401`; the interceptor leaves that one to the login page.
   </Step>
   <Step title="The session ends on time, even on an open page">
-    `AuthService` sets a timer for the session's `expiresAt`. When it fires, the session is cleared and `/login?returnUrl=<current page>` opens, even if the user is only reading a page.
+    `AuthService` sets a timer for the session's `expiresAt`. When it fires, it calls `endSession()`: the session is cleared and `/login?returnUrl=<current page>` opens, even if the user is only reading a page.
+
+    The current page is always the URL in the address bar (`addressBarUrl()`), never `router.url`. On the **No access** page the router's URL is `/no-access`, while the address bar shows the page the user opened, which is where they should return.
   </Step>
   <Step title="Tabs share the session">
     Every tab of the app reads the same `hrm.session`. `AuthService` listens to the browser's `storage` event, so a change in one tab reaches the others:
@@ -56,7 +58,7 @@ The demo password and the two accounts are set in `environment.demo` in `src/env
     | In one tab | The other tabs |
     | - | - |
     | Sign out, or the session expires | Sign out and open `/login?returnUrl=<current page>`. |
-    | Sign in, or switch the demo role | Take over the new session and open its home page. |
+    | Sign in, or switch the demo role | Take over the new session and check the page in the address bar again: it stays open if the new role may see it, otherwise the new role's home page opens. A tab showing **No access** opens the page once the new role may see it. |
 
     In the mock, the tabs also share the mock data, so every tab knows the sessions the others started. See [Several tabs share the data](/developer-guide/mock-api#several-tabs-share-the-data).
 

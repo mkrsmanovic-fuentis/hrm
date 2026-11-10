@@ -44,6 +44,9 @@ export class Shell {
   private readonly router = inject(Router);
   private readonly toastService = inject(ToastService);
 
+  /** Feedback after actions, such as "Department created". Features add them through ToastService. */
+  protected readonly toasts = this.toastService.toasts;
+
   protected readonly icons = {
     user: LucideCircleUser,
     switchRole: LucideArrowLeftRight,
@@ -75,9 +78,6 @@ export class Shell {
     const target = this.switchTarget();
     return target ? `Switch to ${ROLE_LABELS[target].toLowerCase()}` : '';
   });
-
-  /** Feedback after actions, such as "Department created". Features add them through ToastService. */
-  protected readonly toasts = this.toastService.toasts;
 
   /** The menu action in progress, so its button shows a spinner. */
   protected readonly busy = signal<'switch' | 'signOut' | null>(null);

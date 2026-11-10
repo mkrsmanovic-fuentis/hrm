@@ -13,13 +13,10 @@ class Blank {}
 
 describe('authInterceptor', () => {
   function setup(token: string | null = 'token-123') {
-    const auth = { token: signal(token), clear: vi.fn() };
+    const auth = { token: signal(token), endSession: vi.fn() };
     TestBed.configureTestingModule({
       providers: [
-        provideRouter([
-          { path: 'login', component: Blank },
-          { path: 'topics', component: Blank },
-        ]),
+        provideRouter([{ path: 'login', component: Blank }]),
         provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),
         { provide: API_BASE_URL, useValue: '/api/v1' },
@@ -64,16 +61,14 @@ describe('authInterceptor', () => {
     expect(request.request.headers.has('Authorization')).toBe(false);
   });
 
-  it('clears the session and sends the user to the login page on 401', async () => {
-    const { auth, http, backend, router } = setup();
-    await router.navigateByUrl('/topics');
+  it('ends the session on 401, which opens the login page', async () => {
+    const { auth, http, backend } = setup();
 
     const result = firstValueFrom(http.get('/api/v1/topics')).catch((e: unknown) => e);
     backend.expectOne('/api/v1/topics').flush(...unauthorized());
 
     expect(await result).toMatchObject({ status: 401 });
-    expect(auth.clear).toHaveBeenCalled();
-    await vi.waitFor(() => expect(router.url).toBe('/login?returnUrl=%2Ftopics'));
+    expect(auth.endSession).toHaveBeenCalledTimes(1);
   });
 
   it('leaves a failed sign-in to the login page', async () => {
@@ -84,7 +79,7 @@ describe('authInterceptor', () => {
     backend.expectOne('/api/v1/auth/session').flush(...unauthorized());
 
     expect(await result).toMatchObject({ status: 401 });
-    expect(auth.clear).not.toHaveBeenCalled();
+    expect(auth.endSession).not.toHaveBeenCalled();
     expect(router.url).toBe('/login');
   });
 
@@ -100,6 +95,6 @@ describe('authInterceptor', () => {
       );
 
     expect(await result).toMatchObject({ status: 403 });
-    expect(auth.clear).not.toHaveBeenCalled();
+    expect(auth.endSession).not.toHaveBeenCalled();
   });
 });

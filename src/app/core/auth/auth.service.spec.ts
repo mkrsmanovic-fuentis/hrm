@@ -225,7 +225,20 @@ describe('AuthService', () => {
       expect(auth.role()).toBe('employee');
       expect(auth.token()).toBe(employee.token);
       // `/` redirects to the home page of the new role.
-      expect(navigate).toHaveBeenCalledWith('/');
+      expect(navigate).toHaveBeenCalledWith('/', { onSameUrlNavigation: 'reload' });
+    });
+
+    it('stays on a page the new role may open, checking it again', async () => {
+      const { auth, router } = setup();
+      await auth.signIn(ADMIN, PASSWORD);
+      await router.navigateByUrl('/admin/home');
+      const otherAdmin = await setupOtherTabSession('daniel.brooks@brightwater.example');
+      const navigate = vi.spyOn(router, 'navigateByUrl');
+
+      otherTabWrites(JSON.stringify(otherAdmin));
+
+      expect(auth.user()?.email).toBe('daniel.brooks@brightwater.example');
+      expect(navigate).toHaveBeenCalledWith('/admin/home', { onSameUrlNavigation: 'reload' });
     });
 
     it.each([
@@ -241,7 +254,7 @@ describe('AuthService', () => {
       otherTabWrites(JSON.stringify(employee));
 
       expect(auth.role()).toBe('employee');
-      expect(navigate).toHaveBeenCalledWith(expected);
+      expect(navigate).toHaveBeenCalledWith(expected, { onSameUrlNavigation: 'reload' });
     });
 
     it('ignores other keys and unchanged sessions', async () => {

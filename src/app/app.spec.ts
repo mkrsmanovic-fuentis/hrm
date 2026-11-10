@@ -139,6 +139,75 @@ describe('App', () => {
     expect(auth.user()).not.toBeNull();
   });
 
+  describe('after a session change on the no-access page', () => {
+    /** Signs in through the mock as another tab would, and tells this tab, as the browser does. */
+    async function otherTabSignsIn(mock: ReturnType<typeof createTestMockApi>, email: string) {
+      const response = await mock.fetch('/api/v1/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: 'demo-2026' }),
+      });
+      const session = JSON.stringify(await response.json());
+      localStorage.setItem('hrm.session', session);
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'hrm.session',
+          newValue: session,
+          storageArea: localStorage,
+        }),
+      );
+    }
+
+    async function showsPage(element: HTMLElement, router: Router, url: string, page: string) {
+      await vi.waitFor(() => expect(TestBed.inject(Location).path()).toBe(url));
+      await vi.waitFor(() => expect(element.querySelector(`main ${page}`)).not.toBeNull());
+      return router;
+    }
+
+    it('opens the page once another tab switches to a role that may see it', async () => {
+      const { element, router, auth, mock } = await renderAt('/admin/home', 'employee');
+      expect(element.querySelector('main app-no-access')).not.toBeNull();
+
+      await otherTabSignsIn(mock, 'maja.novak@brightwater.example');
+
+      expect(auth.role()).toBe('administrator');
+      await showsPage(element, router, '/admin/home', 'app-home');
+      expect(router.url).toBe('/admin/home');
+    });
+
+    it("opens the new role's home when another tab switches to a role that may not see it", async () => {
+      const { element, router, mock } = await renderAt('/admin/home', 'administrator');
+
+      await otherTabSignsIn(mock, 'amelia.hughes@brightwater.example');
+
+      await showsPage(element, router, '/my/home', 'app-home');
+    });
+
+    it.each([
+      ['Sign in as Administrator', '/admin/home'],
+      ['Sign in as Employee', '/my/home'],
+    ])(
+      'keeps the opened page as the return URL when the session ends; "%s" then opens %s',
+      async (button, expected) => {
+        const { element, router, auth } = await renderAt('/admin/home', 'employee');
+
+        // What the expiry timer and a 401 from the API do.
+        auth.endSession();
+
+        await vi.waitFor(() => expect(router.url).toBe('/login?returnUrl=%2Fadmin%2Fhome'));
+        const signIn = await vi.waitFor(() => {
+          const found = [...element.querySelectorAll<HTMLButtonElement>('app-login button')].find(
+            (b) => b.textContent?.trim() === button,
+          );
+          expect(found).toBeDefined();
+          return found as HTMLButtonElement;
+        });
+        signIn.click();
+        await showsPage(element, router, expected, 'app-home');
+      },
+    );
+  });
+
   it('redirects unknown URLs to the home page', async () => {
     const { router, element } = await renderAt('/does-not-exist', 'employee');
 
