@@ -1,0 +1,144 @@
+<sd-status-bar
+  back
+  backLabel="Questionnaires"
+  [breadcrumb]="breadcrumb()"
+  [icon]="icons.questionnaire"
+  [heading]="heading()"
+  [subtitle]="topic()?.name ?? null"
+  [stats]="stats()"
+  (backClick)="back()"
+>
+  @if (questionnaire(); as q) {
+    <div sdStatusBarActions class="actions">
+      <button sd-button type="button" [icon]="icons.edit" (click)="editing.set(true)">
+        Edit settings
+      </button>
+      @if (q.status === 'active') {
+        <button
+          sd-button
+          variant="danger"
+          type="button"
+          [icon]="icons.deactivate"
+          (click)="statusTarget.set(q)"
+        >
+          Deactivate
+        </button>
+      } @else {
+        <button
+          sd-button
+          variant="primary"
+          type="button"
+          [icon]="icons.activate"
+          [disabled]="activationBlocked()"
+          (click)="statusTarget.set(q)"
+        >
+          Activate
+        </button>
+      }
+    </div>
+  }
+</sd-status-bar>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading the questionnaire">
+    <sd-skeleton height="12rem" />
+    <sd-skeleton height="10rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied
+    description="You don't have permission to manage questionnaires."
+    [headingLevel]="2"
+  />
+} @else if (error()?.isNotFound) {
+  <sd-empty-state
+    [icon]="icons.notFound"
+    title="Questionnaire not found"
+    description="It may have been removed, or the link is wrong."
+    [headingLevel]="2"
+  >
+    <a sd-button routerLink="/admin/questionnaires" [icon]="icons.back">All questionnaires</a>
+  </sd-empty-state>
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load the questionnaire">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
+  </sd-callout>
+} @else if (questionnaire(); as q) {
+  @if (activationBlocked()) {
+    <sd-callout tone="warning" heading="This questionnaire is a draft">
+      It has no questions yet, so it can't be activated. Add at least one question, then activate
+      it.
+    </sd-callout>
+  }
+
+  <sd-panel>
+    <sd-panel-section eyebrow="Settings">
+      <dl class="settings">
+        <div class="setting">
+          <dt>Title</dt>
+          <dd>{{ q.title }}</dd>
+        </div>
+        <div class="setting">
+          <dt>Topic</dt>
+          <dd>
+            {{ topic()?.name }}
+            @if (topic()?.status === 'inactive') {
+              <span class="note">(inactive topic)</span>
+            }
+          </dd>
+        </div>
+        <div class="setting wide">
+          <dt>Description</dt>
+          <dd>{{ q.description ?? 'No description' }}</dd>
+        </div>
+        <div class="setting">
+          <dt>Passing score</dt>
+          <dd>
+            {{ text.passingScoreText(q.passingScore) }}
+            <span class="note">Each attempt keeps the passing score it started with.</span>
+          </dd>
+        </div>
+        <div class="setting">
+          <dt>Time limit</dt>
+          <dd>{{ text.timeLimitText(q.timeLimitMinutes) }}</dd>
+        </div>
+        <div class="setting">
+          <dt>Created</dt>
+          <dd>{{ date(q.createdAt) }}</dd>
+        </div>
+        <div class="setting">
+          <dt>Last changed</dt>
+          <dd>{{ date(q.updatedAt) }}</dd>
+        </div>
+      </dl>
+    </sd-panel-section>
+  </sd-panel>
+
+  <sd-panel>
+    <sd-panel-section eyebrow="Questions">
+      <sd-empty-state
+        [icon]="icons.questions"
+        title="The question editor is coming soon"
+        [description]="
+          text.questionCountText(q.questionCount) +
+          ' in the current version. Adding and editing questions will be available here.'
+        "
+      />
+    </sd-panel-section>
+  </sd-panel>
+
+  @if (editing()) {
+    <app-questionnaire-form
+      [questionnaire]="q"
+      [topics]="topics()"
+      (saved)="onSaved($event)"
+      (closed)="editing.set(false)"
+    />
+  }
+}
+
+<app-questionnaire-status-dialog
+  [questionnaire]="statusTarget()"
+  (changed)="data.reload()"
+  (closed)="statusTarget.set(null)"
+/>

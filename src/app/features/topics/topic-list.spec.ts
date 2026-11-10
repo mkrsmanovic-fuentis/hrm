@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
-import { LucideFish } from '@lucide/angular';
+import { LucideBookOpen, LucideFish } from '@lucide/angular';
 import { SdList } from '@specora-dev/ui-kit';
 import { createTestMockApi, type TestMockApiOptions } from '../../../mocks/testing';
 import type { Topic } from '../../core/api';
@@ -79,6 +79,8 @@ describe('Topics page', () => {
     const count = columns.find((c) => c.id === 'questionnaireCount');
     const status = columns.find((c) => c.id === 'status');
     expect(name?.icon?.(row('Phishing Awareness'))).toBe(LucideFish);
+    // A topic without an icon gets the generic one, so its name lines up with the others.
+    expect(name?.icon?.({ ...row('Phishing Awareness'), icon: null })).toBe(LucideBookOpen);
     expect(count?.value(row('Clean Desk Policy'))).toBe(0);
     expect(status?.value(row('Clean Desk Policy'))).toBe('Inactive');
     expect(status?.value(row('Phishing Awareness'))).toBe('Active');
@@ -208,15 +210,18 @@ describe('Topics page', () => {
     expect(toasts.toasts().map((t) => t.heading)).toEqual(['Topic saved']);
   });
 
-  it('deactivates a topic after a confirmation that says results stay accessible', async () => {
+  it('deactivates a topic after a confirmation that says results stay accessible and assigning stops', async () => {
     const { fixture, click, settle, list, row, mock, toasts } = await render();
     const phishing = row('Phishing Awareness');
 
     list()?.actionClick.emit({ action: 'deactivate', row: phishing });
     await fixture.whenStable();
-    const dialog = document.querySelector('sd-dialog');
-    expect(dialog?.textContent).toContain('Deactivate topic?');
-    expect(dialog?.textContent).toContain(
+    const text = document.querySelector('sd-dialog')?.textContent?.replace(/\s+/g, ' ');
+    expect(text).toContain('Deactivate topic?');
+    expect(text).toContain(
+      'Its questionnaires can no longer be assigned, but training already assigned on them can still be completed.',
+    );
+    expect(text).toContain(
       "Its history and its questionnaires' results are kept and stay accessible.",
     );
     await click('Deactivate');

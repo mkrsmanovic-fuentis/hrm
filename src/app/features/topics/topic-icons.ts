@@ -1,4 +1,5 @@
 import {
+  LucideBookOpen,
   LucideBug,
   LucideCloud,
   LucideDatabase,
@@ -49,6 +50,15 @@ export const TOPIC_ICONS = {
 /** The Lucide icon for a topic's icon name, or null for none. */
 export function topicIcon(name: TopicIcon | null): LucideIcon | null {
   return name ? TOPIC_ICONS[name].icon : null;
+}
+
+/**
+ * The icon for a topic in a list: its own icon, or the generic topic icon (the one in the side
+ * navigation) when it has none, so every name lines up in the same column.
+ */
+export const TOPIC_FALLBACK_ICON: LucideIcon = LucideBookOpen;
+export function topicListIcon(name: TopicIcon | null): LucideIcon {
+  return topicIcon(name) ?? TOPIC_FALLBACK_ICON;
 }
 
 /** The icon picker's options, in the order above. */

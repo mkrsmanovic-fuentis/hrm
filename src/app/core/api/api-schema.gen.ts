@@ -239,6 +239,69 @@ export interface paths {
         patch: operations["updateTopic"];
         trace?: never;
     };
+    "/questionnaires": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List questionnaires
+         * @description Returns the organization's questionnaires, active and inactive, one page at a time, each with its `questionCount`.
+         *
+         *     **Access:** administrators only. Employees get `403`: they reach questionnaires only through their own assignments.
+         */
+        get: operations["listQuestionnaires"];
+        put?: never;
+        /**
+         * Create a questionnaire
+         * @description Creates an **inactive** questionnaire, a draft, with an empty version 1 as its `currentVersionId`. Add questions, then activate it with `PATCH`.
+         *
+         *     The topic must exist and be active. Titles do not have to be unique.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+         */
+        post: operations["createQuestionnaire"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/questionnaires/{questionnaireId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a questionnaire
+         * @description Returns one questionnaire of the current organization, with its settings and `questionCount`.
+         *
+         *     **Access:** administrators only. Employees get `403`.
+         */
+        get: operations["getQuestionnaire"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a questionnaire
+         * @description Changes the settings sent and leaves the others as they are. Send `status` to activate (`active`) or deactivate (`inactive`) the questionnaire; there are no separate endpoints for that.
+         *
+         *     - Changing the settings does not create a new version. Each attempt keeps the passing score it started with, so a new passing score never changes earlier results.
+         *     - A questionnaire cannot be moved into an inactive topic. Sending the topic it is already in is not a move.
+         *     - Activating needs at least one question in the current version. Otherwise the answer is `409` and nothing changes.
+         *     - An inactive questionnaire cannot be assigned. Deactivating does not change existing assignments; they can still be completed.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+         */
+        patch: operations["updateQuestionnaire"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -518,24 +581,57 @@ export interface components {
             /** @description `inactive` deactivates the topic, `active` reactivates it. Its questionnaires are not changed. */
             status?: components["schemas"]["ActivityStatus"];
         };
-        /** @description A set of questions on one topic, with its settings. The questions live in versions. */
+        /** @description A set of questions on one topic, with its settings. The questions live in versions. A new questionnaire starts inactive, as a draft, with an empty version 1. */
         Questionnaire: {
             id: components["schemas"]["Id"];
             organizationId: components["schemas"]["Id"];
             topicId: components["schemas"]["Id"];
+            /** @description Not unique. Two questionnaires may have the same title, for example in different topics. */
             title: string;
-            description: string;
+            /** @description Optional. `null` when there is none. */
+            description: string | null;
             passingScore: components["schemas"]["PassingScore"];
-            /** @description Optional time limit. When it runs out, the attempt is submitted automatically. Null means no limit. */
-            timeLimitMinutes: number | null;
-            /** @description Inactive questionnaires cannot be assigned. Existing assignments can still be completed. */
+            timeLimitMinutes: components["schemas"]["TimeLimitMinutes"];
+            /** @description A new questionnaire is inactive. Inactive questionnaires cannot be assigned. Existing assignments can still be completed. */
             status: components["schemas"]["ActivityStatus"];
-            /** @description The latest version. New attempts use it. */
+            /** @description The latest version. New attempts use it. Set by the server; changing the settings does not create a new version. */
             currentVersionId: components["schemas"]["Id"];
-            /** @description Number of questions in the current version. */
+            /** @description Derived. Number of questions in the current version. Never sent in requests. */
             readonly questionCount: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
+        };
+        /** @description Optional time limit in whole minutes, from 1 to 480 (8 hours, the length of a session). When it runs out, the attempt is submitted automatically. `null` means no limit. */
+        TimeLimitMinutes: number | null;
+        /** @description One page of questionnaires. */
+        QuestionnairePage: {
+            items: components["schemas"]["Questionnaire"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** @description A new questionnaire. It starts inactive, with an empty version 1; activate it with `PATCH` once it has questions. Spaces around the title and description are removed, and an empty description is stored as `null`. Unknown fields are rejected. */
+        QuestionnaireCreate: {
+            /** @example Spotting phishing emails */
+            title: string;
+            description?: string | null;
+            /** @description An active topic. An inactive or unknown topic is rejected with `422`. */
+            topicId: components["schemas"]["Id"];
+            /** @description Whole number from 1 to 100. Omit it for the default, 80. */
+            passingScore?: components["schemas"]["PassingScore"];
+            /** @description Omit it or send `null` for no time limit. */
+            timeLimitMinutes?: components["schemas"]["TimeLimitMinutes"];
+        };
+        /** @description The fields to change. Fields left out stay as they are. Spaces around the title and description are removed, and an empty description is stored as `null`. Changing these settings does not create a new version. Unknown fields are rejected. */
+        QuestionnaireUpdate: {
+            title?: string;
+            description?: string | null;
+            /** @description Moves the questionnaire to another topic. The new topic must be active; sending the current topic is always allowed. */
+            topicId?: components["schemas"]["Id"];
+            /** @description Applies to attempts started from now on. Each attempt keeps the passing score it started with. */
+            passingScore?: components["schemas"]["PassingScore"];
+            /** @description Send `null` to remove the time limit. */
+            timeLimitMinutes?: components["schemas"]["TimeLimitMinutes"];
+            /** @description `active` activates the questionnaire and needs at least one question (`409` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed. */
+            status?: components["schemas"]["ActivityStatus"];
         };
         /**
          * @description A snapshot of a questionnaire's questions. A questionnaire with no attempts is edited in place.
@@ -861,6 +957,23 @@ export interface components {
                 "application/problem+json": components["schemas"]["ConflictProblem"];
             };
         };
+        /** @description The questionnaire cannot be activated yet, for example because its current version has no questions. Nothing was changed. `detail` says what is missing. */
+        NotReadyToActivate: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/conflict",
+                 *       "title": "Conflict",
+                 *       "status": 409,
+                 *       "detail": "Add at least one question before activating this questionnaire."
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description One or more request fields are invalid. Each problem is listed in `errors`. */
         ValidationFailed: {
             headers: {
@@ -915,6 +1028,8 @@ export interface components {
         UserId: components["schemas"]["Id"];
         /** @description ID of the topic. */
         TopicId: components["schemas"]["Id"];
+        /** @description ID of the questionnaire. */
+        QuestionnaireId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: never;
@@ -949,6 +1064,10 @@ export type TopicPage = components['schemas']['TopicPage'];
 export type TopicCreate = components['schemas']['TopicCreate'];
 export type TopicUpdate = components['schemas']['TopicUpdate'];
 export type Questionnaire = components['schemas']['Questionnaire'];
+export type TimeLimitMinutes = components['schemas']['TimeLimitMinutes'];
+export type QuestionnairePage = components['schemas']['QuestionnairePage'];
+export type QuestionnaireCreate = components['schemas']['QuestionnaireCreate'];
+export type QuestionnaireUpdate = components['schemas']['QuestionnaireUpdate'];
 export type QuestionnaireVersion = components['schemas']['QuestionnaireVersion'];
 export type Question = components['schemas']['Question'];
 export type AnswerOption = components['schemas']['AnswerOption'];
@@ -972,6 +1091,7 @@ export type ResponseForbidden = components['responses']['Forbidden'];
 export type ResponseNotFound = components['responses']['NotFound'];
 export type ResponseConflict = components['responses']['Conflict'];
 export type ResponseNotUnique = components['responses']['NotUnique'];
+export type ResponseNotReadyToActivate = components['responses']['NotReadyToActivate'];
 export type ResponseValidationFailed = components['responses']['ValidationFailed'];
 export type ResponseInternalError = components['responses']['InternalError'];
 export type ParameterPage = components['parameters']['Page'];
@@ -979,6 +1099,7 @@ export type ParameterPageSize = components['parameters']['PageSize'];
 export type ParameterDepartmentId = components['parameters']['DepartmentId'];
 export type ParameterUserId = components['parameters']['UserId'];
 export type ParameterTopicId = components['parameters']['TopicId'];
+export type ParameterQuestionnaireId = components['parameters']['QuestionnaireId'];
 export type $defs = Record<string, never>;
 export interface operations {
     getCurrentSession: {
@@ -1460,6 +1581,133 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listQuestionnaires: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Number of items per page. */
+                pageSize?: components["parameters"]["PageSize"];
+                /** @description Only return questionnaires with this status. Omit to return all questionnaires, active and inactive. */
+                status?: components["schemas"]["ActivityStatus"];
+                /** @description Only return questionnaires in this topic. */
+                topicId?: components["schemas"]["Id"];
+                /** @description Only return questionnaires whose title contains this text, ignoring upper and lower case. Spaces around the text are ignored. */
+                q?: string;
+                /** @description Sort order. Prefix a field with `-` for descending order. */
+                sort?: "title" | "-title" | "questionCount" | "-questionCount" | "passingScore" | "-passingScore" | "createdAt" | "-createdAt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of questionnaires. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionnairePage"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionnaireCreate"];
+            };
+        };
+        responses: {
+            /** @description Created. The new, inactive questionnaire. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the questionnaire. */
+                questionnaireId: components["parameters"]["QuestionnaireId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The questionnaire. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateQuestionnaire: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the questionnaire. */
+                questionnaireId: components["parameters"]["QuestionnaireId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionnaireUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated questionnaire. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Questionnaire"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["NotReadyToActivate"];
             422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };

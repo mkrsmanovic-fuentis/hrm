@@ -66,6 +66,29 @@ These are totals per user, not pending or overdue counts, so a user's status doe
 - An **inactive** topic cannot be chosen for a new questionnaire, and a questionnaire cannot be moved into it.
 - Questionnaires in an inactive topic **cannot be assigned**. Existing assignments on them continue and can still be completed, and all history stays.
 
+## Questionnaires
+
+- Administrators create questionnaires, change their settings, and activate and deactivate them. Employees have no questionnaire list; they reach a questionnaire only through their own assignments. See [Access by role](#access-by-role).
+- The settings are a title of 1 to 200 characters, an optional description of up to 2,000, a topic, a passing score and an optional time limit. Spaces around the title and description are removed, and an empty description is saved as none.
+- Titles are **not** unique. Two questionnaires can have the same title, for example in different topics.
+- The passing score is a whole number from 1 to 100. The default is **80**. See [Scoring](#scoring).
+- The time limit is a whole number of minutes from 1 to 480 (8 hours, the length of a session), or none. See [Time limits](#time-limits).
+- The topic must be **active** when a questionnaire is created, and when a questionnaire moves to another topic. A questionnaire whose topic was deactivated later stays in it, and can still be edited there. See [Topics](#topics).
+
+### Draft first
+
+- A new questionnaire is **inactive**, a draft, with an empty version 1. Questions are added to that version.
+- A questionnaire can be activated only when its current version has at least one question. Otherwise activating is refused and nothing changes.
+- Activating makes it available to assign. Deactivating stops new assignments; existing assignments can still be completed, and all attempts and results are kept. See [Assigning training](#assigning-training).
+- Questionnaires are deactivated, never deleted.
+
+{/* TODO: SPE-19 adds the full checks before activation. Until then the only check is "at least one question". */}
+
+### Settings and versions
+
+- Changing the settings (title, description, topic, passing score, time limit) does **not** create a new version. Versions are about questions. See [Questionnaire versions](#questionnaire-versions).
+- Each attempt keeps the passing score it started with. A new passing score applies to attempts started after the change, and never changes earlier results.
+
 ## Scoring
 
 The score is the share of correct answers:
@@ -198,7 +221,7 @@ The [API reference](/api-reference/overview#authorization) describes the answers
 ## Questionnaire versions
 
 - A questionnaire with no attempts is edited in place.
-- Editing a questionnaire that has attempts creates a new version.
+- Editing the questions of a questionnaire that has attempts creates a new version. Changing its settings does not.
 - New attempts use the latest version. An attempt in progress finishes on the version it started with.
 - Each attempt stays linked to the version it used, so earlier results never change.
 
@@ -222,6 +245,7 @@ Administrator actions that change data are logged, so it is always clear who did
 | Assignment | `assignment` | `created` |
 
 - Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
+- A new questionnaire is logged as `created` with `status` `inactive`. Activating it, the first time or later, is logged as `reactivated`.
 - Editing a questionnaire that creates a new version is logged as `updated` on the questionnaire. The entry lists the new `currentVersionId` and any other changed fields.
 - A change of `status` is always logged as `deactivated` or `reactivated`, never as `updated`, even when it arrives in an edit request. If the same edit also changes other fields, it logs two entries: `updated` with the other fields, then `deactivated` or `reactivated`.
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
