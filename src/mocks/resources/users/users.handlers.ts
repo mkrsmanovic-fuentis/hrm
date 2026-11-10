@@ -1,0 +1,244 @@
+import type { User } from '../../../app/core/api/api-schema.gen';
+import { recordAudit } from '../../db/audit';
+import type { MockDb } from '../../db/mock-db';
+import type { UserRecord } from '../../db/mock-data';
+import { INVITATION_LIFETIME_MS } from '../../rules/training-rules';
+import {
+  fullName,
+  isSameEmail,
+  isValidEmail,
+  toUser,
+  USER_EMAIL_MAX_LENGTH,
+  USER_NAME_MAX_LENGTH,
+} from '../../rules/user-rules';
+import { requireRole } from '../../support/access';
+import { BodyReader, notUnique } from '../../support/body';
+import { route } from '../../support/mock-route';
+import { MockProblem } from '../../support/problem';
+import { sortBy } from '../../support/query';
+
+const STATUSES = ['active', 'inactive'] as const;
+const ROLES = ['administrator', 'employee'] as const;
+const SORTS = [
+  'name',
+  '-name',
+  'email',
+  '-email',
+  'assignedTrainingCount',
+  '-assignedTrainingCount',
+  'completedTrainingCount',
+  '-completedTrainingCount',
+  'createdAt',
+  '-createdAt',
+] as const;
+/** IDs are UUIDs; anything longer is not one. */
+const ID_MAX_LENGTH = 100;
+
+const sortFields = {
+  name: (user: User) => fullName(user),
+  email: (user: User) => user.email,
+  assignedTrainingCount: (user: User) => user.assignedTrainingCount,
+  completedTrainingCount: (user: User) => user.completedTrainingCount,
+  createdAt: (user: User) => Date.parse(user.createdAt),
+};
+
+/**
+ * Mock handlers for the Users tag in the spec: the Employees page. Administrators only, like the
+ * department handlers they copy. On top of that pattern:
+ *
+ * - Emails are unique, ignoring case and spaces around them (`409` on `email`).
+ * - Only an active department can be chosen; a user keeps an inactive one they already have.
+ * - A new user gets an invite: `invitationSentAt` now, `invitationExpiresAt` 7 days later.
+ * - Administrators cannot deactivate themselves or change their own role (`409`).
+ * - Deactivating ends the user's sessions. `authenticate()` also rejects inactive users.
+ */
+export const userRoutes = [
+  route.get('/users', (ctx) => {
+    requireRole(ctx, 'administrator');
+    const { db, now, query, page, ok, validationFailed } = ctx;
+    const pagination = query.pagination();
+    const status = query.oneOf('status', STATUSES);
+    const role = query.oneOf('role', ROLES);
+    const departmentId = query.text('departmentId', { maxLength: ID_MAX_LENGTH });
+    const search = query.text('q', { maxLength: USER_EMAIL_MAX_LENGTH })?.toLowerCase();
+    const sort = query.oneOf('sort', SORTS, 'name');
+    if (query.errors.length > 0) return validationFailed(query.errors);
+
+    const users = db.data.users
+      .filter((user) => !status || user.status === status)
+      .filter((user) => !role || user.role === role)
+      .filter((user) => !departmentId || user.departmentId === departmentId)
+      .filter((user) => !search || matchesSearch(user, search))
+      .map((user) => toUser(user, db.data, now));
+    return ok(page(sortBy(users, sort, sortFields), pagination));
+  }),
+
+  route.post('/users', async (ctx) => {
+    const admin = requireRole(ctx, 'administrator');
+    const { db, now, ok, validationFailed } = ctx;
+    const body = new BodyReader(await ctx.json(), [
+      'email',
+      'firstName',
+      'lastName',
+      'role',
+      'departmentId',
+    ]);
+    const email = body.email('email', {
+      required: true,
+      maxLength: USER_EMAIL_MAX_LENGTH,
+      isValid: isValidEmail,
+    });
+    const firstName = body.text('firstName', { required: true, maxLength: USER_NAME_MAX_LENGTH });
+    const lastName = body.text('lastName', { required: true, maxLength: USER_NAME_MAX_LENGTH });
+    const role = body.oneOf('role', ROLES, { required: true });
+    const departmentId = body.nullableId('departmentId');
+    if (departmentId) checkDepartment(db, body, departmentId, null);
+    if (
+      body.errors.length > 0 ||
+      email === undefined ||
+      firstName === undefined ||
+      lastName === undefined ||
+      role === undefined
+    ) {
+      return validationFailed(body.errors);
+    }
+    requireUniqueEmail(db, email);
+
+    const created = db.update((data) => {
+      const at = now.toISOString();
+      const user: UserRecord = {
+        id: crypto.randomUUID(),
+        organizationId: data.organization.id,
+        email,
+        firstName,
+        lastName,
+        role,
+        departmentId: departmentId ?? null,
+        status: 'active',
+        invitationSentAt: at,
+        invitationExpiresAt: new Date(now.getTime() + INVITATION_LIFETIME_MS).toISOString(),
+        passwordSetAt: null,
+        lastSignedInAt: null,
+        createdAt: at,
+        updatedAt: at,
+      };
+      data.users.push(user);
+      recordAudit(data, {
+        action: 'created',
+        entityType: 'user',
+        actorId: admin.id,
+        now,
+        after: user,
+      });
+      return user;
+    });
+    return ok(toUser(created, db.data, now), 201);
+  }),
+
+  route.get('/users/{userId}', (ctx) => {
+    requireRole(ctx, 'administrator');
+    const { db, now, params, ok, notFound } = ctx;
+    const user = db.data.users.find((u) => u.id === params.userId);
+    return user ? ok(toUser(user, db.data, now)) : notFound(`User ${params.userId} was not found.`);
+  }),
+
+  route.patch('/users/{userId}', async (ctx) => {
+    const admin = requireRole(ctx, 'administrator');
+    const { db, params, now, ok, notFound, validationFailed } = ctx;
+    const user = db.data.users.find((u) => u.id === params.userId);
+    if (!user) return notFound(`User ${params.userId} was not found.`);
+
+    const body = new BodyReader(await ctx.json(), [
+      'email',
+      'firstName',
+      'lastName',
+      'role',
+      'departmentId',
+      'status',
+    ]);
+    const email = body.email('email', { maxLength: USER_EMAIL_MAX_LENGTH, isValid: isValidEmail });
+    const firstName = body.text('firstName', { maxLength: USER_NAME_MAX_LENGTH });
+    const lastName = body.text('lastName', { maxLength: USER_NAME_MAX_LENGTH });
+    const role = body.oneOf('role', ROLES);
+    const departmentId = body.nullableId('departmentId');
+    if (departmentId) checkDepartment(db, body, departmentId, user.departmentId);
+    const status = body.oneOf('status', STATUSES);
+    if (body.errors.length > 0) return validationFailed(body.errors);
+
+    if (user.id === admin.id) {
+      if (status === 'inactive') {
+        throw new MockProblem(409, 'You cannot deactivate your own account.');
+      }
+      if (role !== undefined && role !== user.role) {
+        throw new MockProblem(409, 'You cannot change your own role.');
+      }
+    }
+    if (email !== undefined) requireUniqueEmail(db, email, user.id);
+
+    const changes: Partial<UserRecord> = {
+      ...(email !== undefined && { email }),
+      ...(firstName !== undefined && { firstName }),
+      ...(lastName !== undefined && { lastName }),
+      ...(role !== undefined && { role }),
+      ...(departmentId !== undefined && { departmentId }),
+      ...(status !== undefined && { status }),
+    };
+    const updated = db.update((data) => {
+      const before = structuredClone(user);
+      Object.assign(user, changes);
+      // Logs `updated` for the other fields, and `deactivated` or `reactivated` for status.
+      const entries = recordAudit(data, {
+        action: 'updated',
+        entityType: 'user',
+        actorId: admin.id,
+        now,
+        before,
+        after: user,
+      });
+      if (entries.length > 0) user.updatedAt = now.toISOString();
+      // Deactivating ends the user's sessions at once. Reactivating does not bring them back.
+      if (user.status === 'inactive') {
+        data.sessions = data.sessions.filter((session) => session.userId !== user.id);
+      }
+      return user;
+    });
+    return ok(toUser(updated, db.data, now));
+  }),
+];
+
+/** `q` matches the full name or the email, ignoring case. `search` is lower case already. */
+function matchesSearch(user: UserRecord, search: string): boolean {
+  return fullName(user).toLowerCase().includes(search) || user.email.toLowerCase().includes(search);
+}
+
+/**
+ * Only an active department can be chosen. `currentId` is the user's department before the
+ * change: a user keeps an inactive department they already have.
+ */
+function checkDepartment(
+  db: MockDb,
+  body: BodyReader,
+  departmentId: string,
+  currentId: string | null,
+): void {
+  const department = db.data.departments.find((d) => d.id === departmentId);
+  if (!department) {
+    body.invalid('departmentId', 'Choose a department that exists.');
+  } else if (department.status !== 'active' && department.id !== currentId) {
+    body.invalid('departmentId', 'Choose an active department.');
+  }
+}
+
+/** Answers `409` when another user already has the email. */
+function requireUniqueEmail(db: MockDb, email: string, exceptId?: string): void {
+  const taken = db.data.users.some(
+    (other) => other.id !== exceptId && isSameEmail(other.email, email),
+  );
+  if (taken) {
+    throw notUnique(
+      'email',
+      'A user with this email already exists.',
+      `A user with the email ${email} already exists.`,
+    );
+  }
+}

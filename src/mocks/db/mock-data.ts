@@ -27,7 +27,7 @@ import type {
  * never listed in an audit entry's `changes`. `recordAudit()` rejects records that carry them.
  */
 export const DERIVED_FIELDS = {
-  user: [],
+  user: ['assignedTrainingCount', 'completedTrainingCount'],
   department: ['employeeCount'],
   topic: [],
   questionnaire: ['questionCount'],
@@ -36,6 +36,7 @@ export const DERIVED_FIELDS = {
 
 type Derived<E extends AuditEntityType> = (typeof DERIVED_FIELDS)[E][number];
 
+export type UserRecord = Omit<User, Derived<'user'>>;
 export type DepartmentRecord = Omit<Department, Derived<'department'>>;
 export type QuestionnaireRecord = Omit<Questionnaire, Derived<'questionnaire'>>;
 export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions'>;
@@ -58,7 +59,7 @@ export interface MockData {
   /** The current organization. The MVP has exactly one. */
   organization: Organization;
   roles: Role[];
-  users: User[];
+  users: UserRecord[];
   departments: DepartmentRecord[];
   topics: Topic[];
   questionnaires: QuestionnaireRecord[];

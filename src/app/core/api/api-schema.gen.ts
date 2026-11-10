@@ -118,6 +118,69 @@ export interface paths {
         patch: operations["updateDepartment"];
         trace?: never;
     };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List users
+         * @description Returns the organization's users, administrators and employees, one page at a time, each with their training counts.
+         *
+         *     **Access:** administrators only. Employees get `403`.
+         */
+        get: operations["listUsers"];
+        put?: never;
+        /**
+         * Create a user
+         * @description Creates an active user and sends them an invite link to set a password. `invitationSentAt` is now, `invitationExpiresAt` is 7 days later, and `passwordSetAt` stays `null` until the user sets a password.
+         *
+         *     The email must be unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Only an active department can be chosen.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
+         */
+        post: operations["createUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a user
+         * @description Returns one user of the current organization, with their training counts.
+         *
+         *     **Access:** administrators only. Employees get `403`.
+         */
+        get: operations["getUser"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update a user
+         * @description Changes the fields sent and leaves the others as they are. Send `status` to deactivate (`inactive`) or reactivate (`active`) the user; there are no separate endpoints for that.
+         *
+         *     - **Deactivating** ends the user's sessions at once: their next request gets `401`, and they cannot sign in. Their training results are kept. Their open assignments stay unchanged, but are left out of pending and overdue counts.
+         *     - **Reactivating** lets the user sign in again, and their open assignments count as pending and overdue again.
+         *     - **Department:** only an active department can be chosen. A user already in a department that was deactivated later keeps it, so sending their current `departmentId` again is accepted.
+         *     - **Own account:** administrators cannot deactivate themselves or change their own role. Both answer `409`.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+         */
+        patch: operations["updateUser"];
+        trace?: never;
+    };
     "/topics": {
         parameters: {
             query?: never;
@@ -316,8 +379,47 @@ export interface components {
             /** @description When the user set a password through the invite link. Null while the invite is pending. */
             passwordSetAt: components["schemas"]["Timestamp"] | null;
             lastSignedInAt: components["schemas"]["Timestamp"] | null;
+            /** @description Derived. Every assignment the user has received, in any status, passed ones included. Open assignments of a deactivated user still count. Never sent in requests. */
+            readonly assignedTrainingCount: number;
+            /** @description Derived. The user's assignments with the status `passed`, including ones passed after the deadline. Never sent in requests. */
+            readonly completedTrainingCount: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
+        };
+        /** @description One page of users. */
+        UserPage: {
+            items: components["schemas"]["User"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** @description A new user. They start active, with an invite link to set a password. Spaces around text fields are removed. Unknown fields are rejected. */
+        UserCreate: {
+            /**
+             * Format: email
+             * @description Unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it.
+             * @example hana.sato@brightwater.example
+             */
+            email: string;
+            firstName: string;
+            lastName: string;
+            role: components["schemas"]["RoleKey"];
+            /** @description An active department, or `null` for no department. Left out means no department. */
+            departmentId?: components["schemas"]["Id"] | null;
+        };
+        /** @description The fields to change. Fields left out stay as they are. Spaces around text fields are removed. Unknown fields are rejected. */
+        UserUpdate: {
+            /**
+             * Format: email
+             * @description Unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it.
+             */
+            email?: string;
+            firstName?: string;
+            lastName?: string;
+            /** @description Administrators cannot change their own role. */
+            role?: components["schemas"]["RoleKey"];
+            /** @description An active department, or `null` for no department. The user's current department is also accepted when it is inactive. */
+            departmentId?: components["schemas"]["Id"] | null;
+            /** @description `inactive` deactivates the user and ends their sessions, `active` reactivates them. Administrators cannot deactivate themselves. */
+            status?: components["schemas"]["ActivityStatus"];
         };
         /** @description Groups employees. */
         Department: {
@@ -766,6 +868,8 @@ export interface components {
         PageSize: number;
         /** @description ID of the department. */
         DepartmentId: components["schemas"]["Id"];
+        /** @description ID of the user. */
+        UserId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: never;
@@ -787,6 +891,9 @@ export type Organization = components['schemas']['Organization'];
 export type RoleKey = components['schemas']['RoleKey'];
 export type Role = components['schemas']['Role'];
 export type User = components['schemas']['User'];
+export type UserPage = components['schemas']['UserPage'];
+export type UserCreate = components['schemas']['UserCreate'];
+export type UserUpdate = components['schemas']['UserUpdate'];
 export type Department = components['schemas']['Department'];
 export type DepartmentPage = components['schemas']['DepartmentPage'];
 export type DepartmentCreate = components['schemas']['DepartmentCreate'];
@@ -822,6 +929,7 @@ export type ResponseInternalError = components['responses']['InternalError'];
 export type ParameterPage = components['parameters']['Page'];
 export type ParameterPageSize = components['parameters']['PageSize'];
 export type ParameterDepartmentId = components['parameters']['DepartmentId'];
+export type ParameterUserId = components['parameters']['UserId'];
 export type $defs = Record<string, never>;
 export interface operations {
     getCurrentSession: {
@@ -1039,6 +1147,144 @@ export interface operations {
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listUsers: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Number of items per page. */
+                pageSize?: components["parameters"]["PageSize"];
+                /** @description Only return users with this status. Omit to return all users, active and inactive. */
+                status?: components["schemas"]["ActivityStatus"];
+                /** @description Only return users with this role. */
+                role?: components["schemas"]["RoleKey"];
+                /** @description Only return users in this department, active or inactive. */
+                departmentId?: components["schemas"]["Id"];
+                /** @description Only return users whose full name ("first last") or email contains this text, ignoring upper and lower case. Spaces around the text are ignored. */
+                q?: string;
+                /** @description Sort order. Prefix a field with `-` for descending order. `name` sorts by the full name, first name first. */
+                sort?: "name" | "-name" | "email" | "-email" | "assignedTrainingCount" | "-assignedTrainingCount" | "completedTrainingCount" | "-completedTrainingCount" | "createdAt" | "-createdAt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of users. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPage"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserCreate"];
+            };
+        };
+        responses: {
+            /** @description Created. The new user, with the invite fields set. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            409: components["responses"]["NotUnique"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the user. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the user. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated user. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The email is already used by another user: `errors` names `email` with code `not_unique`. Or an administrator tried to deactivate themselves or change their own role: no `errors`. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ConflictProblem"];
+                };
+            };
             422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
