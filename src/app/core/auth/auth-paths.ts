@@ -1,4 +1,5 @@
-import type { Params } from '@angular/router';
+import type { Location } from '@angular/common';
+import type { Params, UrlTree } from '@angular/router';
 import type { RoleKey } from '../api';
 
 /** Path of the login page, without a leading slash. */
@@ -21,6 +22,20 @@ export function homeUrl(role: RoleKey): string {
   return `/${ROLE_AREAS[role]}/home`;
 }
 
+/**
+ * The URL in the address bar, for example `/admin/home?page=2`. Use it, not `router.url`, for a
+ * `returnUrl`: on the no-access page the router's URL is `/no-access`, while the address bar
+ * still shows the page the user opened.
+ */
+export function addressBarUrl(location: Location): string {
+  return location.path() || '/';
+}
+
+/** Whether the URL is the login page, with or without a query. */
+export function isLoginPage(url: UrlTree): boolean {
+  return url.root.children['primary']?.segments[0]?.path === LOGIN_PATH;
+}
+
 /** `returnUrl` for the login page, left out for the home page. */
 export function returnUrlParams(url: string): Params {
   return url && url !== '/' ? { returnUrl: url } : {};
@@ -34,7 +49,7 @@ export function returnUrlParams(url: string): Params {
  */
 export function safeReturnUrl(returnUrl: string | null | undefined, role?: RoleKey | null): string {
   if (!returnUrl || !returnUrl.startsWith('/') || returnUrl.startsWith('//')) return '/';
-  if (isUnder(returnUrl, LOGIN_PATH)) return '/';
+  if (isUnder(returnUrl, LOGIN_PATH) || isUnder(returnUrl, NO_ACCESS_PATH)) return '/';
   if (role) {
     const otherAreas = Object.entries(ROLE_AREAS).filter(([key]) => key !== role);
     if (otherAreas.some(([, area]) => isUnder(returnUrl, area))) return '/';

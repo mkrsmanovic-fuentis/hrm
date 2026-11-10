@@ -1,10 +1,16 @@
-import { DOCUMENT } from '@angular/common';
+import { DOCUMENT, Location } from '@angular/common';
 import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment, type DemoAccount } from '../../../environments/environment';
 import { ApiClient, type RoleKey, type Session } from '../api';
-import { LOGIN_PATH, returnUrlParams, safeReturnUrl } from './auth-paths';
+import {
+  addressBarUrl,
+  isLoginPage,
+  LOGIN_PATH,
+  returnUrlParams,
+  safeReturnUrl,
+} from './auth-paths';
 
 /** Where the session is kept between page loads. Tests replace it. */
 export const SESSION_STORAGE = new InjectionToken<Storage | null>('SESSION_STORAGE', {
@@ -38,7 +44,7 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
  * - Other tabs of the app share the session through localStorage: signing in, out or switching
  *   the demo role in one tab does the same in the others.
  *
- * The HTTP interceptor adds the token to API calls and calls {@link clear} on `401`. The route
+ * The HTTP interceptor adds the token to API calls and calls {@link endSession} on `401`. The route
  * guards send signed-out users to `/login`.
  */
 @Injectable({ providedIn: 'root' })
@@ -47,6 +53,7 @@ export class AuthService {
   private readonly storage = inject(SESSION_STORAGE);
   private readonly demo = inject(DEMO_ACCOUNTS);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   private readonly state = signal<Session | null>(this.restore());
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -164,7 +171,7 @@ export class AuthService {
       () => {
         this.expiryTimer = null;
         if (this.state() !== session) return;
-        if (isExpired(session)) this.endLocally();
+        if (isExpired(session)) this.endSession();
         else this.scheduleExpiry();
       },
       Math.min(Math.max(wait, 0), MAX_TIMER_MS),
@@ -178,7 +185,8 @@ export class AuthService {
 
   /**
    * Another tab changed the stored session. Follow it: signed out there means signed out here, a
-   * new session (sign-in or demo role switch) replaces this one and opens the new user's home.
+   * new session (sign-in or demo role switch) replaces this one, and the page is checked again
+   * for the new user's role.
    */
   private syncFromOtherTab(event: StorageEvent): void {
     // `key` is null when the other tab cleared all of localStorage.
@@ -188,32 +196,46 @@ export class AuthService {
 
     this.state.set(next);
     this.scheduleExpiry();
-    if (next) void this.router.navigateByUrl(this.pageAfterOtherTabSignIn(next));
-    else this.openLogin();
+    if (!next) {
+      this.openLogin();
+      return;
+    }
+    // Navigate even to the same URL, so the role guard checks the page again.
+    void this.router.navigateByUrl(this.pageAfterOtherTabSignIn(next), {
+      onSameUrlNavigation: 'reload',
+    });
   }
 
   /**
-   * On the login page, where the login page itself would go: its `returnUrl`, unless that is in
-   * another role's area. On any other page, `/`, the new user's home: the page they were on may
-   * belong to the previous user's role.
+   * Where this tab goes when another tab starts a new session:
+   * - On the login page: where the login page itself would go, its `returnUrl`.
+   * - On any other page: the page in the address bar. On the no-access page that is the page the
+   *   user opened, so it opens once the new role may see it.
+   * A page in another role's area, the login page and the no-access page lead to `/`, the new
+   * user's home.
    */
   private pageAfterOtherTabSignIn(session: Session): string {
-    const current = this.router.parseUrl(this.router.url);
-    const onLogin = current.root.children['primary']?.segments[0]?.path === LOGIN_PATH;
-    if (!onLogin) return '/';
-    return safeReturnUrl(current.queryParamMap.get('returnUrl'), session.user.role);
+    const shown = this.router.parseUrl(addressBarUrl(this.location));
+    const target = isLoginPage(shown)
+      ? shown.queryParamMap.get('returnUrl')
+      : this.router.serializeUrl(shown);
+    return safeReturnUrl(target, session.user.role);
   }
 
-  /** Forgets the session and opens the login page, which returns to the current page. */
-  private endLocally(): void {
+  /**
+   * Forgets the session and opens the login page, which returns to the page in the address bar
+   * after signing in. For a session that has ended: expired, or answered `401` by the API.
+   */
+  endSession(): void {
     this.clear();
     this.openLogin();
   }
 
+  /** Opens the login page, with the page in the address bar as its `returnUrl`. */
   private openLogin(): void {
-    const current = this.router.url;
-    if (current.startsWith(`/${LOGIN_PATH}`)) return;
-    void this.router.navigate([`/${LOGIN_PATH}`], { queryParams: returnUrlParams(current) });
+    const shown = addressBarUrl(this.location);
+    if (isLoginPage(this.router.parseUrl(shown))) return;
+    void this.router.navigate([`/${LOGIN_PATH}`], { queryParams: returnUrlParams(shown) });
   }
 
   private restore(): Session | null {

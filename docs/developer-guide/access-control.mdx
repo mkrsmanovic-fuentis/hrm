@@ -27,7 +27,7 @@ Administrators and employees each have their own area of the app, with its own p
     `/` redirects to the signed-in user's home page (`roleHomeRedirect`). After signing in, the login page opens `/`, or the page the user was on. The brand link in the top bar also opens `/`. Unknown URLs go to `/` too.
   </Step>
   <Step title="The wrong role sees the no-access page">
-    When a user opens a page outside their area, for example an employee opening `/admin/home`, `roleGuard` shows the **No access** page (`src/app/core/access/no-access.ts`) with a link to their home page. The address bar keeps the URL they opened. The user stays signed in.
+    When a user opens a page outside their area, for example an employee opening `/admin/home`, `roleGuard` shows the **No access** page (`src/app/core/access/no-access.ts`) with a link to their home page. The address bar keeps the URL they opened. The user stays signed in. If the session ends there, the login page returns to that URL, not to `/no-access`, and opens it only if the new user's role may see it.
   </Step>
   <Step title="The side navigation shows the role's entries">
     The shell shows the entries from `src/app/app.navigation.ts` for the signed-in role, in `sd-sidenav`. `navItemsFor()` in `src/app/core/navigation/` does the filtering.
