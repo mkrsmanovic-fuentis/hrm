@@ -116,6 +116,7 @@ Administrator actions that change data are logged, so it is always clear who did
 
 - Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
 - Editing a questionnaire that creates a new version is logged as `updated` on the questionnaire. The entry lists the new `currentVersionId` and any other changed fields.
+- A change of `status` is always logged as `deactivated` or `reactivated`, never as `updated`, even when it arrives in an edit request. If the same edit also changes other fields, it logs two entries: `updated` with the other fields, then `deactivated` or `reactivated`.
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
 - Employee actions, such as starting and submitting attempts, are not logged.
 

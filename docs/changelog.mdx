@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 13:14" description="SPE-12 · Audit logging" tags={["API", "Docs"]}>
+  Specified exactly which administrator actions are logged and what each entry records, so the real backend can implement it. The mock API has a shared audit helper that every administrator action will use.
+
+  Commit: [08fefbf](https://github.com/mkrsmanovic-fuentis/hrm/commit/08fefbf0eca249981d6dcc4b0a55ace613a0fd12)
+</Update>
+
 <Update label="2026-11-10 13:05" description="SPE-9 · API spec and mock API" tags={["API", "Frontend", "Docs"]}>
   Added the API contract: an OpenAPI spec with every entity, the API conventions, generated TypeScript types and a typed API client. The app now runs on a mock API with realistic seed data that survives reloads, can be reset, and can simulate slow responses, errors and empty lists. The API reference tab now shows endpoint pages, and the developer guide has a Mock API page.
 
