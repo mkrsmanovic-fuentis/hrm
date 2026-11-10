@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 14:47" description="SPE-13 · Departments" tags={["Frontend", "API", "Docs"]}>
+  Administrators can now create, rename, describe, deactivate and reactivate departments, and see how many people each one has. This is the first page for changing data, and it sets the pattern for the admin pages that follow: a searchable list, a side drawer for editing, and a confirmation before deactivating. Every change is recorded in the audit log.
+
+  Commit: [b20ceec](https://github.com/mkrsmanovic-fuentis/hrm/commit/b20ceec3d7264c34318328ae0d391ed66cc487ad)
+</Update>
+
 <Update label="2026-11-10 14:32" description="SPE-11 · Roles and access" tags={["Frontend", "API", "Docs"]}>
   Administrators and employees now have separate areas, each with its own home page and side menu. Opening a page meant for the other role shows a "No access" page without signing you out. Sessions end automatically when they expire, even on an idle page, and signing in, out or switching roles carries over to other open tabs. The business rules now include an access matrix for the backend.
 
