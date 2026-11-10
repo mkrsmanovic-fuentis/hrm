@@ -1,0 +1,6 @@
+# QA review worktrees
+.worktrees/
+
+# Claude Code local settings and worker worktrees
+.claude/settings.local.json
+.claude/worktrees/
