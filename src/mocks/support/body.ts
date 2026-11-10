@@ -92,6 +92,15 @@ export class BodyReader {
     return raw as T;
   }
 
+  /**
+   * One of a fixed set of values, or `null`. Returns `undefined` when the field is missing or
+   * invalid, so the caller can tell "not sent" from "cleared".
+   */
+  nullableOneOf<T extends string>(name: string, allowed: readonly T[]): T | null | undefined {
+    if (this.has(name) && this.body[name] === null) return null;
+    return this.oneOf(name, allowed);
+  }
+
   private fail(field: string, code: string, message: string): void {
     this.errors.push({ location: 'body', field, code, message });
   }

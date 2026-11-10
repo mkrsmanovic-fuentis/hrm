@@ -1,0 +1,19 @@
+.form,
+.icon {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-md);
+}
+
+.icon {
+  gap: var(--sd-space-sm);
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  gap: var(--sd-space-sm);
+  margin: 0;
+  color: var(--sd-color-text-muted);
+  font-size: var(--sd-font-size-sm);
+}

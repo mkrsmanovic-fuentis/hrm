@@ -56,6 +56,11 @@ export const routes: Routes = [
             loadComponent: () =>
               import('./features/departments/department-list').then((m) => m.DepartmentList),
           },
+          {
+            path: 'topics',
+            title: 'Topics · HRM Platform',
+            loadComponent: () => import('./features/topics/topic-list').then((m) => m.TopicList),
+          },
         ],
       },
       {

@@ -1,0 +1,23 @@
+:host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--sd-space-2xl);
+  min-height: 0;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-md);
+}
+
+// sd-list renders only the rows in view, so it needs a height.
+.list {
+  flex: 1;
+  min-height: 24rem;
+}
+
+.message {
+  margin: 0;
+}

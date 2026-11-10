@@ -1,8 +1,7 @@
-import type { Topic } from '../../app/core/api/api-schema.gen';
+import type { MockData, TopicRecord } from './mock-data';
 import { buildSeed } from '../seed/seed';
 import { TEST_NOW } from '../testing';
 import { auditChanges, recordAudit, sameValue } from './audit';
-import type { MockData } from './mock-data';
 
 describe('recordAudit', () => {
   const seedData = buildSeed(TEST_NOW);
@@ -15,7 +14,7 @@ describe('recordAudit', () => {
     logSize = data.auditLog.length;
   });
 
-  function topic(overrides: Partial<Topic> = {}): Topic {
+  function topic(overrides: Partial<TopicRecord> = {}): TopicRecord {
     return {
       id: '22222222-2222-4222-8222-222222222222',
       organizationId: data.organization.id,
@@ -149,7 +148,7 @@ describe('recordAudit', () => {
   });
 
   describe('a change of status in an edit', () => {
-    function update(before: Topic, after: Topic) {
+    function update(before: TopicRecord, after: TopicRecord) {
       return recordAudit(data, {
         action: 'updated',
         entityType: 'topic',
