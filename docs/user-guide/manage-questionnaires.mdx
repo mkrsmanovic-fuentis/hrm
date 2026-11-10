@@ -109,18 +109,40 @@ Past attempts and results are kept and never change. An employee who is in the m
 
 ## Activate a questionnaire
 
-A questionnaire must be active before it can be assigned.
+A questionnaire must be active before it can be assigned. It can be activated only when it is ready to take:
+
+- it has at least one question;
+- every question has text, at least two answer options with text, and exactly one correct answer;
+- its topic is active.
 
 <Steps>
   <Step title="Open the questionnaire and select Activate">
-    You can also select the circular arrow icon in its row in the list.
+    You can also select the circular arrow icon in its row in the list. If the questionnaire is not ready yet, the icon opens its page instead, so you can see what needs fixing.
   </Step>
   <Step title="Confirm">
     Select **Activate**. The questionnaire is active, and it can be assigned to employees.
   </Step>
 </Steps>
 
-A questionnaire without questions cannot be activated. Its page says it is a draft, and **Activate** is not available.
+### When Activate is not available
+
+If the questionnaire is not ready, **Activate** is greyed out, and a box at the top of the page says **This questionnaire can't be activated yet**. It lists every problem, for example "Question 2 has no correct answer. Choose one."
+
+<Steps>
+  <Step title="Go to the question">
+    Select **Go to question 2** next to a problem. The page scrolls to that question in the **Questions** section and outlines it. The same problems are shown on the question itself.
+  </Step>
+  <Step title="Fix it and save">
+    Change the question, for example add an answer option or choose the **Correct answer**, then select **Save questions**. The list of problems updates after the save.
+  </Step>
+  <Step title="Activate">
+    When nothing is left to fix, the box goes away and **Activate** is available.
+  </Step>
+</Steps>
+
+If the questionnaire has no questions yet, add them in the **Questions** section first.
+
+If its topic is inactive, either select **Choose another topic** to move the questionnaire to an active topic in **Edit settings**, or select **Go to Topics** and reactivate the topic. See [Manage topics](/user-guide/manage-topics).
 
 ## Deactivate a questionnaire
 

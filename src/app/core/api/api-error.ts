@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import type { FieldError, Problem } from './api-schema.gen';
+import type { ActivationProblem, FieldError, Problem } from './api-schema.gen';
 
 /** Problem `type` values the API uses. See the API reference overview. */
 export const ProblemType = {
@@ -57,6 +57,16 @@ export class ApiError extends Error {
 
   get isValidation(): boolean {
     return this.status === 422;
+  }
+
+  /**
+   * Why a questionnaire could not be activated: the `activationProblems` of a `409` from
+   * `PATCH /questionnaires/{questionnaireId}`. Empty for every other error.
+   */
+  get activationProblems(): readonly ActivationProblem[] {
+    const problems = (this.problem as Problem & { activationProblems?: unknown })
+      .activationProblems;
+    return this.isConflict && Array.isArray(problems) ? (problems as ActivationProblem[]) : [];
   }
 
   static fromHttpError(error: HttpErrorResponse): ApiError {

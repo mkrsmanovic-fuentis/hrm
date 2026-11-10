@@ -32,6 +32,17 @@ The **Questions** section of the questionnaire page at `/admin/questionnaires/{q
 
 Saving the whole ordered list makes a save one change: either the current version's questions are replaced, or one new version is created. There are no endpoints for single questions.
 
+## What needs fixing before activation
+
+An inactive questionnaire carries its derived `activationProblems`: the API's [checks before activation](/developer-guide/business-rules#checks-before-activation), each with the `questionId` and `questionNumber` it is about. The page and the editor show them; neither runs the checks itself.
+
+- **The page** (`questionnaire-detail.ts`) disables **Activate** while the list is not empty. An `sd-callout` `tone="warning"` lists each problem's `message`. The button has `aria-describedby` pointing at the list, and an `sdTooltip` on its wrapper says how many problems to fix.
+- **Go to question N** calls the editor's public `showQuestion(questionId)`. It finds the question in the working copy by its saved ID (`DraftQuestion.id`), scrolls to it, focuses its text and outlines it (`.highlighted`, with `--sd-color-warning`). When the working copy no longer has the question, the page shows a toast instead.
+- **An inactive topic** offers **Choose another topic**, which opens the settings drawer, and **Go to Topics**.
+- **The editor** shows a question's problems in an `sd-callout` above it. They describe the saved questions, so they are hidden while there are unsaved changes. After a save, the page reloads the questionnaire, and the list updates.
+- **The list page** opens the detail page from the activate row action when the list is not empty, instead of the confirmation.
+- **A refused activation** (`409`, when the questionnaire changed since the page loaded it): `QuestionnaireStatusDialog` shows the problems from `ApiError.activationProblems` and emits `refused`, and the page reloads.
+
 ## Files
 
 | Path | What it holds |
@@ -40,7 +51,8 @@ Saving the whole ordered list makes a save one change: either the current versio
 | `src/app/features/questionnaires/question-draft.ts` | The working copy's types, `toDraft()`, `toInput()`, `moveItem()` and `completenessProblem()`, the client copy of the completeness rule. |
 | `src/app/features/questionnaires/unsaved-changes.guard.ts` | `unsavedChangesGuard` and the `LeaveConfirmation` interface. |
 | `src/mocks/resources/questionnaires/questionnaire-questions.handlers.ts` | The mock endpoints. |
-| `src/mocks/rules/questionnaire-rules.ts` | `questionSetProblems()`, the completeness rule, and `toQuestionnaireVersion()`. |
+| `src/mocks/rules/questionnaire-rules.ts` | `completenessIssues()`, the completeness rule, behind `questionSetProblems()` for saving and `activationProblems()` for activating; `hasBeenActive()`; and `toQuestionnaireVersion()`. |
+| `src/app/features/questionnaires/questionnaire-detail.ts` | The page: the list of problems before activation and **Go to question**. |
 
 ## The editor
 
@@ -90,7 +102,7 @@ Another page with unsaved changes can reuse the guard: implement `LeaveConfirmat
 | An unknown questionnaire | `404`. |
 | Either endpoint as an employee | `403`, before the body is read. |
 
-In the seed, every active questionnaire has attempts, so editing one creates a new version. "Spotting phishing emails" is at version 2, so a save creates version 3. To edit in place, create a questionnaire, add questions and save, or edit the draft "Reporting suspicious messages".
+In the seed, every active questionnaire has attempts, so editing one creates a new version. "Spotting phishing emails" is at version 2, so a save creates version 3. To edit in place, create a questionnaire, add questions and save, or edit one of the drafts. "Phone scams and callback checks" has incomplete questions, so it shows the problems before activation.
 
 ## Related
 

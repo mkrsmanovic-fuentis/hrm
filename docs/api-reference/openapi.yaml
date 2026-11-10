@@ -775,10 +775,11 @@ paths:
 
         - Changing the settings does not create a new version. Each attempt keeps the passing score it started with, so a new passing score never changes earlier results.
         - A questionnaire cannot be moved into an inactive topic. Sending the topic it is already in is not a move.
-        - Activating needs at least one question in the current version. Otherwise the answer is `409` and nothing changes.
+        - Activating runs the checks before activation: the current version has at least one question, every question has text, at least two answer options, no empty answer option and exactly one correct answer, and the questionnaire's topic is active. When any check fails, the answer is `409` with every problem in `activationProblems`, and nothing changes. The same list is the questionnaire's derived `activationProblems`, so a client can show it before trying.
+        - When the same request also moves the questionnaire to another topic, the checks use the new topic.
         - An inactive questionnaire cannot be assigned. Deactivating does not change existing assignments; they can still be completed.
 
-        **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
+        **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated`, `activated` (the questionnaire's first activation) or `reactivated` (any later one). A request that changes nothing logs nothing.
       x-mint: *spec-status
       parameters:
         - $ref: '#/components/parameters/QuestionnaireId'
@@ -1034,16 +1035,25 @@ components:
                 message: A department with this name already exists.
     NotReadyToActivate:
       description: |
-        The questionnaire cannot be activated yet, for example because its current version has no questions. Nothing was changed. `detail` says what is missing.
+        The questionnaire cannot be activated yet. Nothing was changed. `activationProblems` lists every problem, each with the question it is about, if any, so a client can link to it. `detail` sums them up.
       content:
         application/problem+json:
           schema:
-            $ref: '#/components/schemas/Problem'
+            $ref: '#/components/schemas/NotReadyToActivateProblem'
           example:
             type: /problems/conflict
             title: Conflict
             status: 409
-            detail: Add at least one question before activating this questionnaire.
+            detail: This questionnaire can't be activated yet. Fix 2 problems first.
+            activationProblems:
+              - code: no_correct_answer
+                questionId: 7b1e2c4d-5a6f-4b8c-9d0e-1f2a3b4c5d6e
+                questionNumber: 2
+                message: Question 2 has no correct answer. Choose one.
+              - code: topic_inactive
+                questionId: null
+                questionNumber: null
+                message: The topic Clean Desk Policy is inactive. Choose another topic, or reactivate the topic.
     ValidationFailed:
       description: One or more request fields are invalid. Each problem is listed in `errors`.
       content:
@@ -1177,6 +1187,19 @@ components:
               type: array
               items:
                 $ref: '#/components/schemas/FieldError'
+
+    NotReadyToActivateProblem:
+      description: A `409` problem for a questionnaire that cannot be activated yet. `activationProblems` lists every reason.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [activationProblems]
+          properties:
+            activationProblems:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/ActivationProblem'
 
     FieldError:
       type: object
@@ -1645,6 +1668,7 @@ components:
           status,
           currentVersionId,
           questionCount,
+          activationProblems,
           createdAt,
           updatedAt,
         ]
@@ -1679,10 +1703,60 @@ components:
           minimum: 0
           readOnly: true
           description: Derived. Number of questions in the current version. Never sent in requests.
+        activationProblems:
+          type: array
+          readOnly: true
+          description: |
+            Derived. Why activating this inactive questionnaire would be refused, in the order the checks run: the questions, in order, then the topic. Empty when it can be activated, and always empty for an active questionnaire. The same list as the `409` of an activation. Never sent in requests.
+          items:
+            $ref: '#/components/schemas/ActivationProblem'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    ActivationProblem:
+      type: object
+      description: One reason a questionnaire cannot be activated yet.
+      required: [code, questionId, questionNumber, message]
+      properties:
+        code:
+          $ref: '#/components/schemas/ActivationProblemCode'
+        questionId:
+          description: The question the problem is about, in the current version. `null` for a problem with the whole questionnaire.
+          oneOf:
+            - $ref: '#/components/schemas/Id'
+            - type: 'null'
+        questionNumber:
+          type: ['integer', 'null']
+          minimum: 1
+          description: The question's position in the current version, from 1, as administrators see it. `null` when `questionId` is.
+        message:
+          type: string
+          description: What is wrong and how to fix it, as a sentence that names the question. Safe to show.
+
+    ActivationProblemCode:
+      type: string
+      enum:
+        [
+          no_questions,
+          question_text_missing,
+          too_few_answer_options,
+          answer_option_text_missing,
+          no_correct_answer,
+          several_correct_answers,
+          topic_inactive,
+        ]
+      description: |
+        Machine-readable reason a questionnaire cannot be activated:
+
+        - `no_questions`: the current version has no questions.
+        - `question_text_missing`: a question has no text.
+        - `too_few_answer_options`: a question has fewer than two answer options.
+        - `answer_option_text_missing`: an answer option of a question has no text. One problem per empty option.
+        - `no_correct_answer`: no answer option of a question is marked correct.
+        - `several_correct_answers`: more than one answer option of a question is marked correct.
+        - `topic_inactive`: the questionnaire's topic is inactive. Choose another topic, or reactivate the topic.
 
     TimeLimitMinutes:
       type: ['integer', 'null']
@@ -1751,7 +1825,7 @@ components:
           description: Send `null` to remove the time limit.
         status:
           $ref: '#/components/schemas/ActivityStatus'
-          description: '`active` activates the questionnaire and needs at least one question (`409` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed.'
+          description: '`active` activates the questionnaire and must pass the checks before activation (`409` with `activationProblems` otherwise). `inactive` deactivates it: it can no longer be assigned, and existing assignments can still be completed.'
 
     QuestionnaireVersion:
       type: object
@@ -2111,7 +2185,9 @@ components:
 
     AuditAction:
       type: string
-      enum: [created, updated, deactivated, reactivated]
+      enum: [created, updated, activated, deactivated, reactivated]
+      description: |
+        `activated` is only for a questionnaire's first activation, from draft to active. Every later activation of a questionnaire, and every reactivation of another record, is `reactivated`.
 
     AuditEntityType:
       type: string
@@ -2154,7 +2230,7 @@ components:
           $ref: '#/components/schemas/Id'
         changes:
           type: array
-          description: What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `deactivated` and `reactivated`.
+          description: What changed. For `created`, every field with a value; for `updated`, only the changed fields; empty for `activated`, `deactivated` and `reactivated`.
           items:
             $ref: '#/components/schemas/AuditChange'
         createdAt:

@@ -17,6 +17,8 @@ export interface DraftOption {
 /** One question in the editor's working copy. `key` only tracks it while editing. */
 export interface DraftQuestion {
   key: string;
+  /** The saved question's ID, to find it from an activation problem. `null` for a new question. */
+  id: string | null;
   text: string;
   explanation: string;
   answerOptions: DraftOption[];
@@ -33,6 +35,7 @@ export function newKey(): string {
 export function emptyQuestion(): DraftQuestion {
   return {
     key: newKey(),
+    id: null,
     text: '',
     explanation: '',
     answerOptions: [emptyOption(), emptyOption()],
@@ -47,6 +50,7 @@ export function emptyOption(): DraftOption {
 export function toDraft(version: QuestionnaireVersion): DraftQuestion[] {
   return version.questions.map((question) => ({
     key: newKey(),
+    id: question.id,
     text: question.text,
     explanation: question.explanation ?? '',
     answerOptions: question.answerOptions.map((option) => ({

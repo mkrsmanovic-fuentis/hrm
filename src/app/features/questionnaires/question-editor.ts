@@ -88,6 +88,8 @@ const FIX_FIELDS = 'Some questions need fixing. Check the highlighted fields, th
  * - Once attempts use it, the save creates a new version. The editor says so before saving, in a
  *   confirmation.
  * - An active questionnaire must stay complete; an inactive draft may be saved incomplete.
+ * - A draft's questions that stop it from being activated show their `activationProblems` in a
+ *   callout, and the page jumps to one with `showQuestion()`, which highlights it.
  *
  * The page asks `confirmLeave()` before the router leaves it, and the editor warns before the
  * browser tab closes or reloads while there are unsaved changes.
@@ -228,6 +230,41 @@ export class QuestionEditor {
     return `Version ${version.versionNumber}: ${count}, ${used}.`;
   });
 
+  /** The question the page jumped to with `showQuestion()`, by its working-copy key. */
+  protected readonly highlighted = signal<string | null>(null);
+
+  /**
+   * What stops an inactive questionnaire from being activated, by saved question ID. They
+   * describe the saved questions, so they show only while there are no unsaved changes.
+   */
+  protected readonly problemsByQuestion = computed(() => {
+    const byId = new Map<string, string[]>();
+    if (this.dirty()) return byId;
+    for (const problem of this.questionnaire().activationProblems) {
+      if (!problem.questionId) continue;
+      byId.set(problem.questionId, [...(byId.get(problem.questionId) ?? []), problem.message]);
+    }
+    return byId;
+  });
+
+  /**
+   * Scrolls to a saved question, focuses its text and highlights it, for "Go to question" on
+   * the page. Returns `false` when the working copy no longer has it, for example after it was
+   * removed without saving.
+   */
+  showQuestion(questionId: string): boolean {
+    const question = this.questions().find((candidate) => candidate.id === questionId);
+    if (!question) return false;
+    this.highlighted.set(question.key);
+    // The question is already on the page, so focus moves at once.
+    const text = this.host.nativeElement.querySelector<HTMLElement>(
+      `[data-question-text="${question.key}"]`,
+    );
+    text?.closest('[data-question]')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    text?.focus({ preventScroll: true });
+    return true;
+  }
+
   /** The options of the "Correct answer" select, for each question. */
   protected correctOptions(question: DraftQuestion): SdSelectOption<string>[] {
     return question.answerOptions.map((option, index) => ({
@@ -354,6 +391,7 @@ export class QuestionEditor {
       );
       this.version.set(version);
       this.confirmation.set(null);
+      this.highlighted.set(null);
       if (before && version.id !== before.id) {
         this.toasts.success(
           `Version ${version.versionNumber} created`,

@@ -40,7 +40,10 @@ describe('questionnaires mock handlers', () => {
   };
 
   const json = { 'Content-Type': 'application/json' };
+  /** Seed drafts: no questions, incomplete questions, and complete but in an inactive topic. */
   const DRAFT = 'Reporting suspicious messages';
+  const INCOMPLETE = 'Phone scams and callback checks';
+  const CLEAN_DESK = 'Clean desk checklist';
 
   describe('list', () => {
     it('lists every questionnaire, active and inactive, with its question count, sorted by title', async () => {
@@ -75,7 +78,12 @@ describe('questionnaires mock handlers', () => {
         api.get('/questionnaires', { query: { sort: '-passingScore' } }),
       );
 
-      expect(inactive.items.map((q) => q.title)).toEqual(['Password basics (2025)', DRAFT]);
+      expect(inactive.items.map((q) => q.title)).toEqual([
+        CLEAN_DESK,
+        'Password basics (2025)',
+        INCOMPLETE,
+        DRAFT,
+      ]);
       expect(inTopic.items.map((q) => q.title)).toEqual([
         'Multi-factor authentication',
         'Password basics (2025)',
@@ -114,7 +122,11 @@ describe('questionnaires mock handlers', () => {
       const result = await firstValueFrom(
         api.get('/questionnaires/{questionnaireId}', { path: { questionnaireId: record.id } }),
       );
-      expect(result).toEqual({ ...record, questionCount: expect.any(Number) });
+      expect(result).toEqual({
+        ...record,
+        questionCount: expect.any(Number),
+        activationProblems: [],
+      });
       expect(result.questionCount).toBe(
         mock.db.data.questions.filter((q) => q.questionnaireVersionId === record.currentVersionId)
           .length,
@@ -418,10 +430,179 @@ describe('questionnaires mock handlers', () => {
       expect(error.status).toBe(409);
       expect(error.problem.type).toBe(ProblemType.conflict);
       expect(error.problem.detail).toBe(
-        'Add at least one question before activating this questionnaire.',
+        "This questionnaire can't be activated yet. Fix 1 problem first.",
       );
+      expect(error.activationProblems).toEqual([
+        {
+          code: 'no_questions',
+          questionId: null,
+          questionNumber: null,
+          message: 'The questionnaire has no questions. Add at least one question.',
+        },
+      ]);
       expect(draft).toMatchObject({ status: 'inactive', title: DRAFT });
       expect(mock.db.data.auditLog).toHaveLength(logSize);
+    });
+
+    it('lists every incomplete question in the 409, with its number and ID, as the questionnaire does', async () => {
+      const { api, mock } = setup();
+      const draft = questionnaire(mock, INCOMPLETE);
+      const questions = mock.db.data.questions
+        .filter((q) => q.questionnaireVersionId === draft.currentVersionId)
+        .sort((a, b) => a.position - b.position);
+      const path = { questionnaireId: draft.id };
+
+      const response = await mock.fetch(`/api/v1/questionnaires/${draft.id}`, {
+        method: 'PATCH',
+        headers: json,
+        body: JSON.stringify({ status: 'active' }),
+      });
+      const body = await response.json();
+      const read = await firstValueFrom(api.get('/questionnaires/{questionnaireId}', { path }));
+
+      expect(response.status).toBe(409);
+      expect(response.headers.get('Content-Type')).toBe('application/problem+json');
+      expect(body).toMatchObject({
+        type: ProblemType.conflict,
+        status: 409,
+        detail: "This questionnaire can't be activated yet. Fix 3 problems first.",
+      });
+      expect(body.activationProblems).toEqual([
+        {
+          code: 'too_few_answer_options',
+          questionId: questions[1].id,
+          questionNumber: 2,
+          message: 'Question 2 has fewer than 2 answer options. Add at least 2.',
+        },
+        {
+          code: 'no_correct_answer',
+          questionId: questions[1].id,
+          questionNumber: 2,
+          message: 'Question 2 has no correct answer. Choose one.',
+        },
+        {
+          code: 'no_correct_answer',
+          questionId: questions[2].id,
+          questionNumber: 3,
+          message: 'Question 3 has no correct answer. Choose one.',
+        },
+      ]);
+      expect(read.activationProblems).toEqual(body.activationProblems);
+      expect(draft.status).toBe('inactive');
+    });
+
+    it('blocks activation in an inactive topic, unless the same request moves it to an active one', async () => {
+      const { api, mock } = setup();
+      const draft = questionnaire(mock, CLEAN_DESK);
+      const path = { questionnaireId: draft.id };
+      const logSize = mock.db.data.auditLog.length;
+
+      const error = await failure(
+        firstValueFrom(
+          api.patch('/questionnaires/{questionnaireId}', { path, body: { status: 'active' } }),
+        ),
+      );
+      const moved = await firstValueFrom(
+        api.patch('/questionnaires/{questionnaireId}', {
+          path,
+          body: { status: 'active', topicId: topicId(mock, 'Data Protection') },
+        }),
+      );
+
+      expect(error.status).toBe(409);
+      expect(error.activationProblems).toEqual([
+        {
+          code: 'topic_inactive',
+          questionId: null,
+          questionNumber: null,
+          message:
+            'The topic Clean Desk Policy is inactive. Choose another topic, or reactivate the topic.',
+        },
+      ]);
+      expect(moved).toMatchObject({ status: 'active', activationProblems: [] });
+      expect(
+        mock.db.data.auditLog.slice(logSize).map((entry) => [entry.action, entry.changes]),
+      ).toEqual([
+        [
+          'updated',
+          [
+            {
+              field: 'topicId',
+              oldValue: topicId(mock, 'Clean Desk Policy'),
+              newValue: topicId(mock, 'Data Protection'),
+            },
+          ],
+        ],
+        ['activated', []],
+      ]);
+    });
+
+    it('logs the first activation of a new questionnaire as activated, and later ones as reactivated', async () => {
+      const { api, mock } = setup();
+      const created = await firstValueFrom(
+        api.post('/questionnaires', {
+          body: { title: 'Tailgating', topicId: topicId(mock, 'Social Engineering') },
+        }),
+      );
+      const path = { questionnaireId: created.id };
+      await firstValueFrom(
+        api.put('/questionnaires/{questionnaireId}/questions', {
+          path,
+          body: {
+            questions: [
+              {
+                text: 'Someone without a badge follows you through the door. What do you do?',
+                answerOptions: [
+                  { text: 'Hold the door', isCorrect: false },
+                  { text: 'Ask them to use their own badge or go to reception', isCorrect: true },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+      const logSize = mock.db.data.auditLog.length;
+
+      const before = await firstValueFrom(api.get('/questionnaires/{questionnaireId}', { path }));
+      const activated = await firstValueFrom(
+        api.patch('/questionnaires/{questionnaireId}', { path, body: { status: 'active' } }),
+      );
+      await firstValueFrom(
+        api.patch('/questionnaires/{questionnaireId}', { path, body: { status: 'inactive' } }),
+      );
+      await firstValueFrom(
+        api.patch('/questionnaires/{questionnaireId}', { path, body: { status: 'active' } }),
+      );
+
+      expect(created.activationProblems.map((p) => p.code)).toEqual(['no_questions']);
+      expect(before.activationProblems).toEqual([]);
+      expect(activated.status).toBe('active');
+      expect(
+        mock.db.data.auditLog
+          .slice(logSize)
+          .map((entry) => [entry.action, entry.entityId, entry.changes]),
+      ).toEqual([
+        ['activated', created.id, []],
+        ['deactivated', created.id, []],
+        ['reactivated', created.id, []],
+      ]);
+    });
+
+    it('logs activating a seeded questionnaire that was active before as reactivated', async () => {
+      const { api, mock } = setup();
+      const retired = questionnaire(mock, 'Password basics (2025)');
+      const logSize = mock.db.data.auditLog.length;
+
+      await firstValueFrom(
+        api.patch('/questionnaires/{questionnaireId}', {
+          path: { questionnaireId: retired.id },
+          body: { status: 'active' },
+        }),
+      );
+
+      expect(mock.db.data.auditLog.slice(logSize).map((entry) => entry.action)).toEqual([
+        'reactivated',
+      ]);
     });
 
     it('deactivates and reactivates a questionnaire with questions, keeps assignments, and logs both', async () => {

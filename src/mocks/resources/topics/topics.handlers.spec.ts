@@ -65,7 +65,7 @@ describe('topics mock handlers', () => {
           path: { topicId: topicNamed(mock, 'Clean Desk Policy').id },
         }),
       );
-      expect(cleanDesk.questionnaireCount).toBe(0);
+      expect(cleanDesk.questionnaireCount).toBe(1);
     });
 
     it('filters by status, searches names ignoring case, and sorts', async () => {

@@ -81,7 +81,7 @@ describe('Topics page', () => {
     expect(name?.icon?.(row('Phishing Awareness'))).toBe(LucideFish);
     // A topic without an icon gets the generic one, so its name lines up with the others.
     expect(name?.icon?.({ ...row('Phishing Awareness'), icon: null })).toBe(LucideBookOpen);
-    expect(count?.value(row('Clean Desk Policy'))).toBe(0);
+    expect(count?.value(row('Clean Desk Policy'))).toBe(1);
     expect(status?.value(row('Clean Desk Policy'))).toBe('Inactive');
     expect(status?.value(row('Phishing Awareness'))).toBe('Active');
     expect(

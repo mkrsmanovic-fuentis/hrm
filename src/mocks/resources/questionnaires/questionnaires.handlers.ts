@@ -4,6 +4,8 @@ import type { QuestionnaireRecord, QuestionnaireVersionRecord } from '../../db/m
 import type { MockDb } from '../../db/mock-db';
 import {
   activationProblems,
+  activationRefusedDetail,
+  hasBeenActive,
   PASSING_SCORE_MAX,
   PASSING_SCORE_MIN,
   QUESTIONNAIRE_DESCRIPTION_MAX_LENGTH,
@@ -170,11 +172,6 @@ export const questionnaireRoutes = [
     const errors = [...body.errors, ...topicErrors(db, moved)];
     if (errors.length > 0) return validationFailed(errors);
 
-    if (status === 'active' && questionnaire.status !== 'active') {
-      const problems = activationProblems(questionnaire, db.data);
-      if (problems.length > 0) throw new MockProblem(409, problems.join(' '));
-    }
-
     // Settings never create a new version: `currentVersionId` stays as it is.
     const changes: Partial<QuestionnaireRecord> = {
       ...(title !== undefined && { title }),
@@ -184,10 +181,24 @@ export const questionnaireRoutes = [
       ...(timeLimitMinutes !== undefined && { timeLimitMinutes }),
       ...(status !== undefined && { status }),
     };
+
+    const activating = status === 'active' && questionnaire.status !== 'active';
+    if (activating) {
+      // Checked as the questionnaire would be after the request, so a move counts.
+      const problems = activationProblems({ ...questionnaire, ...changes }, db.data);
+      if (problems.length > 0) {
+        throw new MockProblem(409, activationRefusedDetail(problems), undefined, {
+          activationProblems: problems,
+        });
+      }
+    }
+    const firstActivation = activating && !hasBeenActive(questionnaire, db.data);
+
     const updated = db.update((data) => {
       const before = structuredClone(questionnaire);
       Object.assign(questionnaire, changes);
-      // Logs `updated` for the settings, and `deactivated` or `reactivated` for status.
+      // Logs `updated` for the settings, then `deactivated`, `activated` (the first time) or
+      // `reactivated` for status.
       const entries = recordAudit(data, {
         action: 'updated',
         entityType: 'questionnaire',
@@ -195,6 +206,7 @@ export const questionnaireRoutes = [
         now,
         before,
         after: questionnaire,
+        firstActivation,
       });
       if (entries.length > 0) questionnaire.updatedAt = now.toISOString();
       return questionnaire;

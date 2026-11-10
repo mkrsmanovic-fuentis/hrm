@@ -78,11 +78,29 @@ These are totals per user, not pending or overdue counts, so a user's status doe
 ### Draft first
 
 - A new questionnaire is **inactive**, a draft, with an empty version 1. Questions are added to that version.
-- A questionnaire can be activated only when its current version has at least one question. Otherwise activating is refused and nothing changes.
+- A questionnaire can be activated only when it passes the [checks before activation](#checks-before-activation). Otherwise activating is refused and nothing changes.
 - Activating makes it available to assign. Deactivating stops new assignments; existing assignments can still be completed, and all attempts and results are kept. See [Assigning training](#assigning-training).
 - Questionnaires are deactivated, never deleted.
 
-{/* TODO: SPE-19 adds the full checks before activation. Until then the only check is "at least one question". */}
+### Checks before activation
+
+An inactive questionnaire can be activated only when **all** of these hold (FR-023):
+
+1. Its current version has at least one question.
+2. Every question in it has text.
+3. Every answer option of every question has text.
+4. Every question has at least two answer options.
+5. Every question has exactly one correct answer: not none, and not more than one.
+6. Its topic is **active**.
+
+Rules 2 to 5 are the same completeness rule that an active questionnaire must keep when its questions are saved. See [Questions](#questions).
+
+- When any check fails, activating is refused and nothing changes. The administrator is told **every** problem at once, not only the first one.
+- Each problem with a question names it, by its number in the current version (from 1, as the administrator sees it) and its ID, and says what is wrong. A question can have several problems, for example too few answer options and no correct answer.
+- Problems are listed in this order: question by question, in the order of the questions, then the topic.
+- For an inactive topic, the administrator either moves the questionnaire to an active topic or reactivates the topic. A request that moves the questionnaire and activates it at once is checked against the new topic.
+- The same problems are shown before the administrator tries, so **Activate** is only offered when it will work.
+- The checks apply only when an inactive questionnaire is activated. An active questionnaire whose topic is deactivated later stays active, and so does one that is already active.
 
 ### Settings and versions
 
@@ -227,8 +245,7 @@ The [API reference](/api-reference/overview#authorization) describes the answers
 - The questions are saved together: the whole ordered list at once. The save applies the [version rules](#questionnaire-versions).
 - An **active** questionnaire must stay complete: at least one question, and every question complete. A save that would break this is refused, and nothing changes.
 - An **inactive** questionnaire, a draft, may be saved incomplete. Text is still required, within the limits above.
-
-{/* TODO: SPE-19 adds the full checks before activation, reusing the completeness rule (`questionSetProblems()` in src/mocks/rules/questionnaire-rules.ts). Until then a draft with an incomplete question can be activated if it has at least one question. */}
+- A draft becomes active only when it is complete and its topic is active. See [Checks before activation](#checks-before-activation).
 
 ## Questionnaire versions
 
@@ -257,14 +274,16 @@ Administrator actions that change data are logged, so it is always clear who did
 | Employee | `user` | `created`, `updated`, `deactivated`, `reactivated` |
 | Department | `department` | `created`, `updated`, `deactivated`, `reactivated` |
 | Topic | `topic` | `created`, `updated`, `deactivated`, `reactivated` |
-| Questionnaire | `questionnaire` | `created`, `updated`, `deactivated`, `reactivated` |
+| Questionnaire | `questionnaire` | `created`, `updated`, `activated`, `deactivated`, `reactivated` |
 | Assignment | `assignment` | `created` |
 
 - Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
-- A new questionnaire is logged as `created` with `status` `inactive`. Activating it, the first time or later, is logged as `reactivated`.
+- A new questionnaire is logged as `created` with `status` `inactive`.
+- A questionnaire's **first** activation, from draft to active, is logged as `activated`. Every later activation, after it was deactivated, is logged as `reactivated`.
+- "First" means the questionnaire has never been active: it was not created active, and it has no earlier `activated`, `reactivated` or `deactivated` entry. A deactivation means it was active before. Entries logged before `activated` existed may show a first activation as `reactivated`; they are not changed.
 - Saving a questionnaire's questions is logged as `updated` on the questionnaire. Its `changes` list `questions`, with the whole ordered list before and after as `oldValue` and `newValue`, in the shape the save sends: each question's `text`, `explanation` and `answerOptions` with their `text` and `isCorrect`.
 - When the save creates a new version, the same entry also lists `currentVersionId`, with the old and the new version ID. A save in place lists only `questions`.
-- A change of `status` is always logged as `deactivated` or `reactivated`, never as `updated`, even when it arrives in an edit request. If the same edit also changes other fields, it logs two entries: `updated` with the other fields, then `deactivated` or `reactivated`.
+- A change of `status` is always logged as `deactivated`, `activated` or `reactivated`, never as `updated`, even when it arrives in an edit request. If the same edit also changes other fields, it logs two entries: `updated` with the other fields, then the status action.
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
 - Employee actions, such as starting and submitting attempts, are not logged.
 
@@ -285,12 +304,12 @@ The `changes` list depends on the action:
 
 - **`created`:** every field the new record has a value for. `oldValue` is `null`.
 - **`updated`:** only the fields whose value changed, with the value before and after. An edit that changes no field is not logged.
-- **`deactivated`** and **`reactivated`:** empty. The action says what happened.
+- **`activated`**, **`deactivated`** and **`reactivated`:** empty. The action says what happened.
 
 In `changes`:
 
 - Field names and values are the ones in the API spec, for example `departmentId` with a department ID. The one exception is `questions` on a questionnaire, which holds the questions of its current version as the save request sends them (`QuestionInput`). It is the content the administrator changed, not a derived field.
-- `id`, `organizationId`, `createdAt` and `updatedAt` are never listed. Neither are *derived* fields, such as `questionCount`.
+- `id`, `organizationId`, `createdAt` and `updatedAt` are never listed. Neither are *derived* fields, such as `questionCount` and `activationProblems`.
 - A field without a value is `null`.
 
 ### Keeping the log

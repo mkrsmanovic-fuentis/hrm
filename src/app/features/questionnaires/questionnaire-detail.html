@@ -24,16 +24,19 @@
           Deactivate
         </button>
       } @else {
-        <button
-          sd-button
-          variant="primary"
-          type="button"
-          [icon]="icons.activate"
-          [disabled]="activationBlocked()"
-          (click)="statusTarget.set(q)"
-        >
-          Activate
-        </button>
+        <span [sdTooltip]="activationBlocked() ? activateHint() : null" sdTooltipPosition="bottom">
+          <button
+            sd-button
+            variant="primary"
+            type="button"
+            [icon]="icons.activate"
+            [disabled]="activationBlocked()"
+            [attr.aria-describedby]="activationBlocked() ? 'activation-problems' : null"
+            (click)="statusTarget.set(q)"
+          >
+            Activate
+          </button>
+        </span>
       }
     </div>
   }
@@ -65,9 +68,47 @@
   </sd-callout>
 } @else if (questionnaire(); as q) {
   @if (activationBlocked()) {
-    <sd-callout tone="warning" heading="This questionnaire is a draft">
-      It has no questions yet, so it can't be activated. Add at least one question, then activate
-      it.
+    <sd-callout tone="warning" heading="This questionnaire can't be activated yet">
+      <div id="activation-problems" class="problems">
+        <p class="problems-intro">{{ activateHint() }}</p>
+        <ul class="problem-list">
+          @for (problem of q.activationProblems; track $index) {
+            <li class="problem">
+              {{ problem.message }}
+              @if (problem.questionId; as questionId) {
+                <span class="problem-actions">
+                  <button
+                    sd-button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    [icon]="icons.goTo"
+                    (click)="goToQuestion(questionId)"
+                  >
+                    Go to question {{ problem.questionNumber }}
+                  </button>
+                </span>
+              } @else if (problem.code === 'topic_inactive') {
+                <span class="problem-actions">
+                  <button
+                    sd-button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    [icon]="icons.edit"
+                    (click)="editing.set(true)"
+                  >
+                    Choose another topic
+                  </button>
+                  <a sd-button variant="ghost" size="sm" routerLink="/admin/topics">
+                    Go to Topics
+                  </a>
+                </span>
+              }
+            </li>
+          }
+        </ul>
+      </div>
     </sd-callout>
   }
 
@@ -129,5 +170,6 @@
 <app-questionnaire-status-dialog
   [questionnaire]="statusTarget()"
   (changed)="data.reload()"
+  (refused)="data.reload()"
   (closed)="statusTarget.set(null)"
 />

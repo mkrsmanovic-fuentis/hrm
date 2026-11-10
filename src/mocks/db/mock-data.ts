@@ -30,7 +30,7 @@ export const DERIVED_FIELDS = {
   user: ['assignedTrainingCount', 'completedTrainingCount'],
   department: ['employeeCount'],
   topic: ['questionnaireCount'],
-  questionnaire: ['questionCount'],
+  questionnaire: ['questionCount', 'activationProblems'],
   assignment: ['status', 'attemptCount', 'latestScore', 'completedAt'],
 } as const satisfies Record<AuditEntityType, readonly string[]>;
 

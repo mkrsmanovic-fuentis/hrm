@@ -24,9 +24,15 @@ export function questionCountText(count: number): string {
 }
 
 /**
- * Whether the questionnaire can be activated as far as the page knows. The API has the last
- * word: it answers `409` with the reason when a check fails.
+ * Whether the questionnaire passes the checks before activation, from the API's derived
+ * `activationProblems`. The API has the last word: it answers `409` with the same list when a
+ * check fails.
  */
-export function canActivate(questionnaire: Pick<Questionnaire, 'questionCount'>): boolean {
-  return questionnaire.questionCount > 0;
+export function canActivate(questionnaire: Pick<Questionnaire, 'activationProblems'>): boolean {
+  return questionnaire.activationProblems.length === 0;
+}
+
+/** "1 problem" or "3 problems". */
+export function problemCountText(count: number): string {
+  return count === 1 ? '1 problem' : `${count} problems`;
 }
