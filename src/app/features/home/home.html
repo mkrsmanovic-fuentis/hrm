@@ -1,9 +1,25 @@
-<sd-status-bar heading="Home" description="Questionnaire-based security awareness training." />
+<sd-status-bar
+  heading="Home"
+  [description]="organization.hasValue() ? organization.value().name : null"
+/>
 
 <sd-panel>
-  <sd-empty-state
-    graphic="empty"
-    title="Nothing here yet"
-    description="Pages will appear here as features are built."
-  />
+  @if (organization.isLoading()) {
+    <sd-skeleton height="6rem" />
+  } @else if (error()?.isForbidden) {
+    <app-access-denied
+      description="You don't have permission to see your organization."
+      [headingLevel]="2"
+    />
+  } @else if (failed()) {
+    <sd-callout tone="danger" role="alert" heading="Could not load the page">
+      Something went wrong. Reload the page or try again in a moment.
+    </sd-callout>
+  } @else {
+    <sd-empty-state
+      graphic="empty"
+      title="Nothing here yet"
+      description="Pages will appear here as features are built."
+    />
+  }
 </sd-panel>

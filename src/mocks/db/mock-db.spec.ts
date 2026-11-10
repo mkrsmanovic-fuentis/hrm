@@ -33,6 +33,21 @@ describe('MockDb', () => {
     expect(afterReload.data.organization.name).toBe('Renamed Ltd');
   });
 
+  it('serves the data another tab saved, like one shared backend', () => {
+    const thisTab = createDb();
+    const otherTab = createDb();
+    expect(thisTab.data.organization.name).toBe(seedData.organization.name);
+
+    otherTab.update((data) => {
+      data.organization.name = 'Renamed Ltd';
+    });
+
+    expect(thisTab.syncFromOtherTab({ key: 'unrelated' })).toBe(false);
+    expect(thisTab.data.organization.name).toBe(seedData.organization.name);
+    expect(thisTab.syncFromOtherTab({ key: 'test.db' })).toBe(true);
+    expect(thisTab.data.organization.name).toBe('Renamed Ltd');
+  });
+
   it('returns the value from update', () => {
     const db = createDb();
 

@@ -15,6 +15,7 @@ import { createHandlers } from './handlers';
 import type { RoleKey } from '../app/core/api/api-schema.gen';
 import { SESSION_LIFETIME_MS } from './rules/auth-rules';
 import { buildSeed, SEED_VERSION } from './seed/seed';
+import { unhandledApiRoute, type MockEnvironment, type MockRoute } from './support/mock-route';
 import type { SimulationFlags } from './support/simulation';
 
 /** Fixed "now" for tests, so dates and statuses in the seed are stable. */
@@ -29,6 +30,11 @@ export interface TestMockApiOptions {
    * Pass `null` to send requests without a session, for example to test sign-in.
    */
   signedInAs?: RoleKey | null;
+  /**
+   * Routes to serve instead of the app's, for example a test route that exercises a helper such
+   * as `requireRole()`. Unknown API paths still answer 404.
+   */
+  routes?: MockRoute[];
 }
 
 /**
@@ -48,13 +54,16 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
     options.signedInAs === undefined ? 'administrator' : options.signedInAs,
     now,
   );
-  const handlers = createHandlers({
+  const env: MockEnvironment = {
     db,
     baseUrl: environment.apiBaseUrl,
     flags: () => options.flags ?? {},
     latency: 0,
     now: () => now,
-  });
+  };
+  const handlers = options.routes
+    ? [...options.routes, unhandledApiRoute].map((defineRoute) => defineRoute(env))
+    : createHandlers(env);
   const providers: Provider[] = [
     { provide: HttpBackend, useValue: new MockHttpBackend(handlers, token) },
   ];
@@ -78,7 +87,7 @@ export function createTestMockApi(options: TestMockApiOptions = {}) {
   };
 }
 
-/** Starts a session for the first seeded user with the role, and returns its token. */
+/** Starts a session for the first active seeded user with the role, and returns its token. */
 function startTestSession(db: MockDb, role: RoleKey | null, now: Date): string | null {
   if (!role) return null;
   const user = db.data.users.find((u) => u.role === role && u.status === 'active');

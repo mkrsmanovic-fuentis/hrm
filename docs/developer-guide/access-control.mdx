@@ -1,0 +1,195 @@
+---
+title: "Roles and access"
+description: "How the frontend keeps each role to its own pages and navigation, how the mock API checks roles and own data, and how a feature adds a page."
+icon: "user-shield"
+---
+
+import SpecStatus from "/snippets/spec-status.mdx";
+
+<SpecStatus />
+
+Administrators and employees each have their own area of the app, with its own pages and navigation. The mock API checks the role on every endpoint that needs it, as the real backend must. What each role may do is in the [access matrix](/developer-guide/business-rules#access-by-role).
+
+## How it works
+
+<Steps>
+  <Step title="Each role has an area">
+    Every page behind sign-in is a child of the shell route in `src/app/app.routes.ts`, inside one of two areas:
+
+    | Area | URL | Guard | Home page |
+    | - | - | - | - |
+    | Administrator | `/admin/...` | `roleGuard('administrator')` | `/admin/home` |
+    | Employee | `/my/...` | `roleGuard('employee')` | `/my/home` |
+
+    The guard is set on the area as `canActivate` and `canActivateChild`, so it covers every page in it. A page added to an area needs no guard of its own. The area names are `ROLE_AREAS` in `src/app/core/auth/auth-paths.ts`.
+  </Step>
+  <Step title="Each role lands on its own home">
+    `/` redirects to the signed-in user's home page (`roleHomeRedirect`). After signing in, the login page opens `/`, or the page the user was on. The brand link in the top bar also opens `/`. Unknown URLs go to `/` too.
+  </Step>
+  <Step title="The wrong role sees the no-access page">
+    When a user opens a page outside their area, for example an employee opening `/admin/home`, `roleGuard` shows the **No access** page (`src/app/core/access/no-access.ts`) with a link to their home page. The address bar keeps the URL they opened. The user stays signed in.
+  </Step>
+  <Step title="The side navigation shows the role's entries">
+    The shell shows the entries from `src/app/app.navigation.ts` for the signed-in role, in `sd-sidenav`. `navItemsFor()` in `src/app/core/navigation/` does the filtering.
+  </Step>
+  <Step title="A 403 from the API shows the no-access state">
+    `authInterceptor` signs the user out only on `401`. A `403` reaches the page as an `ApiError` with `isForbidden`, and the page shows `<app-access-denied>` in place of its content. See [Handle a 403 on a page](#handle-a-403-on-a-page).
+  </Step>
+</Steps>
+
+## How a feature adds a page and a nav entry
+
+Example: the Departments feature adds an administrator page at `/admin/departments`.
+
+<Steps>
+  <Step title="Add the route to the role's area">
+    In `src/app/app.routes.ts`, add a child to the area's `children`. Lazy-load the page from its feature folder.
+
+    ```ts
+    {
+      path: ROLE_AREAS.administrator,
+      canActivate: [roleGuard('administrator')],
+      canActivateChild: [roleGuard('administrator')],
+      children: [
+        { path: '', pathMatch: 'full', redirectTo: 'home' },
+        { path: 'home', title: 'Home · HRM Platform', loadComponent: () => import('./features/home/home').then((m) => m.Home) },
+        {
+          path: 'departments',
+          title: 'Departments · HRM Platform',
+          loadChildren: () => import('./features/departments/departments.routes').then((m) => m.routes),
+        },
+      ],
+    },
+    ```
+
+    The area's guard now covers `/admin/departments` and every page under it, such as `/admin/departments/{departmentId}`.
+  </Step>
+  <Step title="Add one nav entry">
+    In `src/app/app.navigation.ts`, add one entry: a label, a Lucide icon, the route and the role. Entries appear in the order of the list.
+
+    ```ts
+    import { LucideBuilding2, LucideHouse } from '@lucide/angular';
+
+    export const navigation: AppNavItem[] = [
+      { label: 'Home', icon: LucideHouse, route: homeUrl('administrator'), role: 'administrator' },
+      { label: 'Departments', icon: LucideBuilding2, route: '/admin/departments', role: 'administrator' },
+      { label: 'Home', icon: LucideHouse, route: homeUrl('employee'), role: 'employee' },
+    ];
+    ```
+
+    The entry is highlighted on its route and on every URL under it, for example `/admin/departments/{departmentId}`. An optional `section` groups entries under a header.
+  </Step>
+  <Step title="Let the test check it">
+    `src/app/app.navigation.spec.ts` fails when an entry's route is not a page in its role's area, for example an administrator entry pointing at `/my/...`, or a route that does not exist yet.
+  </Step>
+</Steps>
+
+- Add a nav entry only when its page exists. There are no placeholder entries.
+- The FRD modules are Employees, Departments, Topics, Questionnaires, Assignments and Reports for administrators, and My training for employees. Each feature adds its own entry.
+- A page that both roles open needs a page in each area, because each area is guarded for one role.
+
+## Handle a 403 on a page
+
+When a call fails with `403`, show `<app-access-denied>` from `core/access` in place of the content. Never sign the user out. `src/app/features/home/` is a complete example:
+
+```html
+@if (error()?.isForbidden) {
+  <app-access-denied description="You don't have permission to see these departments." [headingLevel]="2" />
+}
+```
+
+| Input | Default | What it does |
+| - | - | - |
+| `heading` | `No access` | The title. |
+| `description` | `You don't have permission to see this.` | The text under the title. |
+| `headingLevel` | none | Renders the title as `<h1>`–`<h6>` when the state stands in for a page or section. |
+| `homeLink` | off | Shows **Go to your home page**. |
+
+For a failed action, such as saving a form, show the problem's `detail` in the form's error callout instead.
+
+Try it with `?mock-error=forbidden&mock-scope=/organization`: the home page shows the no-access state, and you stay signed in. Open `?mock-clear` to stop.
+
+## How a handler requires a role
+
+The mock checks roles with helpers from `src/mocks/support/access.ts`. The rules behind them are in `src/mocks/rules/access-rules.ts`, mirrored from the [access matrix](/developer-guide/business-rules#access-by-role).
+
+### Administrator-only endpoints
+
+Call `requireRole()` first in the handler. It answers `403` with type `/problems/forbidden` to any other role, and returns the signed-in user, which is the audit log's `actorId`.
+
+```ts
+route.post('/departments', async (ctx) => {
+  const admin = requireRole(ctx, 'administrator');
+  const body = await ctx.json<DepartmentInput>();
+  // Validate the body, then:
+  const department = ctx.db.update((data) => {
+    // ...create the department...
+    recordAudit(data, { action: 'created', entityType: 'department', actorId: admin.id, now: ctx.now, after: created });
+    return created;
+  });
+  return ctx.ok(department, 201);
+}),
+```
+
+- Check the role before validating the body or reading data, so employees learn nothing from the answer.
+- Pass several roles when more than one may call the endpoint: `requireRole(ctx, 'administrator', 'employee')`.
+
+### Own data only
+
+Employees read only their own records. Use these for any record that belongs to a user, such as assignments and attempts:
+
+| Helper | Use for | Answer |
+| - | - | - |
+| `ownRecords(ctx, records, ownerOf)` | Lists. | Administrators get every record, employees only their own. |
+| `requireOwnRecord(ctx, record, ownerOf, detail)` | One record by ID. | The record, or `404` when it does not exist or belongs to another user. |
+
+```ts
+route.get('/assignments', (ctx) => {
+  const pagination = ctx.query.pagination();
+  if (ctx.query.errors.length > 0) return ctx.validationFailed(ctx.query.errors);
+  const assignments = ownRecords(ctx, ctx.db.data.assignments, (a) => a.userId);
+  return ctx.ok(ctx.page(assignments, pagination));
+}),
+
+route.get('/assignments/{assignmentId}', (ctx) => {
+  const assignment = requireOwnRecord(
+    ctx,
+    ctx.db.data.assignments.find((a) => a.id === ctx.params.assignmentId),
+    (a) => a.userId,
+    `Assignment ${ctx.params.assignmentId} was not found.`,
+  );
+  return ctx.ok(toAssignment(assignment));
+}),
+```
+
+### Content an employee may not see
+
+Some content is readable by both roles, but not all of it by employees. Filter it with a rule from `src/mocks/rules/access-rules.ts`, and answer `404` for a single record. The topic handlers do this with `canSeeTopic()`: employees get only active topics.
+
+`signedInUser(ctx)` returns the signed-in user for such checks.
+
+### Test it
+
+`createTestMockApi({ signedInAs: 'employee' })` sends requests as the first active seeded employee. Test each endpoint as both roles. To test a helper on its own, pass test routes with `routes`; `src/mocks/support/access.spec.ts` does this.
+
+## Rules
+
+- See [Access by role](/developer-guide/business-rules#access-by-role) for the full access matrix and how the backend must enforce it.
+
+## Mock behavior
+
+| Request | Answer |
+| - | - |
+| An endpoint with `requireRole()`, called by another role | `403`, type `/problems/forbidden`. |
+| A list with `ownRecords()`, as an employee | Only the employee's own records. |
+| A record with `requireOwnRecord()` that belongs to another user, as an employee | `404`, type `/problems/not-found`. |
+| `GET /topics` as an employee | Active topics only. `status=inactive` returns an empty list. |
+| `GET /topics/{topicId}` for an inactive topic, as an employee | `404`. |
+| `GET /organization` | `200` for both roles. |
+| `?mock-error=forbidden` | `403` on every endpoint, to see the no-access state. Add `mock-scope` to limit it. |
+
+## Related
+
+- [Business rules](/developer-guide/business-rules#access-by-role): the access matrix.
+- [Authentication](/developer-guide/authentication): sign-in, sessions and the demo accounts.
+- [Mock API](/developer-guide/mock-api): adding endpoints and simulation flags.

@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 import { API_BASE_URL } from '../api';
 import { AuthService } from './auth.service';
-import { LOGIN_PATH, returnUrlParams } from './auth.guards';
+import { LOGIN_PATH, returnUrlParams } from './auth-paths';
 
 /**
  * Adds the session token to every API request, and on a `401` answer clears the session and

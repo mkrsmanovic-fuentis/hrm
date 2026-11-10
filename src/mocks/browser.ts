@@ -55,6 +55,9 @@ export async function startMockApi(): Promise<void> {
   );
   await worker.start({ onUnhandledFrame: 'bypass', quiet: true });
 
+  // Other tabs of the app share the mock data, as they would share a real backend.
+  window.addEventListener('storage', (event) => db.syncFromOtherTab(event));
+
   window.hrmMockApi = {
     reset: () => {
       db.reset();

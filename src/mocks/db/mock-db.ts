@@ -54,6 +54,20 @@ export class MockDb {
     this.current = this.seedAndSave();
   }
 
+  /**
+   * Whether a `storage` event from another tab changed this database's data. If so, the next
+   * read loads the other tab's data, so every tab serves the same data, like one real backend.
+   * Without this, a tab would not know a session another tab just started.
+   */
+  syncFromOtherTab(event: Pick<StorageEvent, 'key'>): boolean {
+    // `key` is null when the other tab cleared all of localStorage.
+    if (!this.options.storage || (event.key !== null && event.key !== this.storageKey)) {
+      return false;
+    }
+    this.current = null;
+    return true;
+  }
+
   private seedAndSave(): MockData {
     this.current = this.options.seed();
     this.save();

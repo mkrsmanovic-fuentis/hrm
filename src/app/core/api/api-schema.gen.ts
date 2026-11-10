@@ -47,7 +47,9 @@ export interface paths {
         };
         /**
          * Get the current organization
-         * @description Returns the organization the signed-in user belongs to. Available to every signed-in user.
+         * @description Returns the organization the signed-in user belongs to.
+         *
+         *     **Access:** administrators and employees.
          */
         get: operations["getCurrentOrganization"];
         put?: never;
@@ -68,6 +70,8 @@ export interface paths {
         /**
          * List topics
          * @description Returns the organization's topics, one page at a time.
+         *
+         *     **Access:** administrators and employees. Administrators get every topic. Employees get only active topics, so `status=inactive` returns an empty list for them.
          */
         get: operations["listTopics"];
         put?: never;
@@ -88,6 +92,8 @@ export interface paths {
         /**
          * Get a topic
          * @description Returns one topic of the current organization.
+         *
+         *     **Access:** administrators and employees. An inactive topic answers `404` to employees, as if it did not exist.
          */
         get: operations["getTopic"];
         put?: never;
@@ -547,7 +553,7 @@ export interface components {
                 "application/problem+json": components["schemas"]["Problem"];
             };
         };
-        /** @description The user is signed in but not allowed to do this, for example an employee calling an administrator endpoint. */
+        /** @description The user is signed in, but their role is not allowed to do this, for example an employee calling an administrator endpoint. See the access rules in the business rules. */
         Forbidden: {
             headers: {
                 [name: string]: unknown;
