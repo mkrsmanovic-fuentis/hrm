@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-10 16:40" description="SPE-15 · Account setup and password reset" tags={["Frontend", "API", "Docs"]}>
+  New employees now set their own password from an invite link, valid for 7 days. Administrators can resend invites and see each person's invite status, and changing the email of someone who hasn't set a password sends a fresh invite. Anyone can reset a forgotten password with a single-use link, valid for 1 hour, which signs them out everywhere else. In the demo, the links appear on screen instead of being emailed.
+
+  Commit: [dc8a4f2](https://github.com/mkrsmanovic-fuentis/hrm/commit/dc8a4f257dc9a5d870774ec9f47206abbfe19477)
+</Update>
+
 <Update label="2026-11-10 16:31" description="SPE-19 · Checks before activation" tags={["Frontend", "API", "Docs"]}>
   A questionnaire can now be activated only when it's complete: it has questions, each with text, at least two answer options and exactly one correct answer, and its topic is active. The questionnaire's page lists what needs fixing and jumps straight to each question. A questionnaire's first activation is now recorded as "activated" in the audit log. The question editor also stops a save if employees started the questionnaire while you were editing, and asks you to confirm the new version.
 

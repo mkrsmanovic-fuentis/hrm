@@ -254,7 +254,7 @@ The real backend must also:
 - Store passwords as a salted hash made with a slow password-hashing algorithm, as for signing in.
 - Never log link tokens. They appear in page URLs and endpoint paths, so keep them out of access logs and analytics.
 - Email the links and never return them in a response. The mock's `X-Demo-Link` header is for the demo only, and the mock sends it only while `environment.demo` is set. A server that returned links could be used to take over any account.
-- Limit how often reset links can be requested for one email and from one address, so the endpoint cannot be used to flood a mailbox. {/* TODO: the PO to decide the limits. */}
+- At most **5 reset requests per email address per hour**, so the endpoint cannot be used to flood a mailbox. Further requests in that hour get the same neutral response, but no link is created or sent. The backend should also limit requests per client address. The mock does not enforce these limits.
 
 The mock stores a SHA-256 hash of each password it is given, salted with the user ID, so the browser's storage never holds a password. It is not a slow hash; the real backend must use one.
 
