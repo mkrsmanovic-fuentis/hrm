@@ -81,7 +81,7 @@ Send a new invite when someone's invite has expired, or they cannot find the ema
 - The earlier link stops working at once. Only the newest link works.
 - You cannot send an invite to someone who has set a password already. If they forgot it, they can [reset it](/user-guide/reset-your-password).
 - To invite a deactivated person, reactivate them first, then send the invite again. Deactivating someone makes their invite and reset links stop working for good, so reactivating does not bring the old links back.
-- Changing someone's email makes their password reset links stop working, because those were sent to the old address.
+- Changing someone's email makes their password reset links stop working, because those were sent to the old address. If they have not set a password, it also sends them a new invite. See [Change the email of someone without a password](#change-the-email-of-someone-without-a-password).
 - In the demo version, the new link appears in the **Demo only: invite link** panel.
 
 ## Edit an employee
@@ -103,6 +103,16 @@ Send a new invite when someone's invite has expired, or they cannot find the ema
 You cannot change your own role. Another administrator can.
 
 When you change your own name or email, the top bar shows the new values at once. Sign in with your new email next time.
+
+### Change the email of someone without a password
+
+If the person has not set a password yet, their invite went to the old address. When you change their email and select **Save changes**, a new invite goes to the new address at once:
+
+- The message says that a new invite was sent, and their invite status is **Invite pending**.
+- The new link is valid for 7 days from now. The old link stops working.
+- In the demo version, the **Demo only: invite link** panel shows the new link, as after adding someone.
+
+You do not need to send the invite again yourself. Changing only upper and lower case in the email sends no invite.
 
 ## Deactivate an employee
 

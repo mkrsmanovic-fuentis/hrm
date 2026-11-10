@@ -19,7 +19,7 @@ export const API_BASE_URL = new InjectionToken<string>('API_BASE_URL', {
 
 type QueryValue = string | number | boolean | null | undefined;
 
-/** A response body with the response headers, from {@link ApiClient.postWithHeaders}. */
+/** A response body with the response headers, from `postWithHeaders` or `patchWithHeaders`. */
 export interface ApiResponse<T> {
   body: T;
   headers: HttpHeaders;
@@ -80,20 +80,15 @@ export class ApiClient {
     path: P,
     ...[options]: ApiRequestArgs<ApiOperation<P, 'post'>>
   ): Observable<ApiResponse<ApiResponseBody<ApiOperation<P, 'post'>>>> {
-    const { path: pathParams, query, body } = (options ?? {}) as RawOptions;
-    const url = this.baseUrl + buildPath(path, pathParams);
-    return this.http
-      .post<ApiResponseBody<ApiOperation<P, 'post'>>>(url, body ?? null, {
-        params: buildParams(query),
-        observe: 'response',
-      })
-      .pipe(
-        map((response) => ({
-          body: response.body as ApiResponseBody<ApiOperation<P, 'post'>>,
-          headers: response.headers,
-        })),
-        catchError(toApiError),
-      );
+    return this.requestWithHeaders('post', path, options);
+  }
+
+  /** Like {@link patch}, but also returns the response headers. See {@link postWithHeaders}. */
+  patchWithHeaders<P extends ApiPathWith<'patch'>>(
+    path: P,
+    ...[options]: ApiRequestArgs<ApiOperation<P, 'patch'>>
+  ): Observable<ApiResponse<ApiResponseBody<ApiOperation<P, 'patch'>>>> {
+    return this.requestWithHeaders('patch', path, options);
   }
 
   put<P extends ApiPathWith<'put'>>(
@@ -115,6 +110,25 @@ export class ApiClient {
     ...[options]: ApiRequestArgs<ApiOperation<P, 'delete'>>
   ): Observable<ApiResponseBody<ApiOperation<P, 'delete'>>> {
     return this.request('delete', path, options);
+  }
+
+  private requestWithHeaders<T>(
+    method: HttpMethod,
+    path: string,
+    options: object | undefined,
+  ): Observable<ApiResponse<T>> {
+    const { path: pathParams, query, body } = (options ?? {}) as RawOptions;
+    const url = this.baseUrl + buildPath(path, pathParams);
+    return this.http
+      .request<T>(method.toUpperCase(), url, {
+        params: buildParams(query),
+        body,
+        observe: 'response',
+      })
+      .pipe(
+        map((response) => ({ body: response.body as T, headers: response.headers })),
+        catchError(toApiError),
+      );
   }
 
   private request<T>(method: HttpMethod, path: string, options: object | undefined): Observable<T> {

@@ -353,7 +353,7 @@ export class EmployeeList {
     else this.askStatusChange(row);
   }
 
-  protected onSaved({ user, inviteLink }: EmployeeSaved, wasNew: boolean): void {
+  protected onSaved({ user, invited, inviteLink }: EmployeeSaved, wasNew: boolean): void {
     if (wasNew) {
       this.toasts.success(
         'Employee created',
@@ -361,7 +361,13 @@ export class EmployeeList {
       );
       this.showInviteLink(user, inviteLink);
     } else {
-      this.toasts.success('Employee saved', `${fullName(user)} is up to date.`);
+      this.toasts.success(
+        'Employee saved',
+        invited
+          ? `${fullName(user)} is up to date. A new invite was sent to ${user.email}, and the old link no longer works.`
+          : `${fullName(user)} is up to date.`,
+      );
+      if (invited) this.showInviteLink(user, inviteLink);
       // An administrator who edited their own name or email sees it in the top bar at once.
       this.auth.updateUser(user);
     }

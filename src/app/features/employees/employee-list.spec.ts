@@ -320,6 +320,43 @@ describe('Employees page', () => {
     );
   });
 
+  it('sends a new invite after changing the email of someone without a password', async () => {
+    const { fixture, element, click, type, settle, list, row, mock, toasts, shownInviteToken } =
+      await render();
+    const aisha = row('Aisha');
+
+    list()?.rowClick.emit(aisha);
+    await fixture.whenStable();
+    await type('Email', 'aisha.k@brightwater.example');
+    await click('Save changes');
+    await settle();
+
+    await vi.waitFor(() => expect(shownInviteToken()).not.toBeNull());
+    expect(element.querySelector('app-demo-link')?.textContent).toContain(
+      'Demo only: invite link for Aisha Khan',
+    );
+    expect(mock.db.data.accountLinks.find((l) => l.token === shownInviteToken())?.userId).toBe(
+      aisha.id,
+    );
+    expect(toasts.toasts()[0].message).toContain(
+      'A new invite was sent to aisha.k@brightwater.example',
+    );
+  });
+
+  it('sends no invite when only the name of someone without a password changes', async () => {
+    const { fixture, element, click, type, settle, list, row, toasts } = await render();
+
+    list()?.rowClick.emit(row('Aisha'));
+    await fixture.whenStable();
+    await type('Last name', 'Khan-Ali');
+    await click('Save changes');
+    await settle();
+
+    await vi.waitFor(() => expect(toasts.toasts()).toHaveLength(1));
+    expect(toasts.toasts()[0].message).toBe('Aisha Khan-Ali is up to date.');
+    expect(element.querySelector('app-demo-link')).toBeNull();
+  });
+
   it('refreshes the signed-in user after an administrator edits their own name', async () => {
     const { fixture, click, type, settle, list, row, me, auth } = await render();
 

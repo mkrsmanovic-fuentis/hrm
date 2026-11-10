@@ -37,12 +37,17 @@ const NO_DEPARTMENT = '';
 /** The fields the form sends, trimmed. An edit sends only the changed ones. */
 type UserFields = Partial<Pick<User, 'firstName' | 'lastName' | 'email' | 'role' | 'departmentId'>>;
 
-/** What `saved` emits: the saved user and, for a new user, the demo-only invite link. */
+/** What `saved` emits: the saved user, and whether and where a new invite was sent. */
 export interface EmployeeSaved {
   user: User;
   /**
-   * Demo only: the invite link the mock API sent in `X-Demo-Link` when the user was created, or
-   * null. The real backend emails it instead.
+   * Whether the save sent a new invite: for a new user, and for an email change of a user who has
+   * not set a password yet.
+   */
+  invited: boolean;
+  /**
+   * Demo only: the invite link the mock API sent in `X-Demo-Link` with the new invite, or null.
+   * The real backend emails it instead.
    */
   inviteLink: string | null;
 }
@@ -218,14 +223,18 @@ export class EmployeeForm implements OnInit {
   private async send(fields: UserFields): Promise<EmployeeSaved> {
     const user = this.user();
     if (user) {
-      const saved = await firstValueFrom(
-        this.api.patch('/users/{userId}', { path: { userId: user.id }, body: fields }),
+      const response = await firstValueFrom(
+        this.api.patchWithHeaders('/users/{userId}', { path: { userId: user.id }, body: fields }),
       );
-      return { user: saved, inviteLink: null };
+      const saved = response.body;
+      // A new email of a user without a password gets a new invite: `invitationSentAt` changes.
+      const invited =
+        saved.passwordSetAt === null && saved.invitationSentAt !== user.invitationSentAt;
+      return { user: saved, invited, inviteLink: demoLinkOf(response) };
     }
     const response = await firstValueFrom(
       this.api.postWithHeaders('/users', { body: fields as Required<UserFields> }),
     );
-    return { user: response.body, inviteLink: demoLinkOf(response) };
+    return { user: response.body, invited: true, inviteLink: demoLinkOf(response) };
   }
 }

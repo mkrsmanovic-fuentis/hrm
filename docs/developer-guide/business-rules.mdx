@@ -216,6 +216,7 @@ Two kinds of links let a user set a password without being signed in. The secret
 
 - **Deactivating a user makes all their invite and reset links stop working for good.** Reactivating does not bring them back: the administrator sends the invite again, or the user requests a new reset link.
 - **Changing a user's email makes their reset links stop working**, because they were sent to the old address.
+- **Changing the email of an active user who has not set a password sends a new invite to the new address at once**, whether their invite was pending or expired. The old invite link stops working, and the new one is valid for 7 days from the change: `invitationSentAt` and `invitationExpiresAt` are set again. The administrator does not need to send the invite again. A change of upper or lower case only is not a new email. A user who has set a password gets no invite; only their reset links stop working.
 - The link is checked when the page opens and again when the password is sent. A link that expires while the page is open shows the same message.
 - Only the token holder learns whether a link was used or expired. Without a valid token, nothing reveals which emails have accounts.
 
@@ -327,7 +328,7 @@ Administrator actions that change data are logged, so it is always clear who did
 - Only successful actions are logged. A request that fails, for example with a validation error, logs nothing.
 - Employee actions, such as starting and submitting attempts, are not logged.
 
-- Sending an invite again is not logged for now. {/* TODO: SPE-46, the PO decides whether resending an invite link is logged. */}
+- Sending an invite again is not logged for now. Neither is the new invite sent when the email of a user without a password changes: the email change itself is logged as `updated`, with only `email` in `changes`. {/* TODO: SPE-46, the PO decides whether resending an invite link is logged. */}
 - Users setting or resetting their own password is not logged. It is not an administrator action.
 
 ### What each entry records

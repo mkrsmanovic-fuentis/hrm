@@ -506,6 +506,100 @@ describe('invite link and password reset mock handlers', () => {
     });
   });
 
+  describe('changing the email of a user without a password', () => {
+    it('sends a new invite to the new address and makes the old link stop working', async () => {
+      const admin = setup();
+      const { user, token: oldToken } = await createUser(admin);
+      const logSize = admin.db.data.auditLog.length;
+      flags = { clockOffsetMs: 2 * HOUR };
+
+      const response = await admin.fetch(
+        `/api/v1/users/${user.id}`,
+        json('PATCH', { email: 'hana.s@brightwater.example' }),
+      );
+      const saved = (await response.json()) as User;
+      const newToken = tokenOf(response);
+
+      expect(response.status).toBe(200);
+      const sentAt = new Date(TEST_NOW.getTime() + 2 * HOUR);
+      expect(saved).toMatchObject({
+        email: 'hana.s@brightwater.example',
+        invitationSentAt: sentAt.toISOString(),
+        invitationExpiresAt: new Date(sentAt.getTime() + INVITATION_LIFETIME_MS).toISOString(),
+        invitationStatus: 'pending',
+      });
+      await expectProblem(await setPassword(admin, oldToken), 404, ProblemType.linkNotFound);
+      const link = (await (
+        await admin.fetch(`/api/v1/auth/invitations/${newToken}`)
+      ).json()) as AccountLink;
+      expect(link.email).toBe('hana.s@brightwater.example');
+      // Only the email change is logged; the new invite is not (SPE-46).
+      const entries = admin.db.data.auditLog.slice(logSize);
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({ action: 'updated', entityId: user.id });
+      expect(entries[0].changes.map((c) => c.field)).toEqual(['email']);
+    });
+
+    it('also revives an expired invite', async () => {
+      const admin = setup();
+      const samuel = userByEmail(admin, 'samuel.adeyemi@brightwater.example');
+
+      const response = await admin.fetch(
+        `/api/v1/users/${samuel.id}`,
+        json('PATCH', { email: 'sam.adeyemi@brightwater.example' }),
+      );
+
+      expect(((await response.json()) as User).invitationStatus).toBe('pending');
+      expect(response.headers.has('X-Demo-Link')).toBe(true);
+    });
+
+    it('sends no new invite for other edits, or for a change of case only', async () => {
+      const admin = setup();
+      const { user, token } = await createUser(admin);
+
+      for (const body of [{ lastName: 'Satō' }, { email: 'Hana.Sato@brightwater.example' }]) {
+        const response = await admin.fetch(`/api/v1/users/${user.id}`, json('PATCH', body));
+        expect(response.headers.has('X-Demo-Link')).toBe(false);
+      }
+      expect((await admin.fetch(`/api/v1/auth/invitations/${token}`)).status).toBe(200);
+    });
+
+    it('sends the invite without a demo header when demo links are off', async () => {
+      const admin = setup({ demoLinks: false });
+      const user = userByEmail(admin, 'aisha.khan@brightwater.example');
+
+      const response = await admin.fetch(
+        `/api/v1/users/${user.id}`,
+        json('PATCH', { email: 'aisha.k@brightwater.example' }),
+      );
+
+      expect(response.headers.has('X-Demo-Link')).toBe(false);
+      expect(((await response.json()) as User).invitationSentAt).toBe(TEST_NOW.toISOString());
+      expect(admin.db.data.accountLinks.filter((l) => l.userId === user.id)).toHaveLength(1);
+    });
+
+    it('sends no invite to a user who has set a password, nor to a deactivated user', async () => {
+      const admin = setup();
+      const amelia = userByEmail(admin, 'amelia.hughes@brightwater.example');
+      const { user: hana } = await createUser(admin);
+
+      const withPassword = await admin.fetch(
+        `/api/v1/users/${amelia.id}`,
+        json('PATCH', { email: 'amelia.h@brightwater.example' }),
+      );
+      const deactivated = await admin.fetch(
+        `/api/v1/users/${hana.id}`,
+        json('PATCH', { email: 'hana.s@brightwater.example', status: 'inactive' }),
+      );
+
+      for (const response of [withPassword, deactivated]) {
+        expect(response.headers.has('X-Demo-Link')).toBe(false);
+      }
+      expect(((await withPassword.json()) as User).invitationSentAt).toBeNull();
+      expect(admin.db.data.accountLinks).toEqual([]);
+    });
+  });
+
   describe('deactivating', () => {
     it('makes invite and reset links stop working for good, even after reactivating', async () => {
       const admin = setup();

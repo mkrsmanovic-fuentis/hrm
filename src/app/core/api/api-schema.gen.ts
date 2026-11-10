@@ -307,6 +307,7 @@ export interface paths {
          *     - **Reactivating** lets the user sign in again, and their open assignments count as pending and overdue again.
          *     - **Department:** only an active department can be chosen. A user already in a department that was deactivated later keeps it, so sending their current `departmentId` again is accepted.
          *     - **Own account:** administrators cannot deactivate themselves or change their own role. Both answer `409`.
+         *     - **Email:** a new email makes the user's password reset links stop working. If the user is active and has not set a password yet, the old invite link stops working too, and a new invite is sent to the new address at once, valid for 7 days: `invitationSentAt` and `invitationExpiresAt` are set again. In the demo, the mock sends the new invite link in `X-Demo-Link` while demo mode is on.
          *
          *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
          */
@@ -1873,6 +1874,7 @@ export interface operations {
             /** @description The updated user. */
             200: {
                 headers: {
+                    "X-Demo-Link": components["headers"]["XDemoLink"];
                     [name: string]: unknown;
                 };
                 content: {
