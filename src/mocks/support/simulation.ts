@@ -11,6 +11,11 @@ export interface SimulationFlags {
   errorStatus?: number;
   /** List endpoints return no items. */
   empty?: boolean;
+  /**
+   * Moves the mock's clock by this many milliseconds, for example to see an invite or reset link
+   * expire. Sessions follow the same clock, so scope it, for example to `/auth/password-resets`.
+   */
+  clockOffsetMs?: number;
   /** Only apply the flags to API paths that start with this, for example `/topics`. */
   scope?: string;
 }
@@ -19,12 +24,20 @@ export const FLAG_PARAMS = {
   delay: 'mock-delay',
   error: 'mock-error',
   empty: 'mock-empty',
+  clock: 'mock-clock',
   scope: 'mock-scope',
   reset: 'mock-reset',
   clear: 'mock-clear',
 } as const;
 
 const SLOW_DELAY_MS = 3000;
+
+/** Units `mock-clock` takes, for example `2h`, `8d` or `-30m`. */
+const CLOCK_UNITS_MS: Record<string, number> = {
+  m: 60_000,
+  h: 3_600_000,
+  d: 86_400_000,
+};
 
 /** Named values for `mock-error`. Any status from 400 to 599 also works. */
 export const ERROR_ALIASES: Record<string, number> = {
@@ -42,7 +55,13 @@ const STORAGE_KEY = 'hrm.mockApi.flags';
 /** Parses the `mock-*` query parameters. Returns `null` when the URL has none. */
 export function parseFlags(search: string): SimulationFlags | null {
   const params = new URLSearchParams(search);
-  const keys = [FLAG_PARAMS.delay, FLAG_PARAMS.error, FLAG_PARAMS.empty, FLAG_PARAMS.scope];
+  const keys = [
+    FLAG_PARAMS.delay,
+    FLAG_PARAMS.error,
+    FLAG_PARAMS.empty,
+    FLAG_PARAMS.clock,
+    FLAG_PARAMS.scope,
+  ];
   if (!keys.some((key) => params.has(key))) return null;
 
   const flags: SimulationFlags = {};
@@ -58,6 +77,12 @@ export function parseFlags(search: string): SimulationFlags | null {
   }
   if (params.has(FLAG_PARAMS.empty) && params.get(FLAG_PARAMS.empty) !== 'false') {
     flags.empty = true;
+  }
+  // A `+` in a URL reads as a space, so `+2h` arrives as ` 2h`: trim it.
+  const clock = /^([+-]?\d+)([mhd])$/.exec(params.get(FLAG_PARAMS.clock)?.trim() ?? '');
+  if (clock) {
+    const offset = Number(clock[1]) * CLOCK_UNITS_MS[clock[2]];
+    if (offset !== 0) flags.clockOffsetMs = offset;
   }
   const scope = params.get(FLAG_PARAMS.scope);
   if (scope) flags.scope = scope.startsWith('/') ? scope : `/${scope}`;
@@ -100,6 +125,7 @@ export function describeFlags(flags: SimulationFlags): string | null {
   if (flags.delayMs) parts.push(`delay ${flags.delayMs} ms`);
   if (flags.errorStatus) parts.push(`error ${flags.errorStatus}`);
   if (flags.empty) parts.push('empty lists');
+  if (flags.clockOffsetMs) parts.push(`clock moved by ${flags.clockOffsetMs / 60_000} minutes`);
   if (parts.length === 0) return null;
   return `${parts.join(', ')}${flags.scope ? ` for ${flags.scope}` : ''}. Open the app with ?${FLAG_PARAMS.clear} to stop.`;
 }

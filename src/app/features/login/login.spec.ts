@@ -82,6 +82,13 @@ describe('Login page', () => {
     expect(element.querySelector('button[type=submit]')?.textContent?.trim()).toBe('Sign in');
   });
 
+  it('links to the forgot password page', async () => {
+    const { element } = await render();
+
+    const link = element.querySelector<HTMLAnchorElement>('a[href="/forgot-password"]');
+    expect(link?.textContent?.trim()).toBe('Forgot password?');
+  });
+
   it('asks for both fields before calling the API', async () => {
     const { element, submit, auth } = await render();
 

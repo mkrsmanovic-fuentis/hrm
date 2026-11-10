@@ -21,7 +21,7 @@ import {
   type SdSelectOption,
 } from '@specora-dev/ui-kit';
 import { firstValueFrom } from 'rxjs';
-import { ApiClient, type Department, type RoleKey, type User } from '../../core/api';
+import { ApiClient, demoLinkOf, type Department, type RoleKey, type User } from '../../core/api';
 import { ROLE_LABELS } from '../../core/auth';
 import { saveFailedMessage, serverFieldErrors, visibleError } from '../../shared/forms/form-errors';
 import { textRules } from '../../shared/forms/text-rules';
@@ -36,6 +36,16 @@ const NO_DEPARTMENT = '';
 
 /** The fields the form sends, trimmed. An edit sends only the changed ones. */
 type UserFields = Partial<Pick<User, 'firstName' | 'lastName' | 'email' | 'role' | 'departmentId'>>;
+
+/** What `saved` emits: the saved user and, for a new user, the demo-only invite link. */
+export interface EmployeeSaved {
+  user: User;
+  /**
+   * Demo only: the invite link the mock API sent in `X-Demo-Link` when the user was created, or
+   * null. The real backend emails it instead.
+   */
+  inviteLink: string | null;
+}
 
 interface EmployeeModel {
   firstName: string;
@@ -69,8 +79,8 @@ export class EmployeeForm implements OnInit {
   readonly departments = input<readonly Department[]>([]);
   /** The signed-in administrator, who cannot change their own role. */
   readonly currentUserId = input<string | null>(null);
-  /** Fires after a successful save, with the saved record. */
-  readonly saved = output<User>();
+  /** Fires after a successful save, with the saved record and, for a new user, the invite link. */
+  readonly saved = output<EmployeeSaved>();
   /** Fires once the drawer has closed, after a save or a cancel. */
   readonly closed = output();
 
@@ -162,8 +172,7 @@ export class EmployeeForm implements OnInit {
       }
       this.saving.set(true);
       try {
-        const user = await this.send(changes);
-        this.saved.emit(user);
+        this.saved.emit(await this.send(changes));
         this.open.set(false);
         return undefined;
       } catch (error) {
@@ -206,12 +215,17 @@ export class EmployeeForm implements OnInit {
     return Object.keys(changed).length > 0 ? changed : null;
   }
 
-  private send(fields: UserFields): Promise<User> {
+  private async send(fields: UserFields): Promise<EmployeeSaved> {
     const user = this.user();
-    return firstValueFrom(
-      user
-        ? this.api.patch('/users/{userId}', { path: { userId: user.id }, body: fields })
-        : this.api.post('/users', { body: fields as Required<UserFields> }),
+    if (user) {
+      const saved = await firstValueFrom(
+        this.api.patch('/users/{userId}', { path: { userId: user.id }, body: fields }),
+      );
+      return { user: saved, inviteLink: null };
+    }
+    const response = await firstValueFrom(
+      this.api.postWithHeaders('/users', { body: fields as Required<UserFields> }),
     );
+    return { user: response.body, inviteLink: demoLinkOf(response) };
   }
 }

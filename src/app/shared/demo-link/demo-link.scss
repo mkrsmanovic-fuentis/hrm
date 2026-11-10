@@ -1,0 +1,19 @@
+:host {
+  display: block;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-sm);
+}
+
+.text {
+  margin: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sd-space-sm);
+}

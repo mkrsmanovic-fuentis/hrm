@@ -4,7 +4,7 @@
  */
 import type { Attempt, User } from '../../app/core/api/api-schema.gen';
 import type { AssignmentRecord, UserRecord } from '../db/mock-data';
-import { sameEmail } from './auth-rules';
+import { invitationStatus, sameEmail } from './auth-rules';
 import { assignmentStatus } from './training-rules';
 
 export const USER_EMAIL_MAX_LENGTH = 254;
@@ -73,13 +73,17 @@ export function trainingCounts(
   return { assignedTrainingCount: own.length, completedTrainingCount: completed.length };
 }
 
-/** The API's `User`: the stored record plus its derived training counts. */
+/** The API's `User`: the stored record plus its derived training counts and invite status. */
 export function toUser(
   record: UserRecord,
   data: { assignments: readonly AssignmentRecord[]; attempts: readonly Attempt[] },
   now: Date,
 ): User {
-  return { ...record, ...trainingCounts(record.id, data.assignments, data.attempts, now) };
+  return {
+    ...record,
+    ...trainingCounts(record.id, data.assignments, data.attempts, now),
+    invitationStatus: invitationStatus(record, now),
+  };
 }
 
 /**

@@ -12,9 +12,12 @@ describe('seed data', () => {
   });
 
   it('has one organization that owns every record', () => {
-    // Sessions belong to a user, not to the organization, and the seed starts with none.
-    const { organization, sessions, ...tables } = data;
+    // Sessions, account links and credentials belong to a user, not to the organization, and the
+    // seed starts with none.
+    const { organization, sessions, accountLinks, credentials, ...tables } = data;
     expect(sessions).toEqual([]);
+    expect(accountLinks).toEqual([]);
+    expect(credentials).toEqual([]);
     for (const [table, rows] of Object.entries(tables)) {
       const foreign = rows.filter(
         (row: { organizationId: string }) => row.organizationId !== organization.id,

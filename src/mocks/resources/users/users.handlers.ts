@@ -2,7 +2,7 @@ import type { User } from '../../../app/core/api/api-schema.gen';
 import { recordAudit } from '../../db/audit';
 import type { MockDb } from '../../db/mock-db';
 import type { UserRecord } from '../../db/mock-data';
-import { INVITATION_LIFETIME_MS } from '../../rules/training-rules';
+import { canResendInvitation, hasPassword } from '../../rules/auth-rules';
 import {
   fullName,
   isSameEmail,
@@ -13,6 +13,8 @@ import {
   USER_NAME_MAX_LENGTH,
 } from '../../rules/user-rules';
 import { requireRole } from '../../support/access';
+import { issueLink } from '../../support/account-links';
+import { demoLinkHeader } from '../../support/auth';
 import { BodyReader, notUnique } from '../../support/body';
 import { route } from '../../support/mock-route';
 import { MockProblem } from '../../support/problem';
@@ -49,7 +51,10 @@ const sortFields = {
  *
  * - Emails are unique, ignoring case and spaces around them (`409` on `email`).
  * - Only an active department can be chosen; a user keeps an inactive one they already have.
- * - A new user gets an invite: `invitationSentAt` now, `invitationExpiresAt` 7 days later.
+ * - A new user gets an invite: `invitationSentAt` now, `invitationExpiresAt` 7 days later. The
+ *   demo-only `X-Demo-Link` header carries the link, which the real backend emails instead.
+ * - `POST /users/{userId}/invitation` sends a new invite and makes the old link stop working. Not
+ *   audit-logged (SPE-46).
  * - Administrators cannot deactivate themselves or change their own role (`409`).
  * - Deactivating ends the user's sessions. `authenticate()` also rejects inactive users.
  */
@@ -76,7 +81,7 @@ export const userRoutes = [
 
   route.post('/users', async (ctx) => {
     const admin = requireRole(ctx, 'administrator');
-    const { db, now, ok, validationFailed } = ctx;
+    const { db, now, url, ok, validationFailed } = ctx;
     const body = new BodyReader(await ctx.json(), [
       'email',
       'firstName',
@@ -116,14 +121,16 @@ export const userRoutes = [
         role,
         departmentId: departmentId ?? null,
         status: 'active',
-        invitationSentAt: at,
-        invitationExpiresAt: new Date(now.getTime() + INVITATION_LIFETIME_MS).toISOString(),
+        // Set by issueLink() below, 7 days apart.
+        invitationSentAt: null,
+        invitationExpiresAt: null,
         passwordSetAt: null,
         lastSignedInAt: null,
         createdAt: at,
         updatedAt: at,
       };
       data.users.push(user);
+      const link = issueLink(data, user, 'invitation', now);
       recordAudit(data, {
         action: 'created',
         entityType: 'user',
@@ -131,9 +138,27 @@ export const userRoutes = [
         now,
         after: user,
       });
-      return user;
+      return { user, link };
     });
-    return ok(toUser(created, db.data, now), 201);
+    return ok(toUser(created.user, db.data, now), 201, demoLinkHeader(url, created.link));
+  }),
+
+  route.post('/users/{userId}/invitation', (ctx) => {
+    requireRole(ctx, 'administrator');
+    const { db, params, now, url, ok, notFound } = ctx;
+    const user = db.data.users.find((u) => u.id === params.userId);
+    if (!user) return notFound(`User ${params.userId} was not found.`);
+    if (!canResendInvitation(user)) {
+      throw new MockProblem(
+        409,
+        hasPassword(user)
+          ? `${fullName(user)} has set a password already.`
+          : `${fullName(user)} is deactivated. Reactivate them before sending the invite again.`,
+      );
+    }
+    // Not audit-logged: whether resending is logged is open for the PO (SPE-46).
+    const link = db.update((data) => issueLink(data, user, 'invitation', now));
+    return ok(toUser(user, db.data, now), 201, demoLinkHeader(url, link));
   }),
 
   route.get('/users/{userId}', (ctx) => {

@@ -3,7 +3,7 @@ import { computed, DestroyRef, inject, Injectable, InjectionToken, signal } from
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment, type DemoAccount } from '../../../environments/environment';
-import { ApiClient, type RoleKey, type Session } from '../api';
+import { ApiClient, type RoleKey, type Session, type User } from '../api';
 import {
   addressBarUrl,
   isLoginPage,
@@ -111,6 +111,46 @@ export class AuthService {
     }
   }
 
+  /**
+   * Sets the first password through an invite link, and signs in with the session the API
+   * returns. Fails with the API's `ApiError`, for example when the link has expired.
+   */
+  async acceptInvitation(invitationToken: string, password: string): Promise<Session> {
+    const session = await firstValueFrom(
+      this.api.post('/auth/invitations/{invitationToken}/password', {
+        path: { invitationToken },
+        body: { password },
+      }),
+    );
+    this.set(session);
+    return session;
+  }
+
+  /**
+   * Sets a new password through a password reset link, and signs in with the session the API
+   * returns. The API ends every other session of the user. Fails with the API's `ApiError`.
+   */
+  async resetPassword(passwordResetToken: string, password: string): Promise<Session> {
+    const session = await firstValueFrom(
+      this.api.post('/auth/password-resets/{passwordResetToken}/password', {
+        path: { passwordResetToken },
+        body: { password },
+      }),
+    );
+    this.set(session);
+    return session;
+  }
+
+  /**
+   * Shows the latest details of the signed-in user, for example after an administrator edited
+   * their own name or email, so the top bar is up to date. Other users are ignored.
+   */
+  updateUser(user: User): void {
+    const session = this.state();
+    if (!session || session.user.id !== user.id) return;
+    this.set({ ...session, user });
+  }
+
   /** Ends the session on the server, then locally. Always signs out locally, even if the call fails. */
   async signOut(): Promise<void> {
     try {
@@ -192,6 +232,11 @@ export class AuthService {
     // `key` is null when the other tab cleared all of localStorage.
     if (!this.storage || (event.key !== null && event.key !== STORAGE_KEY)) return;
     const next = this.restore();
+    if (next && next.token === this.state()?.token) {
+      // Same session with new details, for example a changed name: show them, stay on the page.
+      this.state.set(next);
+      return;
+    }
     if (next?.token === this.state()?.token) return;
 
     this.state.set(next);

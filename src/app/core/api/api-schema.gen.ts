@@ -38,6 +38,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/invitations/{invitationToken}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check an invite link
+         * @description Checks the token of an invite link before the user chooses a password, and returns who it is for. Needs no session token: the token in the link is the proof.
+         *
+         *     - A link of a user who has set a password already answers `410` with type `/problems/link-used`.
+         *     - A link past its 7 days answers `410` with type `/problems/link-expired`.
+         *     - An unknown token, a link replaced by a newer invite, and a link of a deactivated user answer `404` with type `/problems/link-not-found`.
+         *
+         *     **Access:** anyone with the link.
+         */
+        get: operations["getInvitation"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/{invitationToken}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set the first password
+         * @description Sets the user's first password through an invite link and signs them in.
+         *
+         *     On success `passwordSetAt` is now, `invitationSentAt` and `invitationExpiresAt` are cleared, the link stops working, and the answer is a new session, as for signing in. The password must follow the password rules in the business rules.
+         *
+         *     The link is checked before the password: an expired, used or unknown link answers `410` or `404`, as when checking the link.
+         *
+         *     **Access:** anyone with the link.
+         */
+        post: operations["acceptInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-resets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password reset
+         * @description Emails a password reset link, valid for 1 hour, if the email belongs to an active user who has set a password. A new request replaces the user's earlier reset links.
+         *
+         *     The answer is always `202` with no body, whether the email has an account or not and whether a link was sent or not, so it does not reveal which emails have accounts. Only an email that is missing or not an email address answers `422`.
+         *
+         *     In the demo, the mock API sends the link in the `X-Demo-Link` header instead of emailing it, when it created one. The real backend never sends this header.
+         *
+         *     **Access:** anyone.
+         */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-resets/{passwordResetToken}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Check a password reset link
+         * @description Checks the token of a password reset link before the user chooses a new password, and returns who it is for.
+         *
+         *     - A link that was used already answers `410` with type `/problems/link-used`.
+         *     - A link past its 1 hour answers `410` with type `/problems/link-expired`.
+         *     - An unknown token, a link replaced by a newer request or by a completed reset, and a link of a deactivated user answer `404` with type `/problems/link-not-found`.
+         *
+         *     **Access:** anyone with the link.
+         */
+        get: operations["getPasswordReset"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password-resets/{passwordResetToken}/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password
+         * @description Sets a new password through a password reset link and signs the user in.
+         *
+         *     On success the link is used up and the user's other reset links stop working, `passwordSetAt` is now, **all the user's sessions end**, and the answer is a new session, as for signing in. The password must follow the password rules in the business rules.
+         *
+         *     The link is checked before the password: an expired, used or unknown link answers `410` or `404`, as when checking the link.
+         *
+         *     **Access:** anyone with the link.
+         */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/organization": {
         parameters: {
             query?: never;
@@ -137,6 +267,8 @@ export interface paths {
          * Create a user
          * @description Creates an active user and sends them an invite link to set a password. `invitationSentAt` is now, `invitationExpiresAt` is 7 days later, and `passwordSetAt` stays `null` until the user sets a password.
          *
+         *     In the demo, the mock API sends the invite link in the `X-Demo-Link` header instead of emailing it. The real backend never sends this header.
+         *
          *     The email must be unique within the organization, among active and inactive users, ignoring upper and lower case and spaces around it. Only an active department can be chosen.
          *
          *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `created`.
@@ -179,6 +311,32 @@ export interface paths {
          *     **Access:** administrators only. Employees get `403`. Logged in the audit log: changed fields other than `status` as `updated`, then a change of `status` as `deactivated` or `reactivated`. A request that changes nothing logs nothing.
          */
         patch: operations["updateUser"];
+        trace?: never;
+    };
+    "/users/{userId}/invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send the invite again
+         * @description Sends the user a new invite link to set a password, valid for 7 days from now. The earlier invite link stops working at once. `invitationSentAt` and `invitationExpiresAt` are set again.
+         *
+         *     Only for active users who have not set a password yet. A user who has set a password, or a deactivated user, answers `409`.
+         *
+         *     In the demo, the mock API sends the new link in the `X-Demo-Link` header instead of emailing it. The real backend never sends this header.
+         *
+         *     **Access:** administrators only. Employees get `403`. Not logged in the audit log, until the product decides otherwise (SPE-46).
+         */
+        post: operations["resendInvitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/topics": {
@@ -336,6 +494,33 @@ export interface components {
             /** @description The user's password. */
             password: string;
         };
+        /** @description A new password: 12 to 128 characters, any characters, spaces included. Not trimmed. It must not be the user's email address. See the password rules in the business rules. */
+        Password: string;
+        /** @description The password a user chooses through an invite or password reset link. */
+        PasswordSet: {
+            password: components["schemas"]["Password"];
+        };
+        /** @description The email to send a password reset link to. */
+        PasswordResetRequest: {
+            /**
+             * Format: email
+             * @description Matched without regard to upper and lower case and spaces around it.
+             * @example amelia.hughes@brightwater.example
+             */
+            email: string;
+        };
+        /** @description Who a valid invite or password reset link is for, and until when it works. */
+        AccountLink: {
+            /**
+             * Format: email
+             * @description The user's email address.
+             */
+            email: string;
+            /** @description The user's first name, for a greeting. */
+            firstName: string;
+            /** @description When the link stops working. */
+            expiresAt: components["schemas"]["Timestamp"];
+        };
         /** @description A signed-in session. It lasts 8 hours from sign-in and is not extended by activity. */
         Session: {
             /** @description Opaque session token. Send it as `Authorization: Bearer <token>`. Treat it as a secret. */
@@ -390,9 +575,11 @@ export interface components {
             invitationSentAt: components["schemas"]["Timestamp"] | null;
             /** @description When the latest invite link expires, 7 days after it was sent. Null once the password is set. */
             invitationExpiresAt: components["schemas"]["Timestamp"] | null;
-            /** @description When the user set a password through the invite link. Null while the invite is pending. */
+            /** @description When the user last set a password, through the invite link or a password reset. Null while the invite is pending or expired. */
             passwordSetAt: components["schemas"]["Timestamp"] | null;
             lastSignedInAt: components["schemas"]["Timestamp"] | null;
+            /** @description Derived. `accepted` once the user has set a password; otherwise `pending` until `invitationExpiresAt`, then `expired`. Never sent in requests. */
+            readonly invitationStatus: components["schemas"]["InvitationStatus"];
             /** @description Derived. Every assignment the user has received, in any status, passed ones included. Open assignments of a deactivated user still count. Never sent in requests. */
             readonly assignedTrainingCount: number;
             /** @description Derived. The user's assignments with the status `passed`, including ones passed after the deadline. Never sent in requests. */
@@ -400,6 +587,11 @@ export interface components {
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
         };
+        /**
+         * @description Where the user's invite stands. Users with a `pending` or `expired` invite have no password and cannot sign in.
+         * @enum {string}
+         */
+        InvitationStatus: "pending" | "expired" | "accepted";
         /** @description One page of users. */
         UserPage: {
             items: components["schemas"]["User"][];
@@ -717,6 +909,32 @@ export interface components {
         };
     };
     responses: {
+        /** @description The link is not valid. The token is unknown, a newer link replaced it, or the user was deactivated. */
+        LinkNotFound: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "type": "/problems/link-not-found",
+                 *       "title": "Link not valid",
+                 *       "status": 404,
+                 *       "detail": "This link is not valid. It may have been replaced by a newer one."
+                 *     }
+                 */
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
+        /** @description The link was valid, but it has expired (`/problems/link-expired`) or was used already (`/problems/link-used`). */
+        LinkGone: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/problem+json": components["schemas"]["Problem"];
+            };
+        };
         /** @description The request could not be read, for example because the body is not valid JSON. */
         BadRequest: {
             headers: {
@@ -913,11 +1131,18 @@ export interface components {
         DepartmentId: components["schemas"]["Id"];
         /** @description ID of the user. */
         UserId: components["schemas"]["Id"];
+        /** @description The secret token from the invite link. */
+        InvitationToken: string;
+        /** @description The secret token from the password reset link. */
+        PasswordResetToken: string;
         /** @description ID of the topic. */
         TopicId: components["schemas"]["Id"];
     };
     requestBodies: never;
-    headers: never;
+    headers: {
+        /** @description Demo only. The link the server would have emailed, for example `http://localhost:4200/set-password?token=…`. The mock API sends it so the demo can show the link on screen. The real backend never sends this header and always emails the link. */
+        XDemoLink: string;
+    };
     pathItems: never;
 }
 export type Id = components['schemas']['Id'];
@@ -931,11 +1156,16 @@ export type ValidationProblem = components['schemas']['ValidationProblem'];
 export type ConflictProblem = components['schemas']['ConflictProblem'];
 export type FieldError = components['schemas']['FieldError'];
 export type SignInRequest = components['schemas']['SignInRequest'];
+export type Password = components['schemas']['Password'];
+export type PasswordSet = components['schemas']['PasswordSet'];
+export type PasswordResetRequest = components['schemas']['PasswordResetRequest'];
+export type AccountLink = components['schemas']['AccountLink'];
 export type Session = components['schemas']['Session'];
 export type Organization = components['schemas']['Organization'];
 export type RoleKey = components['schemas']['RoleKey'];
 export type Role = components['schemas']['Role'];
 export type User = components['schemas']['User'];
+export type InvitationStatus = components['schemas']['InvitationStatus'];
 export type UserPage = components['schemas']['UserPage'];
 export type UserCreate = components['schemas']['UserCreate'];
 export type UserUpdate = components['schemas']['UserUpdate'];
@@ -964,6 +1194,8 @@ export type AuditAction = components['schemas']['AuditAction'];
 export type AuditEntityType = components['schemas']['AuditEntityType'];
 export type AuditChange = components['schemas']['AuditChange'];
 export type AuditLogEntry = components['schemas']['AuditLogEntry'];
+export type ResponseLinkNotFound = components['responses']['LinkNotFound'];
+export type ResponseLinkGone = components['responses']['LinkGone'];
 export type ResponseBadRequest = components['responses']['BadRequest'];
 export type ResponseInvalidCredentials = components['responses']['InvalidCredentials'];
 export type ResponseAccountInactive = components['responses']['AccountInactive'];
@@ -978,7 +1210,10 @@ export type ParameterPage = components['parameters']['Page'];
 export type ParameterPageSize = components['parameters']['PageSize'];
 export type ParameterDepartmentId = components['parameters']['DepartmentId'];
 export type ParameterUserId = components['parameters']['UserId'];
+export type ParameterInvitationToken = components['parameters']['InvitationToken'];
+export type ParameterPasswordResetToken = components['parameters']['PasswordResetToken'];
 export type ParameterTopicId = components['parameters']['TopicId'];
+export type HeaderXDemoLink = components['headers']['XDemoLink'];
 export type $defs = Record<string, never>;
 export interface operations {
     getCurrentSession: {
@@ -1048,6 +1283,148 @@ export interface operations {
                 };
                 content?: never;
             };
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The secret token from the invite link. */
+                invitationToken: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link is valid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountLink"];
+                };
+            };
+            404: components["responses"]["LinkNotFound"];
+            410: components["responses"]["LinkGone"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    acceptInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The secret token from the invite link. */
+                invitationToken: components["parameters"]["InvitationToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordSet"];
+            };
+        };
+        responses: {
+            /** @description Password set and signed in. The new session. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["LinkNotFound"];
+            410: components["responses"]["LinkGone"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetRequest"];
+            };
+        };
+        responses: {
+            /** @description Accepted. A reset link was emailed if the email belongs to a user who may reset their password. */
+            202: {
+                headers: {
+                    "X-Demo-Link": components["headers"]["XDemoLink"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The secret token from the password reset link. */
+                passwordResetToken: components["parameters"]["PasswordResetToken"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The link is valid. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountLink"];
+                };
+            };
+            404: components["responses"]["LinkNotFound"];
+            410: components["responses"]["LinkGone"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The secret token from the password reset link. */
+                passwordResetToken: components["parameters"]["PasswordResetToken"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordSet"];
+            };
+        };
+        responses: {
+            /** @description Password changed and signed in. The new session. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Session"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["LinkNotFound"];
+            410: components["responses"]["LinkGone"];
+            422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
     };
@@ -1255,6 +1632,7 @@ export interface operations {
             /** @description Created. The new user, with the invite fields set. */
             201: {
                 headers: {
+                    "X-Demo-Link": components["headers"]["XDemoLink"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -1335,6 +1713,51 @@ export interface operations {
                 };
             };
             422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    resendInvitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the user. */
+                userId: components["parameters"]["UserId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sent. The user, with the new invite fields. */
+            201: {
+                headers: {
+                    "X-Demo-Link": components["headers"]["XDemoLink"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["User"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The user has set a password already, or is deactivated. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/problems/conflict",
+                     *       "title": "Conflict",
+                     *       "status": 409,
+                     *       "detail": "Aisha Khan has set a password already."
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             500: components["responses"]["InternalError"];
         };
     };

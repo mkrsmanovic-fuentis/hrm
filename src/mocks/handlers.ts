@@ -1,5 +1,6 @@
 import type { HttpHandler } from 'msw';
 import { unhandledApiRoute, type MockEnvironment, type MockRoute } from './support/mock-route';
+import { accountLinkRoutes } from './resources/auth/account-links.handlers';
 import { authRoutes } from './resources/auth/auth.handlers';
 import { departmentRoutes } from './resources/departments/departments.handlers';
 import { organizationRoutes } from './resources/organization/organization.handlers';
@@ -12,6 +13,7 @@ import { userRoutes } from './resources/users/users.handlers';
  */
 export const mockRoutes: MockRoute[] = [
   ...authRoutes,
+  ...accountLinkRoutes,
   ...organizationRoutes,
   ...departmentRoutes,
   ...userRoutes,

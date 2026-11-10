@@ -14,6 +14,18 @@ describe('simulation flags', () => {
     expect(parseFlags('?mock-empty&mock-scope=topics')).toEqual({ empty: true, scope: '/topics' });
   });
 
+  it('reads a clock offset in minutes, hours or days, with or without a sign', () => {
+    expect(parseFlags('?mock-clock=90m')).toEqual({ clockOffsetMs: 90 * 60_000 });
+    expect(parseFlags('?mock-clock=2h')).toEqual({ clockOffsetMs: 2 * 3_600_000 });
+    // A `+` in a URL arrives as a space.
+    expect(parseFlags('?mock-clock=+8d')).toEqual({ clockOffsetMs: 8 * 86_400_000 });
+    expect(parseFlags('?mock-clock=-1h&mock-scope=/auth')).toEqual({
+      clockOffsetMs: -3_600_000,
+      scope: '/auth',
+    });
+    expect(parseFlags('?mock-clock=soon')).toEqual({});
+  });
+
   it('ignores values it does not understand', () => {
     expect(parseFlags('?mock-error=teapot&mock-delay=soon')).toEqual({});
   });

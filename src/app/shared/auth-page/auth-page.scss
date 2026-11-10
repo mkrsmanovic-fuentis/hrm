@@ -1,0 +1,37 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+}
+
+.page {
+  display: flex;
+  justify-content: center;
+  padding: var(--sd-space-4xl) var(--sd-space-lg);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-xl);
+  width: 100%;
+  max-width: 26rem;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sd-space-xs);
+}
+
+.brand {
+  color: var(--sd-color-text-muted);
+  font-size: var(--sd-font-size-sm);
+  font-weight: var(--sd-font-weight-semibold);
+}
+
+.title {
+  margin: 0;
+  color: var(--sd-color-text);
+  font-size: var(--sd-font-size-xl);
+  font-weight: var(--sd-font-weight-semibold);
+}
