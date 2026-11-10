@@ -41,6 +41,58 @@ All UI is built with the company ui-kit library. Do not use other UI libraries o
 
 ## Local setup
 
-{/* TODO: add install, run and test commands once the frontend project is set up. */}
+The frontend is an Angular app at the root of the repository, next to `docs/`. Conventions for contributors are in `CLAUDE.md` at the repository root.
 
-Setup instructions will be added when the frontend project is created.
+### Prerequisites
+
+- Node.js, in the version listed in `.nvmrc`.
+- pnpm. Run `corepack enable` to use the version pinned in `package.json`.
+- A GitHub account with access to the ui-kit package.
+
+### Get a token for ui-kit
+
+ui-kit (`@specora-dev/ui-kit`) is published to GitHub Packages, which needs a token even for reading.
+
+<Steps>
+  <Step title="Create a classic token">
+    On GitHub, open **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)** and select **Generate new token (classic)**.
+  </Step>
+  <Step title="Give it read access to packages">
+    Select only the `read:packages` scope, set an expiration date and generate the token. Copy it.
+  </Step>
+  <Step title="Export it as GH_TOKEN">
+    Add it to your shell profile or a local `.envrc`, so it is set in every terminal:
+
+    ```bash
+    export GH_TOKEN=<your token>
+    ```
+
+    The project's `.npmrc` reads the token from `GH_TOKEN`. Never write the token into a file in the repository.
+  </Step>
+</Steps>
+
+### Install and run
+
+```bash
+pnpm install
+pnpm start
+```
+
+Open http://localhost:4200.
+
+### Check your work
+
+```bash
+pnpm check
+```
+
+This runs linting, the format check, type checks, unit tests and a production build. It must pass before you open a pull request. CI runs the same command on every pull request, plus the docs checks.
+
+| Command | What it does |
+| - | - |
+| `pnpm test` | Unit tests (Vitest) in watch mode. |
+| `pnpm lint` | angular-eslint, including the rule that rejects other UI libraries. |
+| `pnpm format` | Formats the code with Prettier. |
+| `pnpm build` | Production build to `dist/hrm`. |
+
+If `pnpm install` fails with a `401` or `403` error from `npm.pkg.github.com`, `GH_TOKEN` is missing, expired or lacks the `read:packages` scope.

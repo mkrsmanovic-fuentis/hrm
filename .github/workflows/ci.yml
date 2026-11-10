@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    name: App checks
+    runs-on: ubuntu-latest
+    env:
+      # ui-kit is on GitHub Packages in another organization, so the built-in
+      # GITHUB_TOKEN can't read it. READ_PACKAGES_TOKEN is a classic token with
+      # read:packages. .npmrc reads it as ${GH_TOKEN}.
+      NODE_AUTH_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }}
+      GH_TOKEN: ${{ secrets.READ_PACKAGES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint, format, types, tests and build
+        run: pnpm check
+
+  docs:
+    name: Docs checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate
+        run: npx mint@latest validate
+
+      - name: Broken links
+        run: npx mint@latest broken-links

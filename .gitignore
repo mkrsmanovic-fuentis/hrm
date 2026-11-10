@@ -4,3 +4,34 @@
 # Claude Code local settings and worker worktrees
 .claude/settings.local.json
 .claude/worktrees/
+
+# Compiled output
+/dist
+/tmp
+/out-tsc
+
+# Node
+/node_modules
+npm-debug.log
+pnpm-debug.log*
+
+# Angular
+/.angular/cache
+.sass-cache/
+/coverage
+__screenshots__/
+
+# IDEs and editors
+.idea/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Local environment (tokens stay out of the repo)
+.env
+.envrc
+
+# System files
+.DS_Store
+Thumbs.db

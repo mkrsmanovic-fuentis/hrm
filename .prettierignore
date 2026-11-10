@@ -1,0 +1,13 @@
+# Build output and caches
+/dist
+/coverage
+/.angular
+/node_modules
+pnpm-lock.yaml
+
+# Mintlify docs have their own conventions (see docs/AGENTS.md)
+/docs
+
+# Agent definitions and worktrees
+/.claude
+/.worktrees
