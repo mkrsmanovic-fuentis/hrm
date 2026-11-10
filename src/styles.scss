@@ -1,0 +1,16 @@
+// Global styles. ui-kit's fonts.css and tokens.css are loaded before this file (see angular.json).
+// Use --sd-* semantic tokens only: no hex values, no primitives such as --sd-neutral-*.
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--sd-color-bg);
+  color: var(--sd-color-text);
+  font-family: var(--sd-font-family-sans);
+  font-size: var(--sd-font-size-md);
+  font-weight: var(--sd-font-weight-regular);
+}
