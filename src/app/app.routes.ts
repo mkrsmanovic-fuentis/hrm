@@ -113,6 +113,12 @@ export const routes: Routes = [
                 (m) => m.QuestionnaireDetail,
               ),
           },
+          {
+            path: 'assignments',
+            title: 'Assignments · HRM Platform',
+            loadComponent: () =>
+              import('./features/assignments/assignment-list').then((m) => m.AssignmentList),
+          },
         ],
       },
       {

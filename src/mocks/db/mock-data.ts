@@ -31,7 +31,16 @@ export const DERIVED_FIELDS = {
   department: ['employeeCount'],
   topic: ['questionnaireCount'],
   questionnaire: ['questionCount', 'activationProblems'],
-  assignment: ['status', 'attemptCount', 'latestScore', 'completedAt'],
+  assignment: [
+    'status',
+    'attemptCount',
+    'latestScore',
+    'completedAt',
+    'employeeName',
+    'departmentId',
+    'departmentName',
+    'questionnaireTitle',
+  ],
 } as const satisfies Record<AuditEntityType, readonly string[]>;
 
 type Derived<E extends AuditEntityType> = (typeof DERIVED_FIELDS)[E][number];

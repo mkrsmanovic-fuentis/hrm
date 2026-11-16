@@ -156,11 +156,18 @@ Employees can still complete overdue training. Reports show the completion date,
 
 ## Assigning training
 
-- A questionnaire can be assigned to one employee, several employees or a whole department.
-- Assigning to a department creates an assignment for every **active** employee in it at that moment. Employees who join later are not included.
-- Inactive questionnaires cannot be assigned. Deactivating a questionnaire does not affect existing assignments; they can still be completed.
-- A questionnaire cannot be assigned to an employee who already has an open assignment for it.
+- Administrators assign training. Employees cannot. See [Access by role](#access-by-role).
+- A questionnaire can be assigned to one employee, several employees or a whole department. Each employee gets one assignment, with the same deadline.
+- **Who can be assigned:** only **active** users with the role **Employee**. Administrators cannot be assigned training, and inactive users cannot be chosen. Choosing either answers `422`.
+- Assigning to a department creates an assignment for every **active** employee in it at that moment. Administrators and inactive users in the department are left out, and employees who join later are not included. A department with no active employees creates no assignments.
+- Only an **active** department can be chosen. See [Departments](#departments).
+- Only an **active** questionnaire in an **active** topic can be assigned. Deactivating a questionnaire or its topic does not affect existing assignments; they can still be completed.
+- Employees can have several assignments at once, for different questionnaires.
+- **Open assignment:** any assignment whose [status](#assignment-status) is not Passed: Not Started, In Progress, Failed or Overdue.
+- A questionnaire is not assigned again to an employee who already has an open assignment for it. That employee is **skipped**: the request still succeeds for the others, and the answer lists each skipped employee with the reason `open_assignment`. When every employee is skipped, nothing is created and the request still succeeds.
 - Assigning again after a pass creates a new assignment. The earlier one stays in the history.
+- **Deadline:** required, and in the future. The administrator picks a day; the deadline is the end of that day (23:59:59) in the administrator's time zone, stored in UTC. So today is allowed.
+- Each new assignment logs one `created` [audit](#audit-log) entry and creates one `assignment_created` [notification](#notifications) for its employee, together with the assignment.
 - There is no automatic recurring training. Administrators assign training again by hand.
 
 ## Notifications
@@ -281,9 +288,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 | Audit log | Their data changes are logged automatically. No screen or endpoint to read the log in the MVP. | No access. |
 
 - Employees still see their past assignments and results on a topic or questionnaire that was deactivated later, through their own assignments and history. See [Data integrity](#data-integrity).
-- Only employees take training. The app gives administrators no My training area.
-
-{/* TODO: confirm with the PO whether administrators can be assigned training and take it themselves. The FRD lists taking training only under the Employee role. */}
+- Only employees take training. Administrators cannot be assigned training, and the app gives them no My training area. See [Assigning training](#assigning-training).
 
 ### How the backend enforces it
 

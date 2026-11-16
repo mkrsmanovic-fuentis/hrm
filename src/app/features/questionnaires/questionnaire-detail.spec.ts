@@ -9,8 +9,13 @@ import { ToastService } from '../../core/toast';
 import { QuestionnaireDetail } from './questionnaire-detail';
 
 describe('Questionnaire page', () => {
-  async function render(title: string, options: TestMockApiOptions = {}) {
+  async function render(
+    title: string,
+    options: TestMockApiOptions = {},
+    prepare?: (mock: ReturnType<typeof createTestMockApi>) => void,
+  ) {
     const mock = createTestMockApi(options);
+    prepare?.(mock);
     const id = mock.db.data.questionnaires.find((q) => q.title === title)?.id ?? 'missing';
     TestBed.configureTestingModule({
       providers: [
@@ -323,6 +328,42 @@ describe('Questionnaire page', () => {
       'Questionnaire deactivated',
       'Questionnaire activated',
     ]);
+  });
+
+  describe('Assign', () => {
+    it('opens the assign drawer with this questionnaire chosen', async () => {
+      const { click, button } = await render('Handling personal data');
+
+      expect(button('Assign')?.disabled).toBe(false);
+      await click('Assign');
+
+      await vi.waitFor(() =>
+        expect(document.querySelector('app-assign-training-form sd-select')?.textContent).toContain(
+          'Handling personal data',
+        ),
+      );
+      expect(document.querySelector('sd-drawer')?.textContent).toContain('Assign training');
+    });
+
+    it('has no Assign button while the questionnaire is inactive', async () => {
+      const { button } = await render('Password basics (2025)');
+
+      expect(button('Activate')).toBeDefined();
+      expect(button('Assign')).toBeUndefined();
+    });
+
+    it('disables Assign while the topic is inactive, and says why', async () => {
+      const { button, fixture } = await render('Handling personal data', {}, (mock) => {
+        const topic = mock.db.data.topics.find((t) => t.name === 'Data Protection')!;
+        mock.db.update(() => (topic.status = 'inactive'));
+      });
+      const page = fixture.componentInstance as unknown as { assignBlockedHint: () => string };
+
+      expect(button('Assign')?.disabled).toBe(true);
+      expect(page.assignBlockedHint()).toBe(
+        "The topic Data Protection is inactive, so this questionnaire can't be assigned.",
+      );
+    });
   });
 
   it('shows not found for an unknown questionnaire', async () => {

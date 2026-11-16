@@ -498,6 +498,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List assignments
+         * @description Returns assignments one page at a time, newest first by default. Each one carries the employee's name, their department and the questionnaire's title, so a table needs no extra calls.
+         *
+         *     **Access:** administrators see every assignment in the organization. Employees see only their own: the filters apply within them.
+         */
+        get: operations["listAssignments"];
+        put?: never;
+        /**
+         * Assign a questionnaire
+         * @description Assigns a questionnaire to the employees in `userIds`, or to every active employee in the department `departmentId` at this moment. Send exactly one of the two. Each employee gets one assignment with the deadline `dueAt`.
+         *
+         *     - Only active users with the role `employee` can be assigned. Administrators and inactive users in `userIds` answer `422`. Assigning by department leaves them out.
+         *     - The questionnaire must be active and its topic active. The department must be active. Otherwise the answer is `422`.
+         *     - The deadline must be in the future. The app sends the end of the chosen day in the administrator's time zone.
+         *     - An employee who already has an **open** assignment for the questionnaire, one whose status is not `passed`, is skipped and listed in `skipped` with the reason `open_assignment`. An employee who passed it earlier gets a new assignment; the earlier one stays in the history.
+         *     - When every employee is skipped, or the department has no active employees, the answer is still `201`, with an empty `assignments` list.
+         *     - Each new assignment sends its employee an `assignment_created` notification.
+         *
+         *     **Access:** administrators only. Employees get `403`. Each new assignment is logged in the audit log as `created`.
+         */
+        post: operations["createAssignments"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/assignments/{assignmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get an assignment
+         * @description Returns one assignment, with its derived status, the employee's name and department and the questionnaire's title.
+         *
+         *     **Access:** administrators read any assignment in the organization. Employees read only their own; another employee's assignment answers `404`, as if it did not exist.
+         */
+        get: operations["getAssignment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -986,10 +1043,51 @@ export interface components {
             readonly latestScore: components["schemas"]["Score"] | null;
             /** @description When the passing attempt was submitted. Null until passed. */
             readonly completedAt: components["schemas"]["Timestamp"] | null;
+            /** @description Derived. The employee's full name, first name first, as it is now. Never sent in requests. */
+            readonly employeeName: string;
+            /** @description Derived. The employee's department now, or null when they have none. Never sent in requests. */
+            readonly departmentId: components["schemas"]["Id"] | null;
+            /** @description Derived. The name of `departmentId`, or null. Never sent in requests. */
+            readonly departmentName: string | null;
+            /** @description Derived. The questionnaire's title as it is now. Never sent in requests. */
+            readonly questionnaireTitle: string;
             /** @description When the questionnaire was assigned. */
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
         };
+        /** @description One page of assignments. */
+        AssignmentPage: {
+            items: components["schemas"]["Assignment"][];
+            page: components["schemas"]["PageInfo"];
+        };
+        /** @description Who must complete a questionnaire, and by when. Send exactly one of `userIds` and `departmentId`. Unknown fields are rejected. */
+        AssignmentCreate: {
+            /** @description An active questionnaire in an active topic. */
+            questionnaireId: components["schemas"]["Id"];
+            /** @description Active employees to assign it to. An ID listed twice counts once. */
+            userIds?: components["schemas"]["Id"][];
+            /** @description An active department. Every active employee in it at this moment is assigned. */
+            departmentId?: components["schemas"]["Id"];
+            /** @description The deadline. Must be in the future. The app sends the end of the chosen day (23:59:59) in the administrator's time zone. */
+            dueAt: components["schemas"]["Timestamp"];
+        };
+        /** @description What assigning a questionnaire did. */
+        AssignmentCreateResult: {
+            /** @description The new assignments, one per employee. Empty when every employee was skipped. */
+            assignments: components["schemas"]["Assignment"][];
+            /** @description The employees who got no new assignment, and why. */
+            skipped: components["schemas"]["SkippedAssignment"][];
+        };
+        /** @description An employee who got no new assignment. */
+        SkippedAssignment: {
+            userId: components["schemas"]["Id"];
+            reason: components["schemas"]["SkipReason"];
+        };
+        /**
+         * @description `open_assignment`: the employee already has an assignment for the questionnaire that is not passed yet.
+         * @enum {string}
+         */
+        SkipReason: "open_assignment";
         /**
          * @description An assignment has at most one attempt in progress.
          * @enum {string}
@@ -1378,6 +1476,8 @@ export interface components {
         TopicId: components["schemas"]["Id"];
         /** @description ID of the questionnaire. */
         QuestionnaireId: components["schemas"]["Id"];
+        /** @description ID of the assignment. */
+        AssignmentId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -1435,6 +1535,11 @@ export type Question = components['schemas']['Question'];
 export type AnswerOption = components['schemas']['AnswerOption'];
 export type AssignmentStatus = components['schemas']['AssignmentStatus'];
 export type Assignment = components['schemas']['Assignment'];
+export type AssignmentPage = components['schemas']['AssignmentPage'];
+export type AssignmentCreate = components['schemas']['AssignmentCreate'];
+export type AssignmentCreateResult = components['schemas']['AssignmentCreateResult'];
+export type SkippedAssignment = components['schemas']['SkippedAssignment'];
+export type SkipReason = components['schemas']['SkipReason'];
 export type AttemptStatus = components['schemas']['AttemptStatus'];
 export type SubmissionType = components['schemas']['SubmissionType'];
 export type Attempt = components['schemas']['Attempt'];
@@ -1467,6 +1572,7 @@ export type ParameterInvitationToken = components['parameters']['InvitationToken
 export type ParameterPasswordResetToken = components['parameters']['PasswordResetToken'];
 export type ParameterTopicId = components['parameters']['TopicId'];
 export type ParameterQuestionnaireId = components['parameters']['QuestionnaireId'];
+export type ParameterAssignmentId = components['parameters']['AssignmentId'];
 export type HeaderXDemoLink = components['headers']['XDemoLink'];
 export type $defs = Record<string, never>;
 export interface operations {
@@ -2327,6 +2433,101 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["VersionConflict"];
             422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listAssignments: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Number of items per page. */
+                pageSize?: components["parameters"]["PageSize"];
+                /** @description Only return assignments of this questionnaire. */
+                questionnaireId?: components["schemas"]["Id"];
+                /** @description Only return assignments of this employee. */
+                userId?: components["schemas"]["Id"];
+                /** @description Only return assignments of employees who are in this department now. */
+                departmentId?: components["schemas"]["Id"];
+                /** @description Only return assignments with this status, as it is at the time of the request. */
+                status?: components["schemas"]["AssignmentStatus"];
+                /** @description Only return assignments whose employee's full name ("first last") or questionnaire title contains this text, ignoring upper and lower case. Spaces around the text are ignored, and a typographic apostrophe (’) matches a plain one ('). */
+                q?: string;
+                /** @description Sort order. Prefix a field with `-` for descending order. `createdAt` is the date the questionnaire was assigned. */
+                sort?: "createdAt" | "-createdAt" | "dueAt" | "-dueAt";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of assignments. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentPage"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    createAssignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignmentCreate"];
+            };
+        };
+        responses: {
+            /** @description Done. The new assignments, and the employees who were skipped. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentCreateResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    getAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the assignment. */
+                assignmentId: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The assignment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            404: components["responses"]["NotFound"];
             500: components["responses"]["InternalError"];
         };
     };

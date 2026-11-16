@@ -1,6 +1,7 @@
 import {
   LucideBookOpen,
   LucideBuilding2,
+  LucideClipboardCheck,
   LucideClipboardList,
   LucideHouse,
   LucideUsers,
@@ -33,6 +34,12 @@ export const navigation: AppNavItem[] = [
     label: 'Questionnaires',
     icon: LucideClipboardList,
     route: '/admin/questionnaires',
+    role: 'administrator',
+  },
+  {
+    label: 'Assignments',
+    icon: LucideClipboardCheck,
+    route: '/admin/assignments',
     role: 'administrator',
   },
   { label: 'Home', icon: LucideHouse, route: homeUrl('employee'), role: 'employee' },

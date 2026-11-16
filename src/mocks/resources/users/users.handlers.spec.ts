@@ -64,7 +64,7 @@ describe('users mock handlers', () => {
 
     it('derives the training counts from the assignments: all of them, and the passed ones', async () => {
       const { api, mock } = setup();
-      const { assignments, attempts } = mock.db.data;
+      const { assignments } = mock.db.data;
       const withAssignments = mock.db.data.users.filter((u) =>
         assignments.some((a) => a.userId === u.id),
       );
@@ -75,7 +75,7 @@ describe('users mock handlers', () => {
       for (const user of withAssignments) {
         const own = assignments
           .filter((a) => a.userId === user.id)
-          .map((a) => toAssignment(a, attempts, TEST_NOW));
+          .map((a) => toAssignment(a, mock.db.data, TEST_NOW));
         expect(result.items.find((u) => u.id === user.id)).toMatchObject({
           assignedTrainingCount: own.length,
           completedTrainingCount: own.filter((a) => a.status === 'passed').length,

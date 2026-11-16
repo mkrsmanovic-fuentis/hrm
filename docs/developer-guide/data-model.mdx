@@ -171,6 +171,10 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `attemptCount` | Integer | *Derived.* |
 | `latestScore` | Number or null | *Derived.* Score of the latest submitted attempt. |
 | `completedAt` | Timestamp or null | *Derived.* When the passing attempt was submitted. |
+| `employeeName` | String | *Derived.* The employee's full name as it is now, so a list needs no extra calls. |
+| `departmentId` | UUID or null | *Derived.* The employee's department now, not when the assignment was created. |
+| `departmentName` | String or null | *Derived.* The name of that department. |
+| `questionnaireTitle` | String | *Derived.* The questionnaire's title as it is now. |
 
 ### Attempt
 

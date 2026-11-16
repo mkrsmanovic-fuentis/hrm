@@ -159,7 +159,7 @@ route.get('/assignments/{assignmentId}', (ctx) => {
     (a) => a.userId,
     `Assignment ${ctx.params.assignmentId} was not found.`,
   );
-  return ctx.ok(toAssignment(assignment));
+  return ctx.ok(toAssignment(assignment, ctx.db.data, ctx.now));
 }),
 ```
 
@@ -188,6 +188,9 @@ Some content is readable by both roles, but not all of it by employees. Filter i
 | `GET /topics/{topicId}` for an inactive topic, as an employee | `404`. |
 | `POST /topics` or `PATCH /topics/{topicId}` as an employee | `403`, even for a topic the employee cannot see. |
 | Any `/questionnaires` endpoint as an employee | `403`. Employees reach questionnaires only through their own assignments. |
+| `GET /assignments` as an employee | Only their own assignments. The filters apply within them. |
+| `GET /assignments/{assignmentId}` for another employee's assignment, as an employee | `404`. |
+| `POST /assignments` as an employee | `403`. |
 | `GET /organization` | `200` for both roles. |
 | `?mock-error=forbidden` | `403` on every endpoint, to see the no-access state. Add `mock-scope` to limit it. |
 

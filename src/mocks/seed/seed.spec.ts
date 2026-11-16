@@ -49,7 +49,7 @@ describe('seed data', () => {
   it('has assignments in every status', () => {
     const counts = new Map<AssignmentStatus, number>();
     for (const record of data.assignments) {
-      const { status } = toAssignment(record, data.attempts, TEST_NOW);
+      const { status } = toAssignment(record, data, TEST_NOW);
       counts.set(status, (counts.get(status) ?? 0) + 1);
     }
 
