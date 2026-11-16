@@ -14,16 +14,18 @@ import {
 import type { RoleKey } from '../api';
 import { AuthService, LOGIN_PATH, ROLE_LABELS } from '../auth';
 import { NAV_ITEMS, navItemsFor } from '../navigation';
+import { NotificationBell } from '../notifications/notification-bell';
 import { ToastService } from '../toast';
 
 /**
- * Signed-in layout: the top bar with the user menu, the side navigation for the user's role, the
+ * Signed-in layout: the top bar with the notification bell (employees) and the user menu, the side navigation for the user's role, the
  * area where routed pages render, and the toast stack for feedback after actions. The navigation
  * entries come from `app.navigation.ts`.
  */
 @Component({
   selector: 'app-shell',
   imports: [
+    NotificationBell,
     RouterLink,
     RouterOutlet,
     SdBadge,
@@ -62,6 +64,8 @@ export class Shell {
     const user = this.user();
     return user ? `${user.firstName} ${user.lastName}` : '';
   });
+  /** Only employees have notifications in the MVP, so only they get the bell. */
+  protected readonly isEmployee = computed(() => this.auth.role() === 'employee');
   protected readonly roleLabel = computed(() => {
     const role = this.auth.role();
     return role ? ROLE_LABELS[role] : '';

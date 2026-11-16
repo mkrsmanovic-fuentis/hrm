@@ -3,6 +3,7 @@ import { unhandledApiRoute, type MockEnvironment, type MockRoute } from './suppo
 import { accountLinkRoutes } from './resources/auth/account-links.handlers';
 import { authRoutes } from './resources/auth/auth.handlers';
 import { departmentRoutes } from './resources/departments/departments.handlers';
+import { notificationRoutes } from './resources/notifications/notifications.handlers';
 import { organizationRoutes } from './resources/organization/organization.handlers';
 import { questionnaireQuestionRoutes } from './resources/questionnaires/questionnaire-questions.handlers';
 import { questionnaireRoutes } from './resources/questionnaires/questionnaires.handlers';
@@ -22,6 +23,7 @@ export const mockRoutes: MockRoute[] = [
   ...topicRoutes,
   ...questionnaireRoutes,
   ...questionnaireQuestionRoutes,
+  ...notificationRoutes,
 ];
 
 /** Binds every route to an environment. The catch-all for unknown API paths comes last. */

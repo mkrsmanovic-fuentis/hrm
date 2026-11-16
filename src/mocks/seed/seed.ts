@@ -3,7 +3,6 @@ import type {
   Attempt,
   AttemptAnswer,
   AuditLogEntry,
-  Notification,
   Role,
 } from '../../app/core/api/api-schema.gen';
 import { auditChanges } from '../db/audit';
@@ -11,6 +10,7 @@ import type {
   AssignmentRecord,
   DepartmentRecord,
   MockData,
+  NotificationRecord,
   QuestionnaireRecord,
   QuestionnaireVersionRecord,
   QuestionRecord,
@@ -479,10 +479,10 @@ export function buildSeed(now: Date = new Date()): MockData {
 
   // ---------------------------------------------------------------- notifications
 
-  const notifications: Notification[] = [];
+  const notifications: NotificationRecord[] = [];
   const addNotification = (
     assignment: AssignmentRecord,
-    type: Notification['type'],
+    type: NotificationRecord['type'],
     createdMs: number,
   ) => {
     const readMs =

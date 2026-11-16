@@ -3,6 +3,9 @@
 
   @if (user(); as user) {
     <div sdTopbarEnd class="account">
+      @if (isEmployee()) {
+        <app-notification-bell />
+      }
       <sd-badge class="role">{{ roleLabel() }}</sd-badge>
       <button
         sd-button

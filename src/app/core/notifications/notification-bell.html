@@ -1,0 +1,22 @@
+<button
+  sd-button
+  variant="ghost"
+  type="button"
+  iconOnly
+  [icon]="icons.bell"
+  [count]="unreadCount()"
+  [attr.aria-label]="label()"
+  [sdPopoverTrigger]="panel.popover()"
+  (click)="loadList()"
+></button>
+
+<sd-notification-panel
+  #panel
+  markAllReadLabel="Mark all as read"
+  emptyLabel="No notifications yet"
+  [showAllLabel]="null"
+  [items]="items()"
+  [loading]="loading()"
+  (itemClick)="open($event, panel)"
+  (markAllRead)="markAllRead()"
+/>

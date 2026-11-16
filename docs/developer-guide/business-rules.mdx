@@ -168,6 +168,20 @@ Employees can still complete overdue training. Reports show the completion date,
 - Employees are notified in the app when training is assigned to them.
 - Employees are reminded 3 days before a deadline, unless they have already passed.
 - Email sends the same two messages. This is planned as an enhancement.
+- Only employees get notifications. Administrators have none in the MVP. See [Access by role](#access-by-role).
+- Each notification belongs to one employee and is about one assignment. Employees see only their own, newest first.
+- A notification is **unread** until the employee opens it or marks all as read. Marking it as read again changes nothing: it keeps the time it was first read.
+- **Mark all as read** marks every unread notification of the employee as read, not only the ones on screen.
+- Notifications are never deleted, and are not recorded in the audit log.
+
+### Deadline reminders
+
+- An assignment gets **one** deadline reminder, once its deadline is **3 days away or less** and still in the future. It never gets a second one.
+- No reminder when the assignment is already **passed**, or the employee is **inactive**. A failed or unfinished assignment still gets one.
+- An assignment created **less than 3 days before its deadline** still gets its reminder the next time reminders are created, on top of the new-training notification.
+- No reminder once the deadline has passed: the assignment is then overdue.
+
+The real backend must create reminders from a job that runs at least once a day. The mock API has no job: it creates the reminders the signed-in employee is due each time they read their notifications (`GET /notifications`). See [Mock API](/developer-guide/mock-api#seed-data).
 
 ## Accounts and access
 
@@ -277,7 +291,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 | Assignments | List and read every assignment. Assign questionnaires to employees and departments, with deadlines. | List and read their own assignments only. |
 | My training: attempts and results | List and read every attempt and result, including failed attempts. | Start, answer and submit attempts on their own assignments, retake failed ones, and read their own results, feedback and history. |
 | Reports and dashboards | The training overview, topic, department, employee and questionnaire reports, filters and CSV export. | No access. Their own progress appears on their own dashboard. |
-| Notifications | No notifications in the MVP. | Read their own notifications and mark them as read. |
+| Notifications | No notifications in the MVP. All notification endpoints answer `403`. | List and read their own notifications and mark them as read, one at a time or all at once. |
 | Audit log | Their data changes are logged automatically. No screen or endpoint to read the log in the MVP. | No access. |
 
 - Employees still see their past assignments and results on a topic or questionnaire that was deactivated later, through their own assignments and history. See [Data integrity](#data-integrity).

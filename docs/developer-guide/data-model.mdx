@@ -204,9 +204,11 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | Field | Type | Notes |
 | - | - | - |
 | `userId` | UUID | The recipient. |
-| `type` | `assignment_created` or `deadline_reminder` | The app builds the message text from the type. |
+| `type` | `assignment_created` or `deadline_reminder` | The app builds the message text from the type, `questionnaireTitle` and `dueAt`. |
 | `assignmentId` | UUID | The assignment it is about. |
-| `readAt` | Timestamp or null | |
+| `questionnaireTitle` | Text, read-only | The current title of the assignment's questionnaire. Read from the assignment, not stored. |
+| `dueAt` | Timestamp, read-only | The assignment's deadline. Read from the assignment, not stored. |
+| `readAt` | Timestamp or null | When the employee opened it or marked all as read. Null while unread. |
 
 ### Audit Log
 
