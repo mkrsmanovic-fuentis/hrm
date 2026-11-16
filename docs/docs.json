@@ -29,6 +29,12 @@
             ]
           },
           {
+            "group": "For employees",
+            "pages": [
+              "user-guide/check-your-notifications"
+            ]
+          },
+          {
             "group": "For administrators",
             "pages": [
               "user-guide/manage-employees",

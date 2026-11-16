@@ -1,6 +1,11 @@
 import type { Assignment, SkippedAssignment } from '../../../app/core/api/api-schema.gen';
 import { recordAudit } from '../../db/audit';
-import type { AssignmentRecord, MockData, UserRecord } from '../../db/mock-data';
+import type {
+  AssignmentRecord,
+  MockData,
+  NotificationRecord,
+  UserRecord,
+} from '../../db/mock-data';
 import {
   ASSIGNMENT_SEARCH_MAX_LENGTH,
   canBeAssigned,
@@ -151,7 +156,7 @@ export const assignmentRoutes = [
           updatedAt: at,
         };
         data.assignments.push(assignment);
-        data.notifications.push({
+        const notification: NotificationRecord = {
           id: crypto.randomUUID(),
           organizationId: data.organization.id,
           userId: user.id,
@@ -160,7 +165,8 @@ export const assignmentRoutes = [
           readAt: null,
           createdAt: at,
           updatedAt: at,
-        });
+        };
+        data.notifications.push(notification);
         recordAudit(data, {
           action: 'created',
           entityType: 'assignment',

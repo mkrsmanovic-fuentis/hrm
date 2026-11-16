@@ -99,6 +99,16 @@ describe('App', () => {
   });
 
   it.each([
+    ['employee', true],
+    ['administrator', false],
+  ] as const)('shows the notification bell to an %s: %s', async (role, shown) => {
+    const { element } = await renderAt('/', role);
+
+    const bell = element.querySelector('sd-topbar app-notification-bell');
+    expect(bell !== null).toBe(shown);
+  });
+
+  it.each([
     [
       'administrator',
       [

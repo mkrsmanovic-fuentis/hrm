@@ -53,6 +53,11 @@ export type QuestionnaireRecord = Omit<Questionnaire, Derived<'questionnaire'>>;
 export type QuestionnaireVersionRecord = Omit<QuestionnaireVersion, 'questions' | 'attemptCount'>;
 export type QuestionRecord = Omit<Question, 'answerOptions'>;
 export type AssignmentRecord = Omit<Assignment, Derived<'assignment'>>;
+/**
+ * A notification without `questionnaireTitle` and `dueAt`, which the API reads from its
+ * assignment. See ../rules/notification-rules.ts.
+ */
+export type NotificationRecord = Omit<Notification, 'questionnaireTitle' | 'dueAt'>;
 
 /**
  * A signed-in session. The API returns it as `Session`, with the user nested; the stored record
@@ -107,7 +112,7 @@ export interface MockData {
   assignments: AssignmentRecord[];
   attempts: Attempt[];
   attemptAnswers: AttemptAnswer[];
-  notifications: Notification[];
+  notifications: NotificationRecord[];
   auditLog: AuditLogEntry[];
   /** Signed-in sessions. Empty in the seed; sign-in adds one, sign-out removes it. */
   sessions: SessionRecord[];

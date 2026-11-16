@@ -498,6 +498,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my notifications
+         * @description Returns the signed-in employee's own notifications, newest first, one page at a time. Each one carries the title of the assigned questionnaire and the assignment's deadline, so the app can build the text without more calls.
+         *
+         *     With `unread=true`, only unread notifications are returned, and `page.totalItems` is the unread count. The app asks for `unread=true&pageSize=1` to show the count on the bell.
+         *
+         *     Deadline reminders are created by a daily job on the real backend. See the business rules (developer guide, "Notifications"). The mock API creates due reminders when this endpoint is called.
+         *
+         *     **Access:** employees only, and only their own notifications. Administrators get `403`: they have no notifications in the MVP.
+         */
+        get: operations["listNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a notification as read
+         * @description Sets `readAt` to now. Calling it again for a notification that is already read changes nothing and returns it as it is, with its first `readAt`.
+         *
+         *     **Access:** employees only, for their own notifications. Administrators get `403`. A notification that belongs to another employee answers `404`, the same as one that does not exist. Not logged in the audit log.
+         */
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark all my notifications as read
+         * @description Sets `readAt` to now on every unread notification of the signed-in employee. Notifications that are already read keep their `readAt`. With nothing unread, it changes nothing and still succeeds.
+         *
+         *     **Access:** employees only. Administrators get `403`. Not logged in the audit log.
+         */
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/assignments": {
         parameters: {
             query?: never;
@@ -1145,17 +1215,28 @@ export interface components {
          * @enum {string}
          */
         NotificationType: "assignment_created" | "deadline_reminder";
-        /** @description An in-app message to an employee. The app builds the text from the type and the linked assignment. */
+        /** @description An in-app message to an employee. The app builds the text from the type, `questionnaireTitle` and `dueAt`. */
         Notification: {
             id: components["schemas"]["Id"];
             organizationId: components["schemas"]["Id"];
             /** @description The recipient. */
             userId: components["schemas"]["Id"];
             type: components["schemas"]["NotificationType"];
+            /** @description The assignment it is about. */
             assignmentId: components["schemas"]["Id"];
+            /** @description The current title of the assignment's questionnaire. Not stored on the notification. */
+            readonly questionnaireTitle: string;
+            /** @description The assignment's deadline. Not stored on the notification. */
+            readonly dueAt: components["schemas"]["Timestamp"];
+            /** @description When the employee opened it or marked it as read. Null while unread. */
             readAt: components["schemas"]["Timestamp"] | null;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
+        };
+        /** @description One page of notifications. */
+        NotificationPage: {
+            items: components["schemas"]["Notification"][];
+            page: components["schemas"]["PageInfo"];
         };
         /**
          * @description `activated` is only for a questionnaire's first activation, from draft to active. Every later activation of a questionnaire, and every reactivation of another record, is `reactivated`.
@@ -1478,6 +1559,8 @@ export interface components {
         QuestionnaireId: components["schemas"]["Id"];
         /** @description ID of the assignment. */
         AssignmentId: components["schemas"]["Id"];
+        /** @description ID of the notification. */
+        NotificationId: components["schemas"]["Id"];
     };
     requestBodies: never;
     headers: {
@@ -1546,6 +1629,7 @@ export type Attempt = components['schemas']['Attempt'];
 export type AttemptAnswer = components['schemas']['AttemptAnswer'];
 export type NotificationType = components['schemas']['NotificationType'];
 export type Notification = components['schemas']['Notification'];
+export type NotificationPage = components['schemas']['NotificationPage'];
 export type AuditAction = components['schemas']['AuditAction'];
 export type AuditEntityType = components['schemas']['AuditEntityType'];
 export type AuditChange = components['schemas']['AuditChange'];
@@ -1573,6 +1657,7 @@ export type ParameterPasswordResetToken = components['parameters']['PasswordRese
 export type ParameterTopicId = components['parameters']['TopicId'];
 export type ParameterQuestionnaireId = components['parameters']['QuestionnaireId'];
 export type ParameterAssignmentId = components['parameters']['AssignmentId'];
+export type ParameterNotificationId = components['parameters']['NotificationId'];
 export type HeaderXDemoLink = components['headers']['XDemoLink'];
 export type $defs = Record<string, never>;
 export interface operations {
@@ -2433,6 +2518,85 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["VersionConflict"];
             422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    listNotifications: {
+        parameters: {
+            query?: {
+                /** @description Page number, starting at 1. */
+                page?: components["parameters"]["Page"];
+                /** @description Number of items per page. */
+                pageSize?: components["parameters"]["PageSize"];
+                /** @description `true` returns only unread notifications. Omit it, or send `false`, to return all of them, read and unread. */
+                unread?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of notifications, newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationPage"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            422: components["responses"]["ValidationFailed"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the notification. */
+                notificationId: components["parameters"]["NotificationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The notification, read. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Notification"];
+                };
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Done. Every notification of the employee is read. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
             500: components["responses"]["InternalError"];
         };
     };
