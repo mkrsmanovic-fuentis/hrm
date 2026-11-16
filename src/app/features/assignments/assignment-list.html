@@ -1,0 +1,69 @@
+<sd-status-bar
+  heading="Assignments"
+  description="Decide who must complete a questionnaire, and by when. Each assignment shows the employee's progress."
+>
+  @if (!error()?.isForbidden) {
+    <button
+      sdStatusBarActions
+      sd-button
+      variant="primary"
+      type="button"
+      [icon]="icons.assign"
+      (click)="assigning.set(true)"
+    >
+      Assign training
+    </button>
+  }
+</sd-status-bar>
+
+<app-assign-result [result]="lastResult()" (closed)="lastResult.set(null)" />
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading assignments">
+    <sd-skeleton height="2.5rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied
+    description="You don't have permission to see assignments."
+    [headingLevel]="2"
+  />
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load assignments">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
+  </sd-callout>
+} @else {
+  <sd-list
+    class="list"
+    [items]="assignments()"
+    [columns]="columns"
+    [hiddenColumns]="hiddenColumns"
+    [rowId]="byId"
+    [labels]="listLabels"
+    searchable
+    [(search)]="search"
+    [(sort)]="sort"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No assignments yet"
+      description="Assign a questionnaire to employees or a department."
+    >
+      <button
+        sd-button
+        variant="primary"
+        type="button"
+        [icon]="icons.assign"
+        (click)="assigning.set(true)"
+      >
+        Assign training
+      </button>
+    </sd-empty-state>
+  </sd-list>
+}
+
+@if (assigning()) {
+  <app-assign-training-form (saved)="onAssigned($event)" (closed)="assigning.set(false)" />
+}

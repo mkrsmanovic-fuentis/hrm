@@ -1,6 +1,7 @@
 import type { HttpHandler } from 'msw';
 import { unhandledApiRoute, type MockEnvironment, type MockRoute } from './support/mock-route';
 import { accountLinkRoutes } from './resources/auth/account-links.handlers';
+import { assignmentRoutes } from './resources/assignments/assignments.handlers';
 import { authRoutes } from './resources/auth/auth.handlers';
 import { departmentRoutes } from './resources/departments/departments.handlers';
 import { notificationRoutes } from './resources/notifications/notifications.handlers';
@@ -23,6 +24,7 @@ export const mockRoutes: MockRoute[] = [
   ...topicRoutes,
   ...questionnaireRoutes,
   ...questionnaireQuestionRoutes,
+  ...assignmentRoutes,
   ...notificationRoutes,
 ];
 

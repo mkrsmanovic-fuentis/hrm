@@ -117,6 +117,7 @@ describe('App', () => {
         ['Departments', '/admin/departments'],
         ['Topics', '/admin/topics'],
         ['Questionnaires', '/admin/questionnaires'],
+        ['Assignments', '/admin/assignments'],
       ],
     ],
     ['employee', [['Home', '/my/home']]],

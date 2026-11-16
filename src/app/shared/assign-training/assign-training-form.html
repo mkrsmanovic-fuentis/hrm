@@ -1,0 +1,107 @@
+<sd-drawer
+  modal
+  size="md"
+  heading="Assign training"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  @if (loading()) {
+    <div class="loading" aria-busy="true" aria-label="Loading questionnaires and employees">
+      <sd-skeleton height="3.5rem" />
+      <sd-skeleton height="3.5rem" />
+      <sd-skeleton height="3.5rem" />
+    </div>
+  } @else if (loadFailed()) {
+    <sd-callout tone="danger" role="alert" heading="Could not load questionnaires and employees">
+      Something went wrong. Try again in a moment.
+      <button sdCalloutActions sd-button type="button" (click)="options.reload()">Try again</button>
+    </sd-callout>
+  } @else {
+    <form id="assign-training-form" class="form" novalidate (submit)="save($event)">
+      @if (formError(); as error) {
+        <sd-callout tone="danger" role="alert" heading="Could not assign the training">
+          {{ error }}
+        </sd-callout>
+      }
+
+      <sd-field
+        label="Questionnaire"
+        hint="Only active questionnaires in active topics can be assigned."
+        [error]="visibleError(f.questionnaireId)"
+        required
+      >
+        <sd-select
+          searchable
+          placeholder="Choose a questionnaire"
+          searchPlaceholder="Search questionnaires"
+          emptyLabel="No active questionnaires"
+          [options]="questionnaireOptions()"
+          [formField]="f.questionnaireId"
+        />
+      </sd-field>
+
+      <sd-field label="Assign to" required>
+        <sd-segmented [options]="targetOptions" [formField]="f.target" />
+      </sd-field>
+
+      @if (byEmployees()) {
+        <sd-field
+          label="Employees"
+          hint="Only active employees can be chosen. Administrators can't be assigned training."
+          [error]="visibleError(f.userIds)"
+          required
+        >
+          <sd-multiselect
+            searchable
+            clearable
+            placeholder="Choose employees"
+            searchPlaceholder="Search employees"
+            [options]="employeeOptions()"
+            [formField]="f.userIds"
+          />
+        </sd-field>
+      } @else {
+        <sd-field
+          label="Department"
+          hint="Every active employee in it now is assigned. People who join later are not."
+          [error]="visibleError(f.departmentId)"
+          required
+        >
+          <sd-select
+            searchable
+            placeholder="Choose a department"
+            searchPlaceholder="Search departments"
+            emptyLabel="No active departments"
+            [options]="departmentOptions()"
+            [formField]="f.departmentId"
+          />
+        </sd-field>
+      }
+
+      <sd-field
+        label="Deadline"
+        hint="Employees have until the end of this day. Employees who already have open training for this questionnaire are skipped."
+        [error]="visibleError(f.deadline)"
+        required
+      >
+        <sd-date-picker [formField]="f.deadline" />
+      </sd-field>
+    </form>
+  }
+
+  <ng-container sdDrawerFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="assign-training-form"
+      [loading]="saving()"
+      [disabled]="saving() || loading() || loadFailed()"
+    >
+      Assign
+    </button>
+  </ng-container>
+</sd-drawer>

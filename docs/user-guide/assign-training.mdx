@@ -1,0 +1,72 @@
+---
+title: "Assign training"
+description: "Assign a questionnaire to employees or a whole department, with a deadline, and see every assignment."
+icon: "clipboard-check"
+---
+
+Administrators decide who must complete a questionnaire, and by when. You can assign a questionnaire to one employee, several employees or a whole department. The **Assignments** page lists every assignment. Employees cannot open this page.
+
+## Before you start
+
+- You need to be signed in as an administrator.
+- You need an active questionnaire in an active topic. See [Manage questionnaires](/user-guide/manage-questionnaires#activate-a-questionnaire).
+
+## Assign a questionnaire
+
+<Steps>
+  <Step title="Open the form">
+    Open **Assignments** in the side navigation and select **Assign training**. A panel opens on the right.
+
+    You can also open a questionnaire's page and select **Assign**. The panel opens with that questionnaire already chosen.
+  </Step>
+  <Step title="Choose the questionnaire">
+    **Questionnaire** offers only active questionnaires in active topics. The topic is shown under each title.
+  </Step>
+  <Step title="Choose who gets it">
+    Under **Assign to**, choose one of these:
+
+    - **Selected employees**: pick one or more people in **Employees**. Only active employees are offered. Administrators and deactivated people can't be assigned training.
+    - **A department**: pick one in **Department**. Only active departments are offered. Everyone who is an active employee in it now gets the training. People who join the department later don't.
+  </Step>
+  <Step title="Choose the deadline">
+    **Deadline** is required. Pick today or a later day. Employees have until the end of that day, in your time zone.
+  </Step>
+  <Step title="Select Assign">
+    The panel closes, and a message says how many assignments were created. The new assignments appear at the top of the list as **Not started**.
+  </Step>
+</Steps>
+
+## When employees are skipped
+
+An employee who already has open training for the questionnaire doesn't get it a second time. Open training is anything not passed yet: **Not started**, **In progress**, **Failed** or **Overdue**.
+
+After you select **Assign**, a box at the top of the page names each skipped employee and says why. Select **Close** to hide it. If everyone was skipped, the message says that no assignments were created.
+
+An employee who passed the questionnaire earlier can get it again. The new assignment starts as **Not started**, and the earlier one stays in their history.
+
+## See your assignments
+
+The **Assignments** page lists every assignment, newest first, with:
+
+| Column | What it shows |
+| - | - |
+| **Employee** | The person who must complete the training. |
+| **Department** | Their department now. |
+| **Questionnaire** | What they must complete. |
+| **Deadline** | The last day to complete it. |
+| **Status** | **Not started**, **In progress**, **Passed**, **Failed** or **Overdue**. See [Assignment status](/developer-guide/business-rules#assignment-status). |
+| **Assigned** | The day the training was assigned. |
+
+- **Search by employee or questionnaire** finds assignments whose employee name or questionnaire title contains the text you type. Upper and lower case do not matter.
+- Select a column header to sort by it. Select it again to reverse the order.
+
+## What happens next
+
+- Each employee who gets the training sees it in their [notifications](/user-guide/check-your-notifications).
+- Each new assignment is recorded with your name and the time.
+
+## Good to know
+
+- An employee can have several assignments at once, for different questionnaires.
+- An inactive questionnaire, or one in an inactive topic, can't be assigned. Training already assigned with it can still be completed.
+- The rules are in [Assigning training](/developer-guide/business-rules#assigning-training).

@@ -205,7 +205,7 @@ Clients branch on `type`. `title` and `detail` are for people.
 | 410 | `/problems/link-expired` | Invite and reset links only: the link has expired. |
 | 410 | `/problems/link-used` | Invite and reset links only: the link was used already. |
 | 404 | `/problems/not-found` | The record does not exist in the current organization. |
-| 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use, a second open assignment for the same questionnaire, or a questionnaire that cannot be activated yet. A conflict about a field names it in `errors`, with code `not_unique`. A refused activation lists its reasons in `activationProblems`. |
+| 409 | `/problems/conflict` | The request conflicts with the current state, for example a name already in use, or a questionnaire that cannot be activated yet. A conflict about a field names it in `errors`, with code `not_unique`. A refused activation lists its reasons in `activationProblems`. |
 | 409 | `/problems/version-conflict` | Saving questions only: the questionnaire got a new version, or attempts started on it, since the client loaded it. See [Saving questions that changed meanwhile](#saving-questions-that-changed-meanwhile). |
 | 422 | `/problems/validation-failed` | One or more fields are invalid. See below. |
 | 500 | `/problems/internal-error` | Something went wrong on the server. |

@@ -13,6 +13,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowDown,
   LucideArrowLeft,
+  LucideClipboardCheck,
   LucideClipboardList,
   LucidePencil,
   LucidePower,
@@ -35,6 +36,12 @@ import { forkJoin, map } from 'rxjs';
 import { AccessDenied } from '../../core/access';
 import { ApiClient, ApiError, type Questionnaire } from '../../core/api';
 import { ToastService } from '../../core/toast';
+import { AssignResult } from '../../shared/assign-training/assign-result';
+import { AssignTrainingForm } from '../../shared/assign-training/assign-training-form';
+import {
+  type AssignTrainingResult,
+  assignResultToast,
+} from '../../shared/assign-training/assign-training-result';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
 import { QuestionEditor } from './question-editor';
 import { QuestionnaireForm } from './questionnaire-form';
@@ -65,6 +72,8 @@ const LIST_URL = '/admin/questionnaires';
   selector: 'app-questionnaire-detail',
   imports: [
     AccessDenied,
+    AssignResult,
+    AssignTrainingForm,
     QuestionEditor,
     QuestionnaireForm,
     QuestionnaireStatusDialog,
@@ -96,6 +105,7 @@ export class QuestionnaireDetail implements LeaveConfirmation {
     goTo: LucideArrowDown,
     notFound: LucideSearchX,
     questionnaire: LucideClipboardList,
+    assign: LucideClipboardCheck,
   };
 
   private readonly questionnaireId = toSignal(
@@ -169,6 +179,22 @@ export class QuestionnaireDetail implements LeaveConfirmation {
     return `Fix ${problemCountText(count)} to activate this questionnaire.`;
   });
 
+  /**
+   * Why an active questionnaire can't be assigned, on the disabled Assign button, or null when it
+   * can. An inactive questionnaire has no Assign button: activate it first.
+   */
+  protected readonly assignBlockedHint = computed(() => {
+    const topic = this.topic();
+    return topic && topic.status !== 'active'
+      ? `The topic ${topic.name} is inactive, so this questionnaire can't be assigned.`
+      : null;
+  });
+
+  /** The "Assign training" drawer, while it is open. */
+  protected readonly assigning = signal(false);
+  /** The last assign result, for the list of skipped employees. */
+  protected readonly lastAssignResult = signal<AssignTrainingResult | null>(null);
+
   protected readonly text = { passingScoreText, timeLimitText };
 
   /** The settings drawer, while it is open. */
@@ -197,6 +223,12 @@ export class QuestionnaireDetail implements LeaveConfirmation {
     this.toasts.show(
       'That question is not in your unsaved changes. Save or discard them to see the problems again.',
     );
+  }
+
+  protected onAssigned(result: AssignTrainingResult): void {
+    const toast = assignResultToast(result);
+    this.toasts.show(toast.message, toast.options);
+    this.lastAssignResult.set(result);
   }
 
   protected onSaved(questionnaire: Questionnaire): void {

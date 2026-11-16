@@ -108,6 +108,14 @@ The detail page:
 - **States:** `sd-skeleton` on the first load, `<app-access-denied>` on `403`, an `sd-empty-state` with a link back to the list on `404`, and an `sd-callout` with **Try again** on other errors.
 - **Route parameter:** read it from `ActivatedRoute.paramMap`, and load with `rxResource`. Read the resource's value only while `hasValue()` is true: `value()` throws in the error state.
 
+## A drawer shared by two pages
+
+When two features open the same form, it lives in `src/app/shared/`, because features never import from each other. The **Assign training** drawer is the example: `src/app/shared/assign-training/`.
+
+- `assign-training-form.ts` is the drawer. It loads its own options (active questionnaires in active topics, active employees, active departments), so any page can open it. `questionnaireId` starts it with a questionnaire chosen, as the questionnaire's detail page does.
+- It sends `POST /assignments`, emits `saved` with how many assignments were created and which employees were skipped, and closes. The page shows the toast from `assignResultToast()` and lists the skipped employees in `<app-assign-result>`, an `sd-callout` that stays until closed: a long list of names does not fit a toast.
+- The Assignments page (`src/app/features/assignments/`) and the questionnaire's detail page both open it. The rules are in [Assigning training](/developer-guide/business-rules#assigning-training).
+
 ## Deactivate and reactivate
 
 ```html

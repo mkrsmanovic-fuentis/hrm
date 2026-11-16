@@ -3,7 +3,7 @@
  * Keep them in sync: when a rule changes there, change it here in the same pull request.
  */
 import type { Assignment, AssignmentStatus, Attempt } from '../../app/core/api/api-schema.gen';
-import type { AssignmentRecord } from '../db/mock-data';
+import type { AssignmentRecord, MockData } from '../db/mock-data';
 
 /** Default passing score for new questionnaires, in percent. */
 export const DEFAULT_PASSING_SCORE = 80;
@@ -47,21 +47,34 @@ export function assignmentStatus(
   return latest.status === 'in_progress' ? 'in_progress' : 'failed';
 }
 
-/** Builds the API's Assignment, with its derived fields, from the stored record and its attempts. */
+/**
+ * Builds the API's Assignment from the stored record: its derived progress (status, attempts,
+ * latest score, completion date) from its attempts, and the employee's name, their current
+ * department and the questionnaire's title, so a list needs no extra calls.
+ */
 export function toAssignment(
   record: AssignmentRecord,
-  attempts: readonly Attempt[],
+  data: Pick<MockData, 'attempts' | 'users' | 'departments' | 'questionnaires'>,
   now: Date,
 ): Assignment {
-  const own = attempts.filter((attempt) => attempt.assignmentId === record.id);
+  const own = data.attempts.filter((attempt) => attempt.assignmentId === record.id);
   const submitted = own.filter((attempt) => attempt.status === 'submitted');
   const passing = submitted.find((attempt) => attempt.passed === true);
+  const user = data.users.find((candidate) => candidate.id === record.userId);
+  const department = user?.departmentId
+    ? data.departments.find((candidate) => candidate.id === user.departmentId)
+    : undefined;
+  const questionnaire = data.questionnaires.find((q) => q.id === record.questionnaireId);
   return {
     ...record,
     status: assignmentStatus(record.dueAt, own, now),
     attemptCount: own.length,
     latestScore: latestAttempt(submitted)?.score ?? null,
     completedAt: passing?.submittedAt ?? null,
+    employeeName: user ? `${user.firstName} ${user.lastName}` : '',
+    departmentId: department?.id ?? null,
+    departmentName: department?.name ?? null,
+    questionnaireTitle: questionnaire?.title ?? '',
   };
 }
 

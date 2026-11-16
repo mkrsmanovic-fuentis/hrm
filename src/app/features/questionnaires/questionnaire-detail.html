@@ -10,6 +10,20 @@
 >
   @if (questionnaire(); as q) {
     <div sdStatusBarActions class="actions">
+      @if (q.status === 'active') {
+        <span [sdTooltip]="assignBlockedHint()" sdTooltipPosition="bottom">
+          <button
+            sd-button
+            variant="primary"
+            type="button"
+            [icon]="icons.assign"
+            [disabled]="assignBlockedHint() !== null"
+            (click)="assigning.set(true)"
+          >
+            Assign
+          </button>
+        </span>
+      }
       <button sd-button type="button" [icon]="icons.edit" (click)="editing.set(true)">
         Edit settings
       </button>
@@ -67,6 +81,8 @@
     <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
   </sd-callout>
 } @else if (questionnaire(); as q) {
+  <app-assign-result [result]="lastAssignResult()" (closed)="lastAssignResult.set(null)" />
+
   @if (activationBlocked()) {
     <sd-callout tone="warning" heading="This questionnaire can't be activated yet">
       <div id="activation-problems" class="problems">
@@ -156,6 +172,14 @@
   </sd-panel>
 
   <app-question-editor [questionnaire]="q" (saved)="data.reload()" />
+
+  @if (assigning()) {
+    <app-assign-training-form
+      [questionnaireId]="q.id"
+      (saved)="onAssigned($event)"
+      (closed)="assigning.set(false)"
+    />
+  }
 
   @if (editing()) {
     <app-questionnaire-form
