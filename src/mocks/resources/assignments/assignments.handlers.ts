@@ -9,6 +9,7 @@ import type {
 import {
   ASSIGNMENT_SEARCH_MAX_LENGTH,
   canBeAssigned,
+  canChangeDeadline,
   hasOpenAssignment,
   matchesAssignmentSearch,
   notAssignableReason,
@@ -17,6 +18,7 @@ import { toAssignment } from '../../rules/training-rules';
 import { ownRecords, requireOwnRecord, requireRole } from '../../support/access';
 import { BodyReader } from '../../support/body';
 import { route } from '../../support/mock-route';
+import { MockProblem } from '../../support/problem';
 import { sortBy } from '../../support/query';
 
 const STATUSES = ['not_started', 'in_progress', 'passed', 'failed', 'overdue'] as const;
@@ -41,6 +43,10 @@ const sortFields = {
  *   moment. Employees with an open assignment for it are skipped, not refused. Each new
  *   assignment logs one `created` audit entry and creates one `assignment_created` notification,
  *   in the same `db.update()`.
+ * - `PATCH /assignments/{assignmentId}`: administrators change the deadline of an assignment that
+ *   is not passed (`409` once passed). The new deadline must be in the future. Logs one `updated`
+ *   audit entry with the `dueAt` change. No notification is sent, and a deadline reminder already
+ *   sent is not sent again (see `needsDeadlineReminder()`).
  */
 export const assignmentRoutes = [
   route.get('/assignments', (ctx) => {
@@ -118,13 +124,7 @@ export const assignmentRoutes = [
       }
     }
 
-    let dueAt: string | undefined;
-    if (dueAtText !== undefined) {
-      const dueMs = Date.parse(dueAtText);
-      if (Number.isNaN(dueMs)) body.invalid('dueAt', 'Must be a date and time in ISO 8601 format.');
-      else if (dueMs <= now.getTime()) body.invalid('dueAt', 'Choose a deadline in the future.');
-      else dueAt = new Date(dueMs).toISOString();
-    }
+    const dueAt = readDeadline(body, dueAtText, now);
 
     if (body.errors.length > 0 || questionnaireId === undefined || dueAt === undefined) {
       return validationFailed(body.errors);
@@ -191,7 +191,62 @@ export const assignmentRoutes = [
     );
     return ok(toAssignment(assignment, db.data, now));
   }),
+
+  route.patch('/assignments/{assignmentId}', async (ctx) => {
+    const admin = requireRole(ctx, 'administrator');
+    const { db, now, params, ok, notFound, validationFailed } = ctx;
+    const assignment = db.data.assignments.find((a) => a.id === params.assignmentId);
+    if (!assignment) return notFound(`Assignment ${params.assignmentId} was not found.`);
+
+    const body = new BodyReader(await ctx.json(), ['dueAt']);
+    const dueAtText = body.text('dueAt', { required: true, maxLength: TIMESTAMP_MAX_LENGTH });
+    if (body.errors.length > 0) return validationFailed(body.errors);
+
+    if (!canChangeDeadline(assignment, db.data.attempts, now)) {
+      throw new MockProblem(
+        409,
+        'This assignment is passed. Its deadline can no longer be changed.',
+      );
+    }
+
+    const dueAt = readDeadline(body, dueAtText, now);
+    if (body.errors.length > 0 || dueAt === undefined) return validationFailed(body.errors);
+
+    const updated = db.update((data) => {
+      const before = structuredClone(assignment);
+      assignment.dueAt = dueAt;
+      const entries = recordAudit(data, {
+        action: 'updated',
+        entityType: 'assignment',
+        actorId: admin.id,
+        now,
+        before,
+        after: assignment,
+      });
+      if (entries.length > 0) assignment.updatedAt = now.toISOString();
+      return assignment;
+    });
+    return ok(toAssignment(updated, db.data, now));
+  }),
 ];
+
+/**
+ * Reads a deadline: an ISO 8601 timestamp in the future, returned in UTC. Records a field error on
+ * `dueAt` and returns `undefined` when it isn't one.
+ */
+function readDeadline(body: BodyReader, text: string | undefined, now: Date): string | undefined {
+  if (text === undefined) return undefined;
+  const dueMs = Date.parse(text);
+  if (Number.isNaN(dueMs)) {
+    body.invalid('dueAt', 'Must be a date and time in ISO 8601 format.');
+    return undefined;
+  }
+  if (dueMs <= now.getTime()) {
+    body.invalid('dueAt', 'Choose a deadline in the future.');
+    return undefined;
+  }
+  return new Date(dueMs).toISOString();
+}
 
 /**
  * Reads `userIds`: a list of at least one ID, each an active employee. An ID listed twice counts

@@ -45,6 +45,24 @@ export function hasOpenAssignment(
 }
 
 /**
+ * Whether an administrator can change the assignment's deadline: only while it is not passed.
+ * An overdue assignment can get a new deadline, which makes it not overdue again.
+ */
+export function canChangeDeadline(
+  assignment: Pick<AssignmentRecord, 'id' | 'dueAt'>,
+  attempts: MockData['attempts'],
+  now: Date,
+): boolean {
+  return isOpen(
+    assignmentStatus(
+      assignment.dueAt,
+      attempts.filter((attempt) => attempt.assignmentId === assignment.id),
+      now,
+    ),
+  );
+}
+
+/**
  * Why the questionnaire cannot be assigned, or null when it can: it must be active, and its topic
  * active.
  */

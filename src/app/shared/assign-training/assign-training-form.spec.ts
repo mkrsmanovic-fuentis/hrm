@@ -2,8 +2,9 @@ import { provideHttpClient } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import type { SdSelectOption } from '@specora-dev/ui-kit';
 import { createTestMockApi, type TestMockApiOptions } from '../../../mocks/testing';
-import { type AssignTarget, AssignTrainingForm, endOfDay } from './assign-training-form';
+import { type AssignTarget, AssignTrainingForm } from './assign-training-form';
 import type { AssignTrainingResult } from './assign-training-result';
+import { endOfDay } from './deadline';
 
 interface Model {
   questionnaireId: string | null;
@@ -190,11 +191,5 @@ describe('Assign training form', () => {
     await submit();
 
     expect(drawerText()).toContain('Choose an active employee.');
-  });
-});
-
-describe('endOfDay', () => {
-  it('is 23:59:59 of the day in the local time zone, as UTC', () => {
-    expect(endOfDay(new Date(2030, 0, 15))).toBe(new Date(2030, 0, 15, 23, 59, 59).toISOString());
   });
 });

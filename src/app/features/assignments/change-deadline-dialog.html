@@ -1,0 +1,42 @@
+<sd-dialog
+  size="sm"
+  heading="Change deadline"
+  [(open)]="open"
+  [dismissable]="!saving()"
+  [closable]="!saving()"
+  (closed)="closed.emit()"
+>
+  <form id="change-deadline-form" class="form" novalidate (submit)="save($event)">
+    @if (formError(); as error) {
+      <sd-callout tone="danger" role="alert" heading="Could not change the deadline">
+        {{ error }}
+      </sd-callout>
+    }
+    <p class="summary">
+      {{ assignment().questionnaireTitle }} for {{ assignment().employeeName }}. Current deadline:
+      {{ currentDeadline() }}.
+    </p>
+    <sd-field
+      label="New deadline"
+      hint="The employee has until the end of this day. They are not notified of the change."
+      [error]="visibleError(f.deadline)"
+      required
+    >
+      <sd-date-picker [formField]="f.deadline" />
+    </sd-field>
+  </form>
+
+  <ng-container sdDialogFooter>
+    <button sd-button type="button" [disabled]="saving()" (click)="open.set(false)">Cancel</button>
+    <button
+      sd-button
+      variant="primary"
+      type="submit"
+      form="change-deadline-form"
+      [loading]="saving()"
+      [disabled]="saving()"
+    >
+      Save
+    </button>
+  </ng-container>
+</sd-dialog>

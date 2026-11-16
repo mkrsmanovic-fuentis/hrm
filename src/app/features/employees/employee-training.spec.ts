@@ -110,6 +110,25 @@ describe('Training history page', () => {
     expect(column('completedAt').value(passed)).not.toBe('—');
     expect(column('latestScore').value({ ...open, latestScore: null })).toBe('—');
     expect(column('completedAt').value(open)).toBe('—');
+    expect(column('completedAt').subValue?.(open)).toBeNull();
+  });
+
+  it('marks a pass after the deadline as late', async () => {
+    const { list, column } = await render(named('Sofia'));
+    const passed = list()!
+      .items()
+      .find((a) => a.status === 'passed')!;
+    const late = {
+      ...passed,
+      completedAt: new Date(Date.parse(passed.dueAt) + 1000).toISOString(),
+    };
+    const onTime = {
+      ...passed,
+      completedAt: new Date(Date.parse(passed.dueAt) - 1000).toISOString(),
+    };
+
+    expect(column('completedAt').subValue?.(late)).toBe('Late');
+    expect(column('completedAt').subValue?.(onTime)).toBeNull();
   });
 
   it('marks questionnaires and topics deactivated since assigning as inactive', async () => {

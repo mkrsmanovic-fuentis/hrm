@@ -28,6 +28,7 @@ import { ApiClient, ApiError, type Assignment, type Department, type User } from
 import {
   ASSIGNMENT_STATUS_LABELS,
   ASSIGNMENT_STATUS_VARIANTS,
+  isPassedLate,
 } from '../../shared/assignment-status/assignment-status';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
 
@@ -224,7 +225,10 @@ export class EmployeeTraining {
       id: 'completedAt',
       label: 'Completed',
       headerTitle: 'The date the questionnaire was passed',
+      // A pass after the deadline shows "Late" under the date.
+      type: 'stacked',
       value: (a) => (a.completedAt ? this.date(a.completedAt) : NONE),
+      subValue: (a) => (isPassedLate(a) ? 'Late' : null),
       sortValue: (a) => (a.completedAt ? Date.parse(a.completedAt) : 0),
       sortable: true,
       minWidth: 7,

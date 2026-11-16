@@ -36,6 +36,7 @@ import { ApiClient, ApiError, type AssignmentCreate, type User } from '../../cor
 import { saveFailedMessage, serverFieldErrors, visibleError } from '../forms/form-errors';
 import { loadAllPages, MAX_PAGE_SIZE } from '../lists/load-all-pages';
 import { type AssignTrainingResult, fullName } from './assign-training-result';
+import { endOfDay, startOfToday } from './deadline';
 
 /** Who the questionnaire is assigned to: selected employees, or a whole department. */
 export type AssignTarget = 'employees' | 'department';
@@ -46,23 +47,6 @@ interface AssignModel {
   userIds: string[];
   departmentId: string | null;
   deadline: Date | null;
-}
-
-/** Midnight at the start of today, in the browser's time zone. */
-function startOfToday(): Date {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-}
-
-/**
- * The deadline the API gets for a picked day: the end of that day (23:59:59) in the browser's time
- * zone, as a UTC timestamp. See "Assigning training" in the business rules.
- */
-export function endOfDay(day: Date): string {
-  const end = new Date(day);
-  end.setHours(23, 59, 59, 0);
-  return end.toISOString();
 }
 
 /**

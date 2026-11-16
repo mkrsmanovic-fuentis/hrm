@@ -34,6 +34,12 @@ describe('needsDeadlineReminder', () => {
     expect(needsDeadlineReminder(assignment, active, [], created, NOW)).toBe(true);
   });
 
+  it('is not due again after the deadline changes', () => {
+    // The reminder was sent for the old deadline; the new one is again within 3 days.
+    const sent = [{ assignmentId: 'a1', type: 'deadline_reminder' as const }];
+    expect(needsDeadlineReminder(dueIn(DAY), active, [], sent, NOW)).toBe(false);
+  });
+
   it('is not due when the deadline has passed or is more than 3 days away', () => {
     expect(needsDeadlineReminder(dueIn(-1), active, [], [], NOW)).toBe(false);
     expect(needsDeadlineReminder(dueIn(3 * DAY + 1), active, [], [], NOW)).toBe(false);

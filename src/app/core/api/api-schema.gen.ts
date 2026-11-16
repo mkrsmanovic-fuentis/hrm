@@ -622,7 +622,18 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Change an assignment's deadline
+         * @description Changes the deadline `dueAt`. It is the only field that can be changed.
+         *
+         *     - The deadline can be changed only while the assignment is not passed. A passed assignment answers `409`.
+         *     - The new deadline must be in the future. The app sends the end of the chosen day in the administrator's time zone, as when assigning.
+         *     - The status follows the new deadline: moving the deadline of an overdue assignment into the future makes it not overdue again.
+         *     - The employee is not notified of the change. A deadline reminder already sent for the assignment is not sent again for the new deadline.
+         *
+         *     **Access:** administrators only. Employees get `403`. Logged in the audit log as `updated`, with the `dueAt` change. A request that sends the current deadline changes nothing and logs nothing.
+         */
+        patch: operations["updateAssignment"];
         trace?: never;
     };
 }
@@ -1111,7 +1122,7 @@ export interface components {
             readonly attemptCount: number;
             /** @description Score of the latest submitted attempt. Null when no attempt is submitted. */
             readonly latestScore: components["schemas"]["Score"] | null;
-            /** @description When the passing attempt was submitted. Null until passed. */
+            /** @description When the passing attempt was submitted. Null until passed. Later than `dueAt` when the assignment was passed late. */
             readonly completedAt: components["schemas"]["Timestamp"] | null;
             /** @description Derived. The employee's full name, first name first, as it is now. Never sent in requests. */
             readonly employeeName: string;
@@ -1147,6 +1158,11 @@ export interface components {
             /** @description An active department. Every active employee in it at this moment is assigned. */
             departmentId?: components["schemas"]["Id"];
             /** @description The deadline. Must be in the future. The app sends the end of the chosen day (23:59:59) in the administrator's time zone. */
+            dueAt: components["schemas"]["Timestamp"];
+        };
+        /** @description The new deadline. Unknown fields are rejected. */
+        AssignmentUpdate: {
+            /** @description The new deadline. Must be in the future. The app sends the end of the chosen day (23:59:59) in the administrator's time zone. */
             dueAt: components["schemas"]["Timestamp"];
         };
         /** @description What assigning a questionnaire did. */
@@ -1252,7 +1268,7 @@ export interface components {
          */
         AuditAction: "created" | "updated" | "activated" | "deactivated" | "reactivated";
         /**
-         * @description The kind of record. Employees are `user`. Assignments are only ever `created`.
+         * @description The kind of record. Employees are `user`. Assignments are `created`, and `updated` when their deadline changes.
          * @enum {string}
          */
         AuditEntityType: "user" | "department" | "topic" | "questionnaire" | "assignment";
@@ -1628,6 +1644,7 @@ export type AssignmentStatus = components['schemas']['AssignmentStatus'];
 export type Assignment = components['schemas']['Assignment'];
 export type AssignmentPage = components['schemas']['AssignmentPage'];
 export type AssignmentCreate = components['schemas']['AssignmentCreate'];
+export type AssignmentUpdate = components['schemas']['AssignmentUpdate'];
 export type AssignmentCreateResult = components['schemas']['AssignmentCreateResult'];
 export type SkippedAssignment = components['schemas']['SkippedAssignment'];
 export type SkipReason = components['schemas']['SkipReason'];
@@ -2700,6 +2717,56 @@ export interface operations {
             };
             401: components["responses"]["Unauthenticated"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["InternalError"];
+        };
+    };
+    updateAssignment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description ID of the assignment. */
+                assignmentId: components["parameters"]["AssignmentId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignmentUpdate"];
+            };
+        };
+        responses: {
+            /** @description The updated assignment. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Assignment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthenticated"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description The assignment is passed, so its deadline can no longer be changed. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    /**
+                     * @example {
+                     *       "type": "/problems/conflict",
+                     *       "title": "Conflict",
+                     *       "status": 409,
+                     *       "detail": "This assignment is passed. Its deadline can no longer be changed."
+                     *     }
+                     */
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            422: components["responses"]["ValidationFailed"];
             500: components["responses"]["InternalError"];
         };
     };

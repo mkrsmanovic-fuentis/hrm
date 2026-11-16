@@ -8,7 +8,7 @@ import {
   signal,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { LucideClipboardCheck } from '@lucide/angular';
+import { LucideCalendarClock, LucideClipboardCheck } from '@lucide/angular';
 import {
   SdButton,
   SdCallout,
@@ -16,7 +16,10 @@ import {
   SdList,
   SdSkeleton,
   SdStatusBar,
+  type SdListAction,
+  type SdListActionEvent,
   type SdListColumn,
+  type SdListFilter,
   type SdListSort,
 } from '@specora-dev/ui-kit';
 import { AccessDenied } from '../../core/access';
@@ -30,9 +33,12 @@ import {
 } from '../../shared/assign-training/assign-training-result';
 import {
   ASSIGNMENT_STATUS_LABELS,
+  ASSIGNMENT_STATUS_ORDER,
   ASSIGNMENT_STATUS_VARIANTS,
+  isPassedLate,
 } from '../../shared/assignment-status/assignment-status';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
+import { ChangeDeadlineDialog } from './change-deadline-dialog';
 
 /** The hidden column that `sd-list`'s search matches: employee name and questionnaire title. */
 const SEARCH_COLUMN = 'search';
@@ -53,7 +59,9 @@ const searchText = (a: Assignment) => {
  * a toast says how many assignments were created, and `<app-assign-result>` lists any employees
  * who were skipped.
  *
- * Status filters, deadline changes and the completion date come later (SPE-21).
+ * Statuses: a status filter, a Completed column that marks passes after the deadline as late,
+ * and sorting by deadline. "Change deadline" on a row that is not passed opens
+ * `<app-change-deadline-dialog>`.
  */
 @Component({
   selector: 'app-assignment-list',
@@ -61,6 +69,7 @@ const searchText = (a: Assignment) => {
     AccessDenied,
     AssignResult,
     AssignTrainingForm,
+    ChangeDeadlineDialog,
     SdButton,
     SdCallout,
     SdEmptyState,
@@ -150,6 +159,20 @@ export class AssignmentList {
       maxWidth: 9,
     },
     {
+      // A pass after the deadline shows "Late" under the date, so late completions are visible.
+      id: 'completedAt',
+      label: 'Completed',
+      headerTitle: 'The date the employee passed',
+      type: 'stacked',
+      value: (a) => (a.completedAt ? this.date(a.completedAt) : null),
+      subValue: (a) => (isPassedLate(a) ? 'Late' : null),
+      sortValue: (a) => (a.completedAt ? Date.parse(a.completedAt) : null),
+      sortable: true,
+      searchable: false,
+      minWidth: 7,
+      maxWidth: 9,
+    },
+    {
       id: 'createdAt',
       label: 'Assigned',
       headerTitle: 'The date the questionnaire was assigned',
@@ -169,10 +192,33 @@ export class AssignmentList {
   ];
   protected readonly hiddenColumns: ReadonlySet<string> = new Set([SEARCH_COLUMN]);
 
+  protected readonly filters: SdListFilter<Assignment>[] = [
+    {
+      id: 'status',
+      label: 'Status',
+      value: (a) => a.status,
+      options: ASSIGNMENT_STATUS_ORDER.map((status) => ({
+        value: status,
+        label: ASSIGNMENT_STATUS_LABELS[status],
+      })),
+    },
+  ];
+  protected readonly filterValues = signal<Readonly<Record<string, string>>>({});
+
+  /** A passed assignment's deadline can no longer be changed, so it has no action. */
+  protected readonly actions: SdListAction<Assignment>[] = [
+    {
+      id: 'change-deadline',
+      label: 'Change deadline',
+      icon: LucideCalendarClock,
+      hidden: (a) => a.status === 'passed',
+    },
+  ];
+
   protected readonly listLabels = {
     search: 'Search by employee or questionnaire',
     noMatches: 'No assignments match',
-    noMatchesDescription: 'Try another name or title.',
+    noMatchesDescription: 'Try another name or title, or clear the filters.',
     count: (shown: number, total: number) =>
       shown === total ? `${total} assignments` : `${shown} of ${total} assignments`,
   };
@@ -181,6 +227,21 @@ export class AssignmentList {
   protected readonly assigning = signal(false);
   /** The last result, for the list of skipped employees. */
   protected readonly lastResult = signal<AssignTrainingResult | null>(null);
+
+  /** The assignment whose deadline is being changed, or null. */
+  protected readonly changingDeadline = signal<Assignment | null>(null);
+
+  protected onAction(event: SdListActionEvent<Assignment>): void {
+    if (event.action === 'change-deadline') this.changingDeadline.set(event.row);
+  }
+
+  protected onDeadlineChanged(updated: Assignment): void {
+    this.toasts.success(
+      'Deadline changed',
+      `${updated.employeeName} now has until ${this.date(updated.dueAt)}.`,
+    );
+    this.data.reload();
+  }
 
   protected onAssigned(result: AssignTrainingResult): void {
     const toast = assignResultToast(result);

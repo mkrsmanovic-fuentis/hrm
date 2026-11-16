@@ -139,7 +139,18 @@ Each assignment has one status, evaluated in this order:
 | 3 | In Progress | An attempt is started but not submitted. |
 | 3 | Not Started | No attempts yet. |
 
-Employees can still complete overdue training. Reports show the completion date, so late completions are visible.
+- Employees can still complete overdue training. A pass after the deadline makes the assignment **Passed**.
+- The completion date (`completedAt`) is when the passing attempt was submitted. Reports and the Assignments page show it, and mark a pass after the deadline as **late**, so late completions are visible. A late pass still counts as passed everywhere, for example in [training counts](#training-counts).
+- The status is derived each time it is read, from the attempts and the current deadline. It is never stored.
+
+### Changing a deadline
+
+- Administrators can change the deadline of an assignment while it is **not passed**: Not Started, In Progress, Failed or Overdue. The deadline of a passed assignment cannot be changed (`409`).
+- The new deadline follows the same rule as when assigning: the administrator picks a day, the deadline is the end of that day (23:59:59) in their time zone, stored in UTC, and it must be in the future. See [Assigning training](#assigning-training).
+- The status follows the new deadline. Moving the deadline of an overdue assignment into the future makes it not overdue again: its status is then Failed, In Progress or Not Started, based on the latest attempt.
+- The employee is **not notified** of a deadline change in the MVP.
+- An assignment gets at most one deadline reminder, even if its deadline changes later. A reminder sent for the old deadline is not sent again for the new one. See [Deadline reminders](#deadline-reminders).
+- Each change logs one `updated` [audit](#audit-log) entry, with the `dueAt` change. Sending the current deadline again changes nothing and logs nothing.
 
 ## Attempts and retakes
 
@@ -183,7 +194,7 @@ Employees can still complete overdue training. Reports show the completion date,
 
 ### Deadline reminders
 
-- An assignment gets **one** deadline reminder, once its deadline is **3 days away or less** and still in the future. It never gets a second one.
+- An assignment gets **one** deadline reminder, once its deadline is **3 days away or less** and still in the future. It never gets a second one, not even when an administrator [changes its deadline](#changing-a-deadline) after the reminder was sent.
 - No reminder when the assignment is already **passed**, or the employee is **inactive**. A failed or unfinished assignment still gets one.
 - An assignment created **less than 3 days before its deadline** still gets its reminder the next time reminders are created, on top of the new-training notification.
 - No reminder once the deadline has passed: the assignment is then overdue.
@@ -295,7 +306,7 @@ What each role can do in each module. "Own" means records that belong to the sig
 | Departments | List, read, create, edit, deactivate and reactivate departments. | No access. |
 | Topics | List and read every topic, active and inactive. Create, edit, deactivate and reactivate topics. | List and read **active** topics only. An inactive topic answers as if it did not exist. |
 | Questionnaires, questions and versions | List and read every questionnaire, with its questions, answer options and versions. Create, edit, activate, deactivate and preview questionnaires, and add, edit, remove and reorder their questions and answer options. | Read only questionnaires assigned to them, through their own assignments. No questionnaire list. Correct answers only as [Feedback after submitting](#feedback-after-submitting) allows. |
-| Assignments | List and read every assignment. Assign questionnaires to employees and departments, with deadlines. | List and read their own assignments only. |
+| Assignments | List and read every assignment. Assign questionnaires to employees and departments, with deadlines, and change the deadline of assignments that are not passed. | List and read their own assignments only. |
 | My training: attempts and results | List and read every attempt and result, including failed attempts. | Start, answer and submit attempts on their own assignments, retake failed ones, and read their own results, feedback and history. |
 | Reports and dashboards | The training overview, topic, department, employee and questionnaire reports, filters and CSV export. | No access. Their own progress appears on their own dashboard. |
 | Notifications | No notifications in the MVP. All notification endpoints answer `403`. | List and read their own notifications and mark them as read, one at a time or all at once. |
@@ -357,9 +368,10 @@ Administrator actions that change data are logged, so it is always clear who did
 | Department | `department` | `created`, `updated`, `deactivated`, `reactivated` |
 | Topic | `topic` | `created`, `updated`, `deactivated`, `reactivated` |
 | Questionnaire | `questionnaire` | `created`, `updated`, `activated`, `deactivated`, `reactivated` |
-| Assignment | `assignment` | `created` |
+| Assignment | `assignment` | `created`, `updated` |
 
 - Assigning a questionnaire to several employees or a whole department logs one `created` entry for each assignment it creates.
+- [Changing a deadline](#changing-a-deadline) logs `updated` on the assignment, with only `dueAt` in `changes`.
 - A new questionnaire is logged as `created` with `status` `inactive`.
 - A questionnaire's **first** activation, from draft to active, is logged as `activated`. Every later activation, after it was deactivated, is logged as `reactivated`.
 - "First" means the questionnaire has never been active: it was not created active, and it has no earlier `activated`, `reactivated` or `deactivated` entry. A deactivation means it was active before. Entries logged before `activated` existed may show a first activation as `reactivated`; they are not changed.
