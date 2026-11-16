@@ -47,6 +47,8 @@ tags:
     description: Cybersecurity training subjects, such as Phishing Awareness. Both roles read them; administrators manage them.
   - name: Questionnaires
     description: Sets of multiple-choice questions on one topic, with their settings. Administrators manage them. Employees reach a questionnaire only through their own assignments.
+  - name: Notifications
+    description: In-app messages to employees about new training and coming deadlines. Each employee reads only their own. Administrators have no notifications.
 
 paths:
   /auth/session:
@@ -1118,6 +1120,93 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [Notifications]
+      summary: List my notifications
+      description: |
+        Returns the signed-in employee's own notifications, newest first, one page at a time. Each one carries the title of the assigned questionnaire and the assignment's deadline, so the app can build the text without more calls.
+
+        With `unread=true`, only unread notifications are returned, and `page.totalItems` is the unread count. The app asks for `unread=true&pageSize=1` to show the count on the bell.
+
+        Deadline reminders are created by a daily job on the real backend. See the business rules (developer guide, "Notifications"). The mock API creates due reminders when this endpoint is called.
+
+        **Access:** employees only, and only their own notifications. Administrators get `403`: they have no notifications in the MVP.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: unread
+          in: query
+          description: '`true` returns only unread notifications. Omit it, or send `false`, to return all of them, read and unread.'
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: One page of notifications, newest first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPage'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /notifications/{notificationId}/read:
+    post:
+      operationId: markNotificationRead
+      tags: [Notifications]
+      summary: Mark a notification as read
+      description: |
+        Sets `readAt` to now. Calling it again for a notification that is already read changes nothing and returns it as it is, with its first `readAt`.
+
+        **Access:** employees only, for their own notifications. Administrators get `403`. A notification that belongs to another employee answers `404`, the same as one that does not exist. Not logged in the audit log.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/NotificationId'
+      responses:
+        '200':
+          description: The notification, read.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [Notifications]
+      summary: Mark all my notifications as read
+      description: |
+        Sets `readAt` to now on every unread notification of the signed-in employee. Notifications that are already read keep their `readAt`. With nothing unread, it changes nothing and still succeeds.
+
+        **Access:** employees only. Administrators get `403`. Not logged in the audit log.
+      x-mint: *spec-status
+      responses:
+        '204':
+          description: Done. Every notification of the employee is read.
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
 components:
   securitySchemes:
     sessionToken:
@@ -1189,6 +1278,13 @@ components:
       in: path
       required: true
       description: ID of the questionnaire.
+      schema:
+        $ref: '#/components/schemas/Id'
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      description: ID of the notification.
       schema:
         $ref: '#/components/schemas/Id'
 
@@ -2528,8 +2624,20 @@ components:
 
     Notification:
       type: object
-      description: An in-app message to an employee. The app builds the text from the type and the linked assignment.
-      required: [id, organizationId, userId, type, assignmentId, readAt, createdAt, updatedAt]
+      description: An in-app message to an employee. The app builds the text from the type, `questionnaireTitle` and `dueAt`.
+      required:
+        [
+          id,
+          organizationId,
+          userId,
+          type,
+          assignmentId,
+          questionnaireTitle,
+          dueAt,
+          readAt,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           $ref: '#/components/schemas/Id'
@@ -2542,7 +2650,17 @@ components:
           $ref: '#/components/schemas/NotificationType'
         assignmentId:
           $ref: '#/components/schemas/Id'
+          description: The assignment it is about.
+        questionnaireTitle:
+          type: string
+          readOnly: true
+          description: The current title of the assignment's questionnaire. Not stored on the notification.
+        dueAt:
+          $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: The assignment's deadline. Not stored on the notification.
         readAt:
+          description: When the employee opened it or marked it as read. Null while unread.
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
@@ -2550,6 +2668,18 @@ components:
           $ref: '#/components/schemas/Timestamp'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
+
+    NotificationPage:
+      type: object
+      description: One page of notifications.
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notification'
+        page:
+          $ref: '#/components/schemas/PageInfo'
 
     AuditAction:
       type: string
