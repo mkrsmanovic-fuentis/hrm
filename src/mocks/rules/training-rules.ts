@@ -50,11 +50,12 @@ export function assignmentStatus(
 /**
  * Builds the API's Assignment from the stored record: its derived progress (status, attempts,
  * latest score, completion date) from its attempts, and the employee's name, their current
- * department and the questionnaire's title, so a list needs no extra calls.
+ * department, the questionnaire's title and status, and its topic's name and status, as they are
+ * now, so a list needs no extra calls.
  */
 export function toAssignment(
   record: AssignmentRecord,
-  data: Pick<MockData, 'attempts' | 'users' | 'departments' | 'questionnaires'>,
+  data: Pick<MockData, 'attempts' | 'users' | 'departments' | 'questionnaires' | 'topics'>,
   now: Date,
 ): Assignment {
   const own = data.attempts.filter((attempt) => attempt.assignmentId === record.id);
@@ -65,6 +66,9 @@ export function toAssignment(
     ? data.departments.find((candidate) => candidate.id === user.departmentId)
     : undefined;
   const questionnaire = data.questionnaires.find((q) => q.id === record.questionnaireId);
+  const topic = questionnaire
+    ? data.topics.find((candidate) => candidate.id === questionnaire.topicId)
+    : undefined;
   return {
     ...record,
     status: assignmentStatus(record.dueAt, own, now),
@@ -75,6 +79,10 @@ export function toAssignment(
     departmentId: department?.id ?? null,
     departmentName: department?.name ?? null,
     questionnaireTitle: questionnaire?.title ?? '',
+    questionnaireStatus: questionnaire?.status ?? 'inactive',
+    topicId: topic?.id ?? questionnaire?.topicId ?? '',
+    topicName: topic?.name ?? '',
+    topicStatus: topic?.status ?? 'inactive',
   };
 }
 

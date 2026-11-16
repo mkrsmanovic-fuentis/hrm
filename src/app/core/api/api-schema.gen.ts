@@ -577,7 +577,7 @@ export interface paths {
         };
         /**
          * List assignments
-         * @description Returns assignments one page at a time, newest first by default. Each one carries the employee's name, their department and the questionnaire's title, so a table needs no extra calls.
+         * @description Returns assignments one page at a time, newest first by default. Each one carries the employee's name, their department, the questionnaire's title and status, and its topic's name and status, so a table needs no extra calls. Assignments are never deleted: those of inactive employees and of questionnaires or topics deactivated later are still listed.
          *
          *     **Access:** administrators see every assignment in the organization. Employees see only their own: the filters apply within them.
          */
@@ -1121,6 +1121,14 @@ export interface components {
             readonly departmentName: string | null;
             /** @description Derived. The questionnaire's title as it is now. Never sent in requests. */
             readonly questionnaireTitle: string;
+            /** @description Derived. Whether the questionnaire is active now. A questionnaire deactivated after assigning keeps its assignments. Never sent in requests. */
+            readonly questionnaireStatus: components["schemas"]["ActivityStatus"];
+            /** @description Derived. The questionnaire's topic now. Never sent in requests. */
+            readonly topicId: components["schemas"]["Id"];
+            /** @description Derived. The name of `topicId` as it is now. Never sent in requests. */
+            readonly topicName: string;
+            /** @description Derived. Whether the topic is active now. A topic deactivated after assigning keeps its assignments. Never sent in requests. */
+            readonly topicStatus: components["schemas"]["ActivityStatus"];
             /** @description When the questionnaire was assigned. */
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];

@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { Router } from '@angular/router';
 import {
+  LucideHistory,
   LucideMailPlus,
   LucidePencil,
   LucidePlus,
@@ -87,6 +89,8 @@ const searchText = (user: User) => {
  * The signed-in administrator cannot deactivate themselves or change their own role, so their own
  * row has no Deactivate action and their role is locked in the form.
  *
+ * "Training history" opens the person's training history page (`EmployeeTraining`).
+ *
  * Under each status, the invite status says whether the user has set a password. Users who have not, and are
  * active, have a "Send invite again" action. In the demo (`environment.demo`), the invite link of
  * a new user or a new invite is shown on the page, since no email is sent.
@@ -111,6 +115,7 @@ const searchText = (user: User) => {
 })
 export class EmployeeList {
   private readonly api = inject(ApiClient);
+  private readonly router = inject(Router);
   private readonly toasts = inject(ToastService);
 
   private readonly auth = inject(AuthService);
@@ -293,6 +298,13 @@ export class EmployeeList {
   protected readonly actions: SdListAction<User>[] = [
     { id: 'edit', label: (u) => `Edit ${fullName(u)}`, icon: LucidePencil },
     {
+      id: 'training',
+      label: (u) => `Training history of ${fullName(u)}`,
+      icon: LucideHistory,
+      // Only employees take training. An administrator who was an employee before keeps theirs.
+      hidden: (u) => u.role !== 'employee' && u.assignedTrainingCount === 0,
+    },
+    {
       id: 'resend',
       label: (u) => `Send invite again to ${fullName(u)}`,
       icon: LucideMailPlus,
@@ -349,6 +361,8 @@ export class EmployeeList {
 
   protected onAction({ action, row }: SdListActionEvent<User>): void {
     if (action === 'edit') this.edit(row);
+    else if (action === 'training')
+      void this.router.navigate(['/admin/employees', row.id, 'training']);
     else if (action === 'resend') void this.resend(row);
     else this.askStatusChange(row);
   }

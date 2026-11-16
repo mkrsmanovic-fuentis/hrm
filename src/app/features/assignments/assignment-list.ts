@@ -16,12 +16,11 @@ import {
   SdList,
   SdSkeleton,
   SdStatusBar,
-  type SdBadgeTone,
   type SdListColumn,
   type SdListSort,
 } from '@specora-dev/ui-kit';
 import { AccessDenied } from '../../core/access';
-import { ApiClient, ApiError, type Assignment, type AssignmentStatus } from '../../core/api';
+import { ApiClient, ApiError, type Assignment } from '../../core/api';
 import { ToastService } from '../../core/toast';
 import { AssignResult } from '../../shared/assign-training/assign-result';
 import { AssignTrainingForm } from '../../shared/assign-training/assign-training-form';
@@ -29,23 +28,11 @@ import {
   type AssignTrainingResult,
   assignResultToast,
 } from '../../shared/assign-training/assign-training-result';
+import {
+  ASSIGNMENT_STATUS_LABELS,
+  ASSIGNMENT_STATUS_VARIANTS,
+} from '../../shared/assignment-status/assignment-status';
 import { loadAllPages, MAX_PAGE_SIZE } from '../../shared/lists/load-all-pages';
-
-export const STATUS_LABELS: Record<AssignmentStatus, string> = {
-  not_started: 'Not started',
-  in_progress: 'In progress',
-  passed: 'Passed',
-  failed: 'Failed',
-  overdue: 'Overdue',
-};
-
-const STATUS_TONES: Record<AssignmentStatus, SdBadgeTone> = {
-  not_started: 'neutral',
-  in_progress: 'info',
-  passed: 'success',
-  failed: 'danger',
-  overdue: 'warning',
-};
 
 /** The hidden column that `sd-list`'s search matches: employee name and questionnaire title. */
 const SEARCH_COLUMN = 'search';
@@ -155,8 +142,8 @@ export class AssignmentList {
       id: 'status',
       label: 'Status',
       type: 'badge',
-      value: (a) => STATUS_LABELS[a.status],
-      tone: (a) => STATUS_TONES[a.status],
+      value: (a) => ASSIGNMENT_STATUS_LABELS[a.status],
+      tone: (a) => ASSIGNMENT_STATUS_VARIANTS[a.status],
       sortable: true,
       searchable: false,
       minWidth: 7,

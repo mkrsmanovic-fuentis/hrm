@@ -175,6 +175,10 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `departmentId` | UUID or null | *Derived.* The employee's department now, not when the assignment was created. |
 | `departmentName` | String or null | *Derived.* The name of that department. |
 | `questionnaireTitle` | String | *Derived.* The questionnaire's title as it is now. |
+| `questionnaireStatus` | `active` or `inactive` | *Derived.* Whether the questionnaire is active now, so a history can mark one deactivated after assigning. |
+| `topicId` | UUID | *Derived.* The questionnaire's topic now. |
+| `topicName` | String | *Derived.* The name of that topic as it is now. |
+| `topicStatus` | `active` or `inactive` | *Derived.* Whether the topic is active now. |
 
 ### Attempt
 
