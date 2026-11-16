@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-16 08:47" description="SPE-22 · In-app notifications" tags={["Frontend", "API", "Docs"]}>
+  Employees now see a bell in the top bar with their unread notifications: one when training is assigned to them, and a reminder when a deadline is 3 days away or less, unless they have already passed. Opening a notification marks it as read, and they can mark all as read at once. Administrators don't get notifications.
+
+  Commit: [0fd7a98](https://github.com/mkrsmanovic-fuentis/hrm/commit/0fd7a983fc38f3255e6944e1d7cd265876d46a29)
+</Update>
+
 <Update label="2026-11-10 16:40" description="SPE-15 · Account setup and password reset" tags={["Frontend", "API", "Docs"]}>
   New employees now set their own password from an invite link, valid for 7 days. Administrators can resend invites and see each person's invite status, and changing the email of someone who hasn't set a password sends a fresh invite. Anyone can reset a forgotten password with a single-use link, valid for 1 hour, which signs them out everywhere else. In the demo, the links appear on screen instead of being emailed.
 
