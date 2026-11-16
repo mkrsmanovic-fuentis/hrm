@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-16 09:20" description="SPE-21 · Deadlines and statuses" tags={["Frontend", "API", "Docs"]}>
+  Administrators can now change the deadline of any assignment that isn't passed, and filter the Assignments page by status. Overdue assignments stand out in red. A new Completed column shows when training was passed, and marks it "Late" when that was after the deadline, here and in each employee's training history. Every deadline change is recorded in the audit log.
+
+  Commit: [1853f39](https://github.com/mkrsmanovic-fuentis/hrm/commit/1853f395895e714da42cbca412042610543679ed)
+</Update>
+
 <Update label="2026-11-16 09:15" description="SPE-23 · Training history" tags={["Frontend", "API", "Docs"]}>
   Administrators can now open an employee's training history from the Employees page. It lists every assignment the employee has had, newest first, with deadline, status, attempts, latest score and completion date. History stays complete after an employee, questionnaire or topic is deactivated.
 
