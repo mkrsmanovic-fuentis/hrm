@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { SdList } from '@specora-dev/ui-kit';
 import { toUser } from '../../../mocks/rules/user-rules';
 import { createTestMockApi, TEST_NOW, type TestMockApiOptions } from '../../../mocks/testing';
@@ -480,11 +480,22 @@ describe('Employees page', () => {
     const { row, me, column, visibleActions } = await render();
     const own = row(me?.firstName ?? '');
 
-    expect(visibleActions(row('Oliver'))).toEqual(['edit', 'deactivate']);
+    expect(visibleActions(row('Oliver'))).toEqual(['edit', 'training', 'deactivate']);
     expect(visibleActions(row('Daniel'))).toEqual(['edit', 'deactivate']);
-    expect(visibleActions(row('Sofia'))).toEqual(['edit', 'reactivate']);
-    expect(visibleActions(row('Aisha'))).toEqual(['edit', 'resend', 'deactivate']);
+    expect(visibleActions(row('Sofia'))).toEqual(['edit', 'training', 'reactivate']);
+    expect(visibleActions(row('Aisha'))).toEqual(['edit', 'training', 'resend', 'deactivate']);
     expect(visibleActions(own)).toEqual(['edit']);
     expect(column('name')?.subValue?.(own)).toBe('You');
+  });
+
+  it("opens an employee's training history, also for an inactive employee", async () => {
+    const { list, row, visibleActions } = await render();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const sofia = row('Sofia');
+
+    expect(visibleActions(sofia)).toContain('training');
+    list()?.actionClick.emit({ action: 'training', row: sofia });
+
+    expect(navigate).toHaveBeenCalledWith(['/admin/employees', sofia.id, 'training']);
   });
 });

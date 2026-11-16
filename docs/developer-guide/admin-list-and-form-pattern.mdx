@@ -108,6 +108,15 @@ The detail page:
 - **States:** `sd-skeleton` on the first load, `<app-access-denied>` on `403`, an `sd-empty-state` with a link back to the list on `404`, and an `sd-callout` with **Try again** on other errors.
 - **Route parameter:** read it from `ActivatedRoute.paramMap`, and load with `rxResource`. Read the resource's value only while `hasValue()` is true: `value()` throws in the error state.
 
+## A page opened from a row action
+
+A list can open a page about one record from a row action, without being a list with a detail page. The employee's **Training history** page is the example: `src/app/features/employees/employee-training.ts`, at `/admin/employees/{userId}/training`.
+
+- The **Training history** row action (`LucideHistory`) navigates to it. Row click still opens the edit drawer.
+- The header is the same as a detail page's: `sd-status-bar` with `back`, a `breadcrumb` to the list, the employee's name as `heading`, their email as `subtitle` and `stats` for department and status. The states are the same too.
+- The page is read-only. It loads the user, their department and every page of `GET /assignments?userId=…`, and shows them in an `sd-list` sorted by `createdAt`, newest first.
+- The status labels and badge tones come from `src/app/shared/assignment-status/`, shared with the Assignments page. Scores go through `scoreText()`, which rounds down as [Scoring](/developer-guide/business-rules#scoring) says.
+
 ## A drawer shared by two pages
 
 When two features open the same form, it lives in `src/app/shared/`, because features never import from each other. The **Assign training** drawer is the example: `src/app/shared/assign-training/`.

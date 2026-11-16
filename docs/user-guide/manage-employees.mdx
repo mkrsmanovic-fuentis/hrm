@@ -1,10 +1,10 @@
 ---
 title: "Manage employees"
-description: "Add employees and administrators, edit their details, and deactivate or reactivate their accounts."
+description: "Add employees and administrators, edit their details, see their training history, and deactivate or reactivate their accounts."
 icon: "users"
 ---
 
-Administrators manage everyone's account on the **Employees** page: employees and other administrators. It lists every person with their department, role, status and training counts, and lets you add, edit, deactivate and reactivate them. Employees cannot open this page.
+Administrators manage everyone's account on the **Employees** page: employees and other administrators. It lists every person with their department, role, status and training counts, and lets you add, edit, deactivate and reactivate them, and see each person's training history. Employees cannot open this page.
 
 ## Before you start
 
@@ -35,6 +35,34 @@ If a person's department has been deactivated, the list still shows it, with **I
 - **Search by name or email** finds people whose name or email contains the text you type. Upper and lower case do not matter, and neither does the kind of apostrophe: `o'neill` finds O’Neill.
 - **Filters** shows only people with a given **Status**, **Role**, **Invite** status or **Department**. Choose **No department** to see people without one.
 - Select a column header to sort by it. Select it again to reverse the order.
+
+## See an employee's training history
+
+The **Training history** page lists every assignment a person has ever had, in any status: not started, in progress, failed, overdue and passed.
+
+<Steps>
+  <Step title="Select the history icon in the person's row">
+    The icon is a clock with an arrow around it. It appears in the rows of employees, active and inactive. It also appears for an administrator who has training from before.
+  </Step>
+  <Step title="Read the history">
+    The top of the page shows the person's name, email, **Department** and **Status**: **Active** or **Inactive**. Below it, the list shows their assignments, newest first.
+  </Step>
+</Steps>
+
+| Column | What it shows |
+| - | - |
+| **Questionnaire** | The questionnaire's title. **Inactive questionnaire** under it means the questionnaire was deactivated after it was assigned. |
+| **Topic** | The questionnaire's topic. **Inactive topic** under it means the topic was deactivated. |
+| **Assigned** | The date the questionnaire was assigned. |
+| **Deadline** | The date the assignment is due. |
+| **Status** | **Not started**, **In progress**, **Failed**, **Overdue** or **Passed**. |
+| **Attempts** | How many attempts the person has started. |
+| **Latest score** | The score of the latest submitted attempt, rounded down to a whole percent. A dash means no attempt is submitted yet. |
+| **Completed** | The date the person passed. A dash means they have not passed yet. |
+
+Select a column header to sort by it. Select it again to reverse the order. To go back, select **Employees** at the top of the page.
+
+The history is complete even after you deactivate the person, or a questionnaire or topic they were assigned. Assignments, attempts and results are never deleted. See [Data integrity](/developer-guide/business-rules#data-integrity).
 
 ## Add an employee
 

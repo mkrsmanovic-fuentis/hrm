@@ -1,0 +1,52 @@
+<sd-status-bar
+  back
+  backLabel="Employees"
+  [breadcrumb]="breadcrumb()"
+  [icon]="icons.user"
+  [heading]="name() ?? 'Training history'"
+  [subtitle]="user()?.email ?? null"
+  [stats]="stats()"
+  (backClick)="back()"
+/>
+
+@if (firstLoad()) {
+  <div class="loading" aria-busy="true" aria-label="Loading the training history">
+    <sd-skeleton height="4rem" />
+    <sd-skeleton height="16rem" />
+  </div>
+} @else if (error()?.isForbidden) {
+  <app-access-denied
+    description="You don't have permission to see employees' training."
+    [headingLevel]="2"
+  />
+} @else if (error()?.isNotFound) {
+  <sd-empty-state
+    [icon]="icons.notFound"
+    title="Employee not found"
+    description="The link may be wrong."
+    [headingLevel]="2"
+  >
+    <a sd-button routerLink="/admin/employees" [icon]="icons.back">All employees</a>
+  </sd-empty-state>
+} @else if (failed()) {
+  <sd-callout tone="danger" role="alert" heading="Could not load the training history">
+    Something went wrong. Try again in a moment.
+    <button sdCalloutActions sd-button type="button" (click)="data.reload()">Try again</button>
+  </sd-callout>
+} @else if (user()) {
+  <sd-list
+    class="list"
+    [items]="assignments()"
+    [columns]="columns"
+    [rowId]="byId"
+    [labels]="listLabels"
+    [(sort)]="sort"
+  >
+    <sd-empty-state
+      sdListEmpty
+      graphic="empty"
+      title="No training assigned yet"
+      [description]="'Every questionnaire assigned to ' + name() + ' will be listed here.'"
+    />
+  </sd-list>
+}
