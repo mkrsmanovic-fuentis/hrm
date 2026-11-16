@@ -6,6 +6,12 @@ icon: "clock-rotate-left"
 
 Each entry is one change merged to `main`, with a link to its commit on GitHub. Times are Central European Time.
 
+<Update label="2026-11-16 08:57" description="SPE-20 · Assign training" tags={["Frontend", "API", "Docs"]}>
+  Administrators can now assign a questionnaire to selected employees or a whole department, with a deadline, from the new Assignments page or from the questionnaire's own page. Employees who already have an open assignment for it are skipped and listed by name. Only active questionnaires in active topics, and active departments, can be chosen. Each employee who gets training is notified in the app.
+
+  Commit: [95e0eb6](https://github.com/mkrsmanovic-fuentis/hrm/commit/95e0eb683ccfb710dd603e51f3e7d7b396f2b076)
+</Update>
+
 <Update label="2026-11-16 08:47" description="SPE-22 · In-app notifications" tags={["Frontend", "API", "Docs"]}>
   Employees now see a bell in the top bar with their unread notifications: one when training is assigned to them, and a reminder when a deadline is 3 days away or less, unless they have already passed. Opening a notification marks it as read, and they can mark all as read at once. Administrators don't get notifications.
 
