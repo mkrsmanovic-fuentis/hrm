@@ -40,6 +40,10 @@ export const DERIVED_FIELDS = {
     'departmentId',
     'departmentName',
     'questionnaireTitle',
+    'questionnaireStatus',
+    'topicId',
+    'topicName',
+    'topicStatus',
   ],
 } as const satisfies Record<AuditEntityType, readonly string[]>;
 

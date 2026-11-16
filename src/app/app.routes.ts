@@ -92,6 +92,12 @@ export const routes: Routes = [
               import('./features/employees/employee-list').then((m) => m.EmployeeList),
           },
           {
+            path: 'employees/:userId/training',
+            title: 'Training history · HRM Platform',
+            loadComponent: () =>
+              import('./features/employees/employee-training').then((m) => m.EmployeeTraining),
+          },
+          {
             path: 'topics',
             title: 'Topics · HRM Platform',
             loadComponent: () => import('./features/topics/topic-list').then((m) => m.TopicList),

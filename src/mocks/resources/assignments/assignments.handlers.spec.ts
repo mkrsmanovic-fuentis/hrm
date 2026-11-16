@@ -419,6 +419,47 @@ describe('assignments mock handlers', () => {
       expect(overdue.items.every((a) => a.status === 'overdue')).toBe(true);
     });
 
+    it("lists an inactive employee's whole history with the topic, and the status of each", async () => {
+      const { api, mock } = setup();
+      const sofia = userNamed(mock, 'Sofia');
+      expect(sofia.status).toBe('inactive');
+      const own = mock.db.data.assignments.filter((a) => a.userId === sofia.id);
+      expect(own.length).toBeGreaterThan(0);
+      // Deactivate the topic of one of her questionnaires after assigning.
+      const questionnaire = mock.db.data.questionnaires.find(
+        (q) => q.id === own[0].questionnaireId,
+      )!;
+      const topic = mock.db.data.topics.find((t) => t.id === questionnaire.topicId)!;
+      mock.db.update((data) => {
+        data.topics.find((t) => t.id === topic.id)!.status = 'inactive';
+        data.questionnaires.find((q) => q.id === questionnaire.id)!.status = 'inactive';
+      });
+
+      const result = await firstValueFrom(
+        api.get('/assignments', { query: { userId: sofia.id, pageSize: 100 } }),
+      );
+
+      expect(result.items.map((a) => a.id).sort()).toEqual(own.map((a) => a.id).sort());
+      const deactivated = result.items.find((a) => a.questionnaireId === questionnaire.id)!;
+      expect(deactivated).toMatchObject({
+        questionnaireTitle: questionnaire.title,
+        questionnaireStatus: 'inactive',
+        topicId: topic.id,
+        topicName: topic.name,
+        topicStatus: 'inactive',
+      });
+      for (const item of result.items.filter((a) => a.questionnaireId !== questionnaire.id)) {
+        const q = mock.db.data.questionnaires.find((x) => x.id === item.questionnaireId)!;
+        const t = mock.db.data.topics.find((x) => x.id === q.topicId)!;
+        expect(item).toMatchObject({
+          questionnaireStatus: q.status,
+          topicId: t.id,
+          topicName: t.name,
+          topicStatus: t.status,
+        });
+      }
+    });
+
     it("answers 404 when an employee reads another employee's assignment", async () => {
       const { api, mock, signedInId } = setup({ signedInAs: 'employee' });
       const own = mock.db.data.assignments.find((a) => a.userId === signedInId)!;
