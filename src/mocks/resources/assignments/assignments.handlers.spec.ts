@@ -437,4 +437,114 @@ describe('assignments mock handlers', () => {
       expect(error.isNotFound).toBe(true);
     });
   });
+
+  describe('change deadline', () => {
+    const IN_TWO_WEEKS = new Date(TEST_NOW.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    function patchDeadline(api: ApiClient, assignmentId: string, dueAt: string) {
+      return firstValueFrom(
+        api.patch('/assignments/{assignmentId}', { path: { assignmentId }, body: { dueAt } }),
+      );
+    }
+
+    it('changes the deadline of an open assignment and logs an updated audit entry', async () => {
+      const { api, mock, signedInId } = setup();
+      const open = seededWithStatus(mock, true);
+      const notificationsBefore = mock.db.data.notifications.length;
+
+      const result = await patchDeadline(api, open.id, IN_TWO_WEEKS);
+
+      expect(result.dueAt).toBe(IN_TWO_WEEKS);
+      expect(mock.db.data.assignments.find((a) => a.id === open.id)?.dueAt).toBe(IN_TWO_WEEKS);
+      expect(mock.db.data.auditLog.at(-1)).toEqual(
+        expect.objectContaining({
+          action: 'updated',
+          entityType: 'assignment',
+          entityId: open.id,
+          actorId: signedInId,
+          changes: [{ field: 'dueAt', oldValue: open.dueAt, newValue: IN_TWO_WEEKS }],
+        }),
+      );
+      // The employee is not notified of the change.
+      expect(mock.db.data.notifications).toHaveLength(notificationsBefore);
+    });
+
+    it('makes an overdue assignment not overdue again', async () => {
+      const { api, mock } = setup();
+      const overdue = mock.db.data.assignments
+        .map((a) => toAssignment(a, mock.db.data, TEST_NOW))
+        .find((a) => a.status === 'overdue');
+      if (!overdue) throw new Error('No overdue assignment in the seed');
+
+      const result = await patchDeadline(api, overdue.id, IN_TWO_WEEKS);
+
+      expect(result.status).not.toBe('overdue');
+      expect(['not_started', 'in_progress', 'failed']).toContain(result.status);
+    });
+
+    it('logs nothing when the deadline does not change', async () => {
+      const { api, mock } = setup();
+      const open = seededWithStatus(mock, true);
+      await patchDeadline(api, open.id, IN_TWO_WEEKS);
+      const entries = mock.db.data.auditLog.length;
+
+      await patchDeadline(api, open.id, IN_TWO_WEEKS);
+
+      expect(mock.db.data.auditLog).toHaveLength(entries);
+    });
+
+    it('answers 409 for a passed assignment and changes nothing', async () => {
+      const { api, mock } = setup();
+      const passed = seededWithStatus(mock, false);
+      const entries = mock.db.data.auditLog.length;
+
+      const error = await failure(patchDeadline(api, passed.id, IN_TWO_WEEKS));
+
+      expect(error.status).toBe(409);
+      expect(mock.db.data.assignments.find((a) => a.id === passed.id)?.dueAt).toBe(passed.dueAt);
+      expect(mock.db.data.auditLog).toHaveLength(entries);
+    });
+
+    it('needs a deadline in the future, and nothing else', async () => {
+      const { api, mock } = setup();
+      const open = seededWithStatus(mock, true);
+
+      const past = await failure(
+        patchDeadline(api, open.id, new Date(TEST_NOW.getTime() - 1000).toISOString()),
+      );
+      expect(past.fieldErrors).toEqual([
+        expect.objectContaining({ field: 'dueAt', message: 'Choose a deadline in the future.' }),
+      ]);
+
+      const invalid = await failure(patchDeadline(api, open.id, 'next week'));
+      expect(invalid.fieldErrors).toEqual([expect.objectContaining({ field: 'dueAt' })]);
+
+      const extra = await failure(
+        firstValueFrom(
+          api.patch('/assignments/{assignmentId}', {
+            path: { assignmentId: open.id },
+            body: { dueAt: IN_TWO_WEEKS, userId: 'x' } as never,
+          }),
+        ),
+      );
+      expect(extra.status).toBeGreaterThanOrEqual(400);
+      expect(mock.db.data.assignments.find((a) => a.id === open.id)?.dueAt).toBe(open.dueAt);
+    });
+
+    it('answers 404 for an unknown assignment', async () => {
+      const { api } = setup();
+      const error = await failure(patchDeadline(api, 'missing', IN_TWO_WEEKS));
+      expect(error.isNotFound).toBe(true);
+    });
+
+    it('is for administrators only', async () => {
+      const { api, mock, signedInId } = setup({ signedInAs: 'employee' });
+      const own = mock.db.data.assignments.find((a) => a.userId === signedInId)!;
+
+      const error = await failure(patchDeadline(api, own.id, IN_TWO_WEEKS));
+
+      expect(error.isForbidden).toBe(true);
+      expect(mock.db.data.assignments.find((a) => a.id === own.id)?.dueAt).toBe(own.dueAt);
+    });
+  });
 });

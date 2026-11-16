@@ -1,6 +1,6 @@
 ---
 title: "Assign training"
-description: "Assign a questionnaire to employees or a whole department, with a deadline, and see every assignment."
+description: "Assign a questionnaire to employees or a whole department, with a deadline, follow each assignment's status and change deadlines."
 icon: "clipboard-check"
 ---
 
@@ -54,16 +54,53 @@ The **Assignments** page lists every assignment, newest first, with:
 | **Department** | Their department now. |
 | **Questionnaire** | What they must complete. |
 | **Deadline** | The last day to complete it. |
-| **Status** | **Not started**, **In progress**, **Passed**, **Failed** or **Overdue**. See [Assignment status](/developer-guide/business-rules#assignment-status). |
+| **Status** | Where the employee is. See [Statuses](#statuses). |
+| **Completed** | The day the employee passed. **Late** under the date means they passed after the deadline. Empty until passed. |
 | **Assigned** | The day the training was assigned. |
 
 - **Search by employee or questionnaire** finds assignments whose employee name or questionnaire title contains the text you type. Upper and lower case do not matter.
-- Select a column header to sort by it. Select it again to reverse the order.
+- Select **Filters**, then a **Status**, to see only assignments with that status. Select **Clear filters**, or the status **All**, to see them all again.
+- Select a column header to sort by it, for example **Deadline** to see the nearest deadlines first. Select it again to reverse the order.
+
+## Statuses
+
+Each assignment has one status:
+
+| Status | Meaning |
+| - | - |
+| **Not started** | The employee hasn't started the questionnaire yet. |
+| **In progress** | The employee started an attempt and hasn't submitted it yet. |
+| **Failed** | The employee's latest attempt didn't reach the passing score. They can try again. |
+| **Overdue** | The deadline has passed and the employee hasn't passed yet. Overdue is shown in red, so it stands out. |
+| **Passed** | The employee passed, even if it was after the deadline. |
+
+Passed comes first: an employee who passes after the deadline is **Passed**, not Overdue, and **Completed** shows **Late**. Employees can still complete overdue training. The full rules are in [Assignment status](/developer-guide/business-rules#assignment-status).
+
+## Change a deadline
+
+You can give an employee more time, or less, as long as they haven't passed yet.
+
+<Steps>
+  <Step title="Find the assignment">
+    On the **Assignments** page, find the assignment, for example by searching for the employee or filtering by **Overdue**.
+  </Step>
+  <Step title="Select Change deadline">
+    Select the calendar button at the end of the row. A small window opens with the current deadline. Passed assignments don't have this button.
+  </Step>
+  <Step title="Pick the new day and select Save">
+    Pick today or a later day. The employee has until the end of that day, in your time zone. A message confirms the new deadline.
+  </Step>
+</Steps>
+
+- If the assignment was **Overdue** and the new deadline is in the future, it is no longer overdue. Its status goes back to **Not started**, **In progress** or **Failed**.
+- The employee isn't notified of the change. If they already got a deadline reminder, they don't get another one for the new deadline.
+- Each change is recorded with your name and the time.
 
 ## What happens next
 
 - Each employee who gets the training sees it in their [notifications](/user-guide/check-your-notifications).
 - Each new assignment is recorded with your name and the time.
+- Three days before the deadline, employees who haven't passed get a reminder.
 
 ## Good to know
 

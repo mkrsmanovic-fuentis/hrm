@@ -166,11 +166,11 @@ Fields marked *derived* are calculated by the backend and cannot be set. "or nul
 | `questionnaireId` | UUID | |
 | `userId` | UUID | The employee who must complete it. |
 | `assignedById` | UUID | The administrator who assigned it. `createdAt` is the assignment date. |
-| `dueAt` | Timestamp | The deadline. |
+| `dueAt` | Timestamp | The deadline. The only field administrators can change, while the assignment is not passed. See [Changing a deadline](/developer-guide/business-rules#changing-a-deadline). |
 | `status` | Assignment status | *Derived.* `not_started`, `in_progress`, `passed`, `failed` or `overdue`. See [Assignment status](/developer-guide/business-rules#assignment-status). |
 | `attemptCount` | Integer | *Derived.* |
 | `latestScore` | Number or null | *Derived.* Score of the latest submitted attempt. |
-| `completedAt` | Timestamp or null | *Derived.* When the passing attempt was submitted. |
+| `completedAt` | Timestamp or null | *Derived.* When the passing attempt was submitted. Later than `dueAt` for a late pass. |
 | `employeeName` | String | *Derived.* The employee's full name as it is now, so a list needs no extra calls. |
 | `departmentId` | UUID or null | *Derived.* The employee's department now, not when the assignment was created. |
 | `departmentName` | String or null | *Derived.* The name of that department. |

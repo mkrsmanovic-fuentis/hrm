@@ -1333,6 +1333,58 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateAssignment
+      tags: [Assignments]
+      summary: Change an assignment's deadline
+      description: |
+        Changes the deadline `dueAt`. It is the only field that can be changed.
+
+        - The deadline can be changed only while the assignment is not passed. A passed assignment answers `409`.
+        - The new deadline must be in the future. The app sends the end of the chosen day in the administrator's time zone, as when assigning.
+        - The status follows the new deadline: moving the deadline of an overdue assignment into the future makes it not overdue again.
+        - The employee is not notified of the change. A deadline reminder already sent for the assignment is not sent again for the new deadline.
+
+        **Access:** administrators only. Employees get `403`. Logged in the audit log as `updated`, with the `dueAt` change. A request that sends the current deadline changes nothing and logs nothing.
+      x-mint: *spec-status
+      parameters:
+        - $ref: '#/components/parameters/AssignmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentUpdate'
+      responses:
+        '200':
+          description: The updated assignment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assignment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: The assignment is passed, so its deadline can no longer be changed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: /problems/conflict
+                title: Conflict
+                status: 409
+                detail: This assignment is passed. Its deadline can no longer be changed.
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 components:
   securitySchemes:
@@ -2628,7 +2680,7 @@ components:
             - type: 'null'
         completedAt:
           readOnly: true
-          description: When the passing attempt was submitted. Null until passed.
+          description: When the passing attempt was submitted. Null until passed. Later than `dueAt` when the assignment was passed late.
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
@@ -2690,6 +2742,16 @@ components:
         dueAt:
           $ref: '#/components/schemas/Timestamp'
           description: The deadline. Must be in the future. The app sends the end of the chosen day (23:59:59) in the administrator's time zone.
+
+    AssignmentUpdate:
+      type: object
+      description: The new deadline. Unknown fields are rejected.
+      required: [dueAt]
+      additionalProperties: false
+      properties:
+        dueAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: The new deadline. Must be in the future. The app sends the end of the chosen day (23:59:59) in the administrator's time zone.
 
     AssignmentCreateResult:
       type: object
@@ -2912,7 +2974,7 @@ components:
     AuditEntityType:
       type: string
       enum: [user, department, topic, questionnaire, assignment]
-      description: The kind of record. Employees are `user`. Assignments are only ever `created`.
+      description: The kind of record. Employees are `user`. Assignments are `created`, and `updated` when their deadline changes.
 
     AuditChange:
       type: object

@@ -39,6 +39,10 @@
     [items]="assignments()"
     [columns]="columns"
     [hiddenColumns]="hiddenColumns"
+    [filters]="filters"
+    [(filterValues)]="filterValues"
+    [actions]="actions"
+    (actionClick)="onAction($event)"
     [rowId]="byId"
     [labels]="listLabels"
     searchable
@@ -66,4 +70,12 @@
 
 @if (assigning()) {
   <app-assign-training-form (saved)="onAssigned($event)" (closed)="assigning.set(false)" />
+}
+
+@if (changingDeadline(); as assignment) {
+  <app-change-deadline-dialog
+    [assignment]="assignment"
+    (saved)="onDeadlineChanged($event)"
+    (closed)="changingDeadline.set(null)"
+  />
 }

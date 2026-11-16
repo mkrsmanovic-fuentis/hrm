@@ -7,6 +7,7 @@ import type { Assignment } from '../../core/api';
 import { ToastService } from '../../core/toast';
 import { AssignTrainingForm } from '../../shared/assign-training/assign-training-form';
 import { AssignmentList } from './assignment-list';
+import { ChangeDeadlineDialog } from './change-deadline-dialog';
 
 describe('Assignments page', () => {
   async function render(options: TestMockApiOptions = {}) {
@@ -43,6 +44,7 @@ describe('Assignments page', () => {
       'Questionnaire',
       'Deadline',
       'Status',
+      'Completed',
       'Assigned',
       'Search',
     ]);
@@ -60,7 +62,88 @@ describe('Assignments page', () => {
       .find((a) => a.status === 'overdue')!;
 
     expect(status.value(overdue)).toBe('Overdue');
-    expect(status.tone?.(overdue)).toBe('warning');
+    expect(status.tone?.(overdue)).toBe('danger');
+  });
+
+  it('shows the completion date, and marks passes after the deadline as late', async () => {
+    const { list } = await render();
+    const completed = list()!
+      .columns()
+      .find((c) => c.id === 'completedAt')!;
+    const items = list()!.items();
+    const late = items.find(
+      (a) => a.completedAt !== null && Date.parse(a.completedAt) > Date.parse(a.dueAt),
+    )!;
+    const onTime = items.find(
+      (a) => a.completedAt !== null && Date.parse(a.completedAt) <= Date.parse(a.dueAt),
+    )!;
+    const open = items.find((a) => a.status !== 'passed')!;
+
+    expect(late.status).toBe('passed');
+    expect(completed.value(late)).not.toBeNull();
+    expect(completed.subValue?.(late)).toBe('Late');
+    expect(completed.subValue?.(onTime)).toBeNull();
+    expect(completed.value(open)).toBeNull();
+  });
+
+  it('filters by status and sorts by deadline', async () => {
+    const { list, fixture, element } = await render();
+    const filter = list()!.filters()[0];
+    expect(filter.label).toBe('Status');
+    expect(filter.options?.map((o) => o.label)).toEqual([
+      'Not started',
+      'In progress',
+      'Failed',
+      'Overdue',
+      'Passed',
+    ]);
+
+    list()!.filterValues.set({ status: 'overdue' });
+    await fixture.whenStable();
+    const overdueCount = list()!
+      .items()
+      .filter((a) => a.status === 'overdue').length;
+    expect(element.textContent).toContain(
+      `${overdueCount} of ${list()!.items().length} assignments`,
+    );
+
+    const deadline = list()!
+      .columns()
+      .find((c) => c.id === 'dueAt')!;
+    expect(deadline.sortable).toBe(true);
+  });
+
+  it('offers Change deadline on every assignment that is not passed', async () => {
+    const { list } = await render();
+    const action = list()!
+      .actions()
+      .find((a) => a.id === 'change-deadline')!;
+    const items = list()!.items();
+
+    expect(action.label).toBe('Change deadline');
+    expect(action.hidden?.(items.find((a) => a.status === 'passed')!)).toBe(true);
+    expect(action.hidden?.(items.find((a) => a.status === 'overdue')!)).toBe(false);
+  });
+
+  it('changes a deadline from the dialog, then confirms and reloads the list', async () => {
+    const { list, fixture, toasts, element } = await render();
+    const overdue = list()!
+      .items()
+      .find((a) => a.status === 'overdue')!;
+
+    list()!.actionClick.emit({ action: 'change-deadline', row: overdue });
+    await fixture.whenStable();
+    const dialog = fixture.debugElement.query(By.directive(ChangeDeadlineDialog));
+    expect(dialog).not.toBeNull();
+    expect(element.textContent).toContain('Change deadline');
+
+    const dueAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    (dialog.componentInstance as ChangeDeadlineDialog).saved.emit({ ...overdue, dueAt });
+    await fixture.whenStable();
+
+    expect(toasts.toasts()).toEqual([
+      expect.objectContaining({ tone: 'success', heading: 'Deadline changed' }),
+    ]);
   });
 
   it('searches employee names ignoring the kind of apostrophe', async () => {

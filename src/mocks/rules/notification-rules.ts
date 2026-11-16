@@ -15,6 +15,9 @@ import { DEADLINE_REMINDER_MS } from './training-rules';
  * Whether an assignment is due a deadline reminder now: its deadline is 3 days away or less and
  * still in the future, it is not passed, its employee is active, and it has no reminder yet.
  * An assignment created less than 3 days before its deadline still gets one.
+ *
+ * An assignment gets at most one reminder: once one is sent, a later change of its deadline does
+ * not send another, because the check is by assignment, not by deadline.
  */
 export function needsDeadlineReminder(
   assignment: Pick<AssignmentRecord, 'id' | 'dueAt'>,
